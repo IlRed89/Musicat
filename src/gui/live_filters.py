@@ -577,6 +577,32 @@ class LiveFilterBar(QFrame):
         crate_box.addWidget(self.btn_save_crate)
         crate_box.addWidget(self.btn_export_m3u)
 
+        # Drive / Directory Folder Filter
+        folder_box = QHBoxLayout()
+        folder_box.setSpacing(4)
+        folder_lbl = QLabel("📁 Cartella:")
+        self.cmb_folder = QComboBox()
+        self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
+        self.cmb_folder.setFixedWidth(150)
+        self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
+        folder_box.addWidget(folder_lbl)
+        folder_box.addWidget(self.cmb_folder)
+
+        # Cover Art Filter
+        cover_box = QHBoxLayout()
+        cover_box.setSpacing(4)
+        cover_lbl = QLabel("🖼️ Cover:")
+        self.cmb_cover = QComboBox()
+        self.cmb_cover.addItem("Tutte", "")
+        self.cmb_cover.addItem("Con Cover", "with_cover")
+        self.cmb_cover.addItem("Senza Cover", "without_cover")
+        self.cmb_cover.setFixedWidth(110)
+        self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
+        cover_box.addWidget(cover_lbl)
+        cover_box.addWidget(self.cmb_cover)
+
+        row2.addLayout(folder_box)
+        row2.addLayout(cover_box)
         row2.addLayout(year_box)
         row2.addLayout(energy_box)
         row2.addLayout(rating_box)
@@ -587,6 +613,7 @@ class LiveFilterBar(QFrame):
         main_layout.addLayout(row2)
 
         self._refresh_crates_dropdown()
+        self.refresh_directories()
 
     def _connect_signals(self) -> None:
         self.txt_search.textChanged.connect(self._trigger_debounce)
@@ -597,6 +624,8 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.valueChanged.connect(self._trigger_debounce)
         self.cmb_camelot.currentIndexChanged.connect(self._trigger_debounce)
         self.chk_harmonic_only.toggled.connect(self._trigger_debounce)
+        self.cmb_folder.currentIndexChanged.connect(self._trigger_debounce)
+        self.cmb_cover.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_decade.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_energy.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_rating.currentIndexChanged.connect(self._trigger_debounce)
@@ -638,6 +667,8 @@ class LiveFilterBar(QFrame):
         energy_levels = self.cmb_energy.currentData() or []
         rating_min = self.cmb_rating.currentData()
         quality_filter = self.cmb_quality.currentData() or None
+        folder_path = self.cmb_folder.currentData() or None
+        cover_filter = self.cmb_cover.currentData() or None
 
         active_tags = []
         if self.btn_tag_intro.isChecked():
@@ -666,6 +697,8 @@ class LiveFilterBar(QFrame):
             energy_levels=energy_levels,
             tags=active_tags,
             quality_filter=quality_filter,
+            folder_path=folder_path,
+            cover_filter=cover_filter,
         )
 
     def set_criteria(self, criteria: FilterCriteria) -> None:
@@ -697,6 +730,23 @@ class LiveFilterBar(QFrame):
 
         self.chk_harmonic_only.setChecked(criteria.harmonic_matches_only)
 
+        if getattr(criteria, "folder_path", None):
+            idx = self.cmb_folder.findData(criteria.folder_path)
+            if idx >= 0:
+                self.cmb_folder.setCurrentIndex(idx)
+            else:
+                self.cmb_folder.addItem(criteria.folder_path, criteria.folder_path)
+                self.cmb_folder.setCurrentIndex(self.cmb_folder.count() - 1)
+        else:
+            self.cmb_folder.setCurrentIndex(0)
+
+        if getattr(criteria, "cover_filter", None):
+            idx = self.cmb_cover.findData(criteria.cover_filter)
+            if idx >= 0:
+                self.cmb_cover.setCurrentIndex(idx)
+        else:
+            self.cmb_cover.setCurrentIndex(0)
+
         if getattr(criteria, "quality_filter", None):
             idx = self.cmb_quality.findData(criteria.quality_filter)
             if idx >= 0:
@@ -723,6 +773,8 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.setValue(0)
         self.cmb_camelot.setCurrentIndex(0)
         self.chk_harmonic_only.setChecked(True)
+        self.cmb_folder.setCurrentIndex(0)
+        self.cmb_cover.setCurrentIndex(0)
         self.cmb_decade.setCurrentIndex(0)
         self.cmb_energy.setCurrentIndex(0)
         self.cmb_rating.setCurrentIndex(0)
@@ -731,6 +783,40 @@ class LiveFilterBar(QFrame):
             btn.setChecked(False)
 
         self._emit_filter_changed()
+
+    def refresh_directories(self) -> None:
+        """Refreshes distinct directories dropdown from the database."""
+        if not self.db:
+            return
+        cur_val = self.cmb_folder.currentData() or ""
+        self.cmb_folder.blockSignals(True)
+        self.cmb_folder.clear()
+        self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
+        try:
+            dirs = self.db.get_distinct_directories()
+            for d in dirs:
+                display = d
+                if len(display) > 36:
+                    display = "..." + display[-33:]
+                self.cmb_folder.addItem(display, d)
+        except Exception:
+            pass
+        idx = self.cmb_folder.findData(cur_val)
+        if idx >= 0:
+            self.cmb_folder.setCurrentIndex(idx)
+        else:
+            self.cmb_folder.setCurrentIndex(0)
+        self.cmb_folder.blockSignals(False)
+
+    def set_folder_filter(self, folder_path: str) -> None:
+        """Sets active folder filter and triggers debounced search."""
+        idx = self.cmb_folder.findData(folder_path)
+        if idx >= 0:
+            self.cmb_folder.setCurrentIndex(idx)
+        else:
+            self.cmb_folder.addItem(folder_path, folder_path)
+            self.cmb_folder.setCurrentIndex(self.cmb_folder.count() - 1)
+        self._trigger_debounce()
 
     def _open_camelot_wheel(self) -> None:
         current_k = self.cmb_camelot.currentData() or "8A"

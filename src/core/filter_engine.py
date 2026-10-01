@@ -42,6 +42,8 @@ class FilterCriteria:
     energy_levels: List[int] = field(default_factory=list) # e.g. [1, 2, 3, 4, 5]
     tags: List[str] = field(default_factory=list)   # e.g. ['Intro', 'Vocal', 'Acapella']
     quality_filter: Optional[str] = None            # 'clipping', 'low_volume', 'brickwall', 'problematic', 'ok'
+    folder_path: Optional[str] = None               # Root drive or folder prefix (e.g. 'D:/Music')
+    cover_filter: Optional[str] = None              # 'with_cover', 'without_cover'
     order_by: str = "artist, title"
     ascending: bool = True
     limit: int = 50000
@@ -63,6 +65,8 @@ class FilterCriteria:
             and not self.energy_levels
             and not self.tags
             and not self.quality_filter
+            and not self.folder_path
+            and not self.cover_filter
         )
 
     def effective_bpm_range(self) -> Tuple[Optional[float], Optional[float]]:
@@ -214,6 +218,20 @@ class LiveFilterQueryBuilder:
             elif qf == "ok":
                 where_clauses.append("audio_status = 'OK'")
 
+        # 10. Folder / Drive Filter
+        if criteria.folder_path and criteria.folder_path.strip():
+            fp_clean = f"{criteria.folder_path.strip()}%"
+            where_clauses.append("(filepath LIKE ? OR directory LIKE ?)")
+            params.extend([fp_clean, fp_clean])
+
+        # 11. Cover Art Filter
+        if criteria.cover_filter:
+            cf = criteria.cover_filter.lower().strip()
+            if cf == "with_cover":
+                where_clauses.append("has_cover = 1")
+            elif cf == "without_cover":
+                where_clauses.append("(has_cover = 0 OR has_cover IS NULL)")
+
         # Sorting sanitation
         allowed_sort = {
             "id", "filepath", "filename", "artist", "title", "album", "year",
@@ -311,6 +329,8 @@ class LiveFilterEngine:
         year_min = criteria.year_min
         year_max = criteria.year_max
         quality_filter = criteria.quality_filter.lower().strip() if criteria.quality_filter else None
+        folder_filter = criteria.folder_path.strip().lower() if criteria.folder_path else None
+        cover_filter = criteria.cover_filter.lower().strip() if criteria.cover_filter else None
 
         filtered: List[Dict[str, Any]] = []
 
@@ -404,6 +424,21 @@ class LiveFilterEngine:
                 elif quality_filter == "ok":
                     if status != "OK":
                         continue
+
+            # 10. Folder / Drive Filter
+            if folder_filter:
+                tr_dir = (tr.get("directory") or "").lower()
+                tr_fp = (tr.get("filepath") or "").lower()
+                if not (tr_fp.startswith(folder_filter) or tr_dir.startswith(folder_filter)):
+                    continue
+
+            # 11. Cover Art Filter
+            if cover_filter:
+                has_cov = bool(tr.get("has_cover"))
+                if cover_filter == "with_cover" and not has_cov:
+                    continue
+                elif cover_filter == "without_cover" and has_cov:
+                    continue
 
             filtered.append(tr)
 

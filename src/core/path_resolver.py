@@ -10,6 +10,7 @@ import os
 import sys
 import ctypes
 import re
+import subprocess
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
@@ -279,3 +280,36 @@ class PathResolver:
                     return candidate
 
         return os.path.normpath(portable_path)
+
+    @classmethod
+    def show_in_file_manager(cls, file_path: Union[str, Path]) -> bool:
+        """Opens native file manager (Explorer / Finder / xdg-open) selecting the specified file.
+
+        Args:
+            file_path: Absolute or relative path to file or directory.
+
+        Returns:
+            bool: True if process launched successfully, False otherwise.
+        """
+        try:
+            p = Path(file_path).resolve()
+            if not p.exists():
+                return False
+
+            norm_p = os.path.normpath(str(p))
+
+            if sys.platform == "win32":
+                # Windows Explorer: /select,<path> highlights the file
+                subprocess.Popen(["explorer", f"/select,{norm_p}"])
+                return True
+            elif sys.platform == "darwin":
+                # macOS Finder: open -R <path> reveals the file
+                subprocess.Popen(["open", "-R", norm_p])
+                return True
+            else:
+                # Linux: open containing folder
+                target_dir = norm_p if p.is_dir() else str(p.parent)
+                subprocess.Popen(["xdg-open", target_dir])
+                return True
+        except Exception:
+            return False

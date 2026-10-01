@@ -27,7 +27,12 @@ from PySide6.QtWidgets import (
 from ..audio.waveform import WaveformGenerator
 from ..core.memory_cache import WaveformMemoryCache
 from ..player.vlc_engine import VLCAudioPlayer
-from .views import LoudnessMeterBar, QualityDiagnosisDialog
+from .views import (
+    BreadcrumbBar,
+    LoudnessMeterBar,
+    QualityDiagnosisDialog,
+    SimilarTracksDialog,
+)
 
 
 class WaveformCanvas(QWidget):
@@ -115,6 +120,7 @@ class MiniPlayerWidget(QFrame):
 
     position_tick = Signal(int, int)
     track_normalized = Signal(str)
+    directory_selected = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -137,9 +143,14 @@ class MiniPlayerWidget(QFrame):
         self._connect_signals()
 
     def _init_ui(self) -> None:
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(14, 8, 14, 8)
-        main_layout.setSpacing(14)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(14, 6, 14, 4)
+        outer_layout.setSpacing(4)
+
+        # Top: Primary Player Controls Row
+        player_row = QHBoxLayout()
+        player_row.setContentsMargins(0, 0, 0, 0)
+        player_row.setSpacing(14)
 
         # Left: Track Info Panel
         info_layout = QVBoxLayout()
@@ -228,11 +239,31 @@ class MiniPlayerWidget(QFrame):
         """)
         self.btn_normalize.clicked.connect(self._on_open_quality_dialog)
 
+        self.btn_similar = QPushButton("✨ Simili")
+        self.btn_similar.setToolTip("Trova tracce simili nella libreria e online (Cosine & Camelot)")
+        self.btn_similar.setStyleSheet("""
+            QPushButton {
+                background-color: #1e1b4b;
+                border: 1px solid #7c3aed;
+                color: #c084fc;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 7px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #7c3aed;
+                color: #ffffff;
+            }
+        """)
+        self.btn_similar.clicked.connect(self._on_open_similar_dialog)
+
         self.time_label = QLabel("00:00 / 00:00")
         self.time_label.setStyleSheet("color: #8c92a4; font-size: 11px; font-family: monospace;")
 
         meter_layout.addWidget(self.meter_bar, 1)
         meter_layout.addWidget(self.btn_normalize)
+        meter_layout.addWidget(self.btn_similar)
         meter_layout.addStretch()
         meter_layout.addWidget(self.time_label)
 
@@ -275,12 +306,19 @@ class MiniPlayerWidget(QFrame):
         vol_layout.addWidget(vol_icon)
         vol_layout.addWidget(self.vol_slider)
 
-        # Assemble main layout
-        main_layout.addLayout(info_layout, 2)
-        main_layout.addLayout(ctrl_layout, 1)
-        main_layout.addLayout(waveform_container, 4)
-        main_layout.addLayout(pitch_box, 1)
-        main_layout.addLayout(vol_layout, 1)
+        # Assemble row
+        player_row.addLayout(info_layout, 2)
+        player_row.addLayout(ctrl_layout, 1)
+        player_row.addLayout(waveform_container, 4)
+        player_row.addLayout(pitch_box, 1)
+        player_row.addLayout(vol_layout, 1)
+
+        outer_layout.addLayout(player_row)
+
+        # Bottom: Breadcrumbs Path Navigation Bar
+        self.breadcrumb_bar = BreadcrumbBar(self)
+        self.breadcrumb_bar.directory_selected.connect(self.directory_selected.emit)
+        outer_layout.addWidget(self.breadcrumb_bar)
 
     def _connect_signals(self) -> None:
         self.btn_play.clicked.connect(self.toggle_play_pause)
@@ -305,6 +343,7 @@ class MiniPlayerWidget(QFrame):
         """Loads and prepares track for playback."""
         self.current_track = track
         filepath = track.get("filepath", "")
+        self.breadcrumb_bar.set_path(filepath)
 
         self.title_label.setText(track.get("title") or Path(filepath).stem)
         self.artist_label.setText(track.get("artist") or "Unknown Artist")
@@ -450,6 +489,16 @@ class MiniPlayerWidget(QFrame):
         parent_db = getattr(self.parent(), "db", None) if self.parent() else None
         dlg = QualityDiagnosisDialog(fp, db=parent_db, parent=self)
         dlg.normalization_applied.connect(self._on_track_normalized)
+        dlg.exec()
+
+    def _on_open_similar_dialog(self) -> None:
+        """Opens Similar Tracks recommendation dialog for currently loaded track."""
+        if not self.current_track:
+            return
+        parent_db = getattr(self.parent(), "db", None) if self.parent() else None
+        dlg = SimilarTracksDialog(self.current_track, db=parent_db, parent=self)
+        dlg.play_requested.connect(self.load_track)
+        dlg.play_requested.connect(lambda _: self.play())
         dlg.exec()
 
     def _on_track_normalized(self, normalized_path: str) -> None:

@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QTableView,
     QToolBar,
     QTreeWidget,
@@ -59,7 +60,7 @@ from .reconciler_dialog import ReconcilerDialog
 from .analysis_dialog import AcousticAnalysisDialog
 from .settings_dialog import SettingsDialog
 from .mp3tag_workspace import Mp3tagWorkspaceWindow
-from .views import QualityDiagnosisDialog
+from .views import HomeTrendsView, QualityDiagnosisDialog, SimilarTracksDialog
 from .styles import get_theme_stylesheet
 
 
@@ -157,11 +158,47 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
+        # 1. Top View Navigation Bar (Home Trends vs DJ Library)
+        self.nav_bar = QFrame(self)
+        self.nav_bar.setStyleSheet("""
+            QFrame {
+                background-color: #0d0f16;
+                border-bottom: 2px solid #1e2232;
+                padding: 4px 10px;
+            }
+        """)
+        nav_layout = QHBoxLayout(self.nav_bar)
+        nav_layout.setContentsMargins(10, 4, 10, 4)
+        nav_layout.setSpacing(8)
+
+        self.btn_nav_library = QPushButton("🎵 DJ Library & Crates")
+        self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
+
+        self.btn_nav_trends = QPushButton("🏠 Home Trends & Top Charts")
+        self.btn_nav_trends.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_trends.clicked.connect(lambda: self._switch_view(1))
+
+        nav_layout.addWidget(self.btn_nav_library)
+        nav_layout.addWidget(self.btn_nav_trends)
+        nav_layout.addStretch()
+
+        main_layout.addWidget(self.nav_bar)
+
+        # 2. Central View Stack (0: DJ Library, 1: Home Trends)
+        self.view_stack = QStackedWidget(self)
+
+        # Page 0: DJ Library Container (Filter Bar + Sidebar + Table View)
+        self.library_container = QWidget(self)
+        lib_layout = QVBoxLayout(self.library_container)
+        lib_layout.setContentsMargins(0, 0, 0, 0)
+        lib_layout.setSpacing(0)
+
         # High-Performance Live DJ Filter Bar & Crate Builder
         self.filter_bar = LiveFilterBar(self.db, self)
         self.filter_bar.filter_changed.connect(self._on_live_filter_changed)
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
-        main_layout.addWidget(self.filter_bar)
+        lib_layout.addWidget(self.filter_bar)
 
         # Horizontal Splitter for Collapsible Sidebar + Table View
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
@@ -227,12 +264,24 @@ class MainWindow(QMainWindow):
         self.main_splitter.setStretchFactor(0, 1)
         self.main_splitter.setStretchFactor(1, 5)
 
-        main_layout.addWidget(self.main_splitter, 1)
+        lib_layout.addWidget(self.main_splitter, 1)
+        self.view_stack.addWidget(self.library_container)
+
+        # Page 1: Home Trends Dashboard
+        self.home_view = HomeTrendsView(self.db, self)
+        self.home_view.play_track_requested.connect(self._on_home_play_track)
+        self.home_view.find_similar_requested.connect(self._on_home_find_similar)
+        self.view_stack.addWidget(self.home_view)
+
+        main_layout.addWidget(self.view_stack, 1)
 
         # Bottom Mini-Player
         self.player_widget = MiniPlayerWidget(self)
         self.player_widget.track_normalized.connect(lambda _: self._refresh_library())
+        self.player_widget.directory_selected.connect(self._on_breadcrumb_directory_selected)
         main_layout.addWidget(self.player_widget)
+
+        self._switch_view(0)
 
         # Status Bar
         self.status_bar = self.statusBar()
@@ -301,6 +350,13 @@ class MainWindow(QMainWindow):
         act_quality.setShortcut(QKeySequence("Ctrl+Q"))
         act_quality.triggered.connect(self._on_action_quality_diagnosis)
         tb.addAction(act_quality)
+
+        # Smart Recommendations (Similar Tracks)
+        act_similar = QAction("✨ Trova Simili", self)
+        act_similar.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        act_similar.setToolTip("Cerca tracce simili per affinità armonica, BPM e genere online e locale")
+        act_similar.triggered.connect(self._on_action_find_similar)
+        tb.addAction(act_similar)
 
         tb.addSeparator()
 
@@ -387,6 +443,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+X"), self).activated.connect(self._on_cut_tracks)
         QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._on_copy_tracks)
         QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(self._on_paste_tracks)
+        QShortcut(QKeySequence("Alt+1"), self).activated.connect(lambda: self._switch_view(0))
+        QShortcut(QKeySequence("Alt+2"), self).activated.connect(lambda: self._switch_view(1))
+        QShortcut(QKeySequence("Ctrl+Shift+S"), self).activated.connect(self._on_action_find_similar)
 
     def _on_space_pressed(self) -> None:
         """Toggles playback on active deck or auditions selected table track."""
@@ -404,9 +463,12 @@ class MainWindow(QMainWindow):
         self.filter_engine.warm_cache(self.all_tracks)
         self._on_live_filter_changed(self.filter_bar.get_current_criteria())
         self.filter_bar._refresh_crates_dropdown()
+        self.filter_bar.refresh_directories()
         self.filter_bar.genre_widget._refresh_completer()
         self.filter_bar.genre_widget._build_menu()
         self._populate_sidebar_tree()
+        if hasattr(self, "home_view"):
+            self.home_view.refresh_library_status()
 
         total_dur = sum(t.get("duration") or 0.0 for t in self.all_tracks)
         hours = int(total_dur // 3600)
@@ -739,6 +801,7 @@ class MainWindow(QMainWindow):
 
         if selected:
             act_play = menu.addAction("▶ Play in Mini-Player")
+            act_similar = menu.addAction("✨ Trova Tracce Simili (Cosine & Library)...")
             menu.addSeparator()
             act_cut = menu.addAction("✂️ Cut Track(s) (Ctrl+X)")
             act_copy = menu.addAction("📋 Copy Track(s) (Ctrl+C)")
@@ -752,10 +815,10 @@ class MainWindow(QMainWindow):
             act_quality = menu.addAction("🔊 Diagnosi Qualità Audio & Normalizza...")
             act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
             menu.addSeparator()
-            act_folder = menu.addAction("📂 Open in Windows Explorer")
+            act_folder = menu.addAction("📂 Mostra nella cartella (Show in Folder)")
         else:
             act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
-            act_play = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_quality = act_sorter = act_folder = None
+            act_play = act_similar = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_quality = act_sorter = act_folder = None
 
         action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
         if not action:
@@ -764,6 +827,8 @@ class MainWindow(QMainWindow):
         if action == act_play and selected:
             self.player_widget.load_track(selected[0])
             self.player_widget.play()
+        elif action == act_similar and selected:
+            self._on_home_find_similar(selected[0])
         elif action == act_cut:
             self._on_cut_tracks()
         elif action == act_copy:
@@ -786,8 +851,8 @@ class MainWindow(QMainWindow):
             self._on_open_sorter()
         elif action == act_folder and selected:
             fp = selected[0].get("filepath", "")
-            if fp and Path(fp).exists():
-                os.system(f'explorer /select,"{os.path.normpath(fp)}"')
+            if fp:
+                PathResolver.show_in_file_manager(fp)
 
     def _on_action_quality_diagnosis(self) -> None:
         """Opens audio quality diagnosis for selected track or currently playing deck."""
@@ -812,3 +877,70 @@ class MainWindow(QMainWindow):
         dlg = QualityDiagnosisDialog(fp, db=self.db, parent=self)
         dlg.normalization_applied.connect(lambda _: self._refresh_library())
         dlg.exec()
+
+    def _switch_view(self, index: int) -> None:
+        """Switches between DJ Library (0) and Home Trends (1)."""
+        self.view_stack.setCurrentIndex(index)
+        btn_active = """
+            QPushButton {
+                background-color: #0284c7;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 4px 14px;
+                border: 1px solid #38bdf8;
+                border-radius: 4px;
+            }
+        """
+        btn_inactive = """
+            QPushButton {
+                background-color: #171924;
+                color: #94a3b8;
+                font-size: 11px;
+                padding: 4px 14px;
+                border: 1px solid #282d3f;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #212536;
+                color: #e2e8f0;
+            }
+        """
+        if index == 0:
+            self.btn_nav_library.setStyleSheet(btn_active)
+            self.btn_nav_trends.setStyleSheet(btn_inactive)
+        else:
+            self.btn_nav_library.setStyleSheet(btn_inactive)
+            self.btn_nav_trends.setStyleSheet(btn_active)
+            if hasattr(self, "home_view"):
+                self.home_view.refresh_library_status()
+
+    def _on_home_play_track(self, track: Dict[str, Any]) -> None:
+        """Plays a track requested from Home Trends view or discovery dialog."""
+        self.player_widget.load_track(track)
+        self.player_widget.play()
+
+    def _on_home_find_similar(self, track: Dict[str, Any]) -> None:
+        """Opens Similar Tracks recommendation dialog for track."""
+        dlg = SimilarTracksDialog(track, db=self.db, parent=self)
+        dlg.play_requested.connect(self._on_home_play_track)
+        dlg.exec()
+
+    def _on_action_find_similar(self) -> None:
+        """Finds similar tracks for selected library track or currently playing deck."""
+        selected = self._get_selected_tracks()
+        if selected:
+            self._on_home_find_similar(selected[0])
+        elif self.player_widget.current_track:
+            self._on_home_find_similar(self.player_widget.current_track)
+        else:
+            QMessageBox.information(
+                self,
+                "Trova Tracce Simili",
+                "Seleziona una traccia dalla tabella o carica un brano nel player per cercare tracce simili.",
+            )
+
+    def _on_breadcrumb_directory_selected(self, directory_path: str) -> None:
+        """Filters library table to directory clicked in MiniPlayer breadcrumbs."""
+        self._switch_view(0)
+        self.filter_bar.set_folder_filter(directory_path)

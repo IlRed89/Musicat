@@ -175,7 +175,15 @@ class Database:
 
     def insert_or_update_track(self, track_data: Dict[str, Any]) -> int:
         """Inserts or updates a single track record."""
-        cols = list(track_data.keys())
+        data = dict(track_data)
+        fp = data.get("filepath")
+        if fp:
+            if "filename" not in data or not data["filename"]:
+                data["filename"] = Path(fp).name
+            if "directory" not in data or not data["directory"]:
+                data["directory"] = str(Path(fp).parent)
+
+        cols = list(data.keys())
         placeholders = [f":{col}" for col in cols]
         update_assignments = [f"{col}=excluded.{col}" for col in cols if col not in ("id", "filepath", "created_at")]
 
@@ -187,7 +195,7 @@ class Database:
         """
         with self.get_connection() as conn:
             cur = conn.cursor()
-            cur.execute(sql, track_data)
+            cur.execute(sql, data)
             return cur.lastrowid or 0
 
     insert_track = insert_or_update_track
@@ -200,6 +208,12 @@ class Database:
         # Uniform columns across all dicts
         all_cols = set()
         for t in track_list:
+            fp = t.get("filepath")
+            if fp:
+                if "filename" not in t or not t["filename"]:
+                    t["filename"] = Path(fp).name
+                if "directory" not in t or not t["directory"]:
+                    t["directory"] = str(Path(fp).parent)
             all_cols.update(t.keys())
         cols = sorted(list(all_cols))
 
@@ -531,4 +545,47 @@ class Database:
                 ORDER BY genre ASC
             """)
             return [row[0] for row in cur.fetchall()]
+
+    def get_distinct_directories(self) -> List[str]:
+        """Returns sorted list of distinct directories containing tracks."""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT DISTINCT directory FROM tracks
+                WHERE directory IS NOT NULL AND TRIM(directory) != ''
+                ORDER BY directory ASC
+            """)
+            return [row[0] for row in cur.fetchall()]
+
+    def find_tracks_by_artist_title(self, artist: str, title: str) -> List[Dict[str, Any]]:
+        """Fast lookup of tracks matching artist and title (case-insensitive substring and collaboration match)."""
+        clean_a = artist.strip()
+        clean_t = title.strip()
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            # 1. Direct bi-directional substring match
+            cur.execute("""
+                SELECT * FROM tracks
+                WHERE (artist LIKE ? OR ? LIKE '%' || artist || '%' OR remixer LIKE ?)
+                  AND (title LIKE ? OR ? LIKE '%' || title || '%')
+                LIMIT 10
+            """, (f"%{clean_a}%", clean_a, f"%{clean_a}%", f"%{clean_t}%", clean_t))
+            rows = cur.fetchall()
+            if rows:
+                return [dict(row) for row in rows]
+
+            # 2. Match primary artist and core title
+            primary_artist = re.split(r"\s*(?:&|feat\.?|ft\.?|,|\/)\s*", clean_a, flags=re.IGNORECASE)[0].strip()
+            main_title = re.sub(r"[\(\[\{].*?[\)\]\}]", "", clean_t).strip()
+            if primary_artist and main_title:
+                cur.execute("""
+                    SELECT * FROM tracks
+                    WHERE (artist LIKE ? OR ? LIKE '%' || artist || '%')
+                      AND (title LIKE ? OR ? LIKE '%' || title || '%')
+                    LIMIT 10
+                """, (f"%{primary_artist}%", primary_artist, f"%{main_title}%", main_title))
+                return [dict(row) for row in cur.fetchall()]
+
+            return []
+
 
