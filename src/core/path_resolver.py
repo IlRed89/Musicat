@@ -1,7 +1,9 @@
 """
 Path Resolver & Portability Engine for Musicat.
+
 Ensures file references survive drive letter changes when operating
 from external USB drives and removable storage across different Windows machines.
+Detects dual-mode execution (Standard in %APPDATA% vs Portable with portable.lock).
 """
 
 import os
@@ -13,9 +15,11 @@ from typing import Dict, Optional, Tuple
 
 
 class PathResolver:
-    """
-    Translates absolute paths to portable volume-independent identifiers and vice versa.
-    Format: [VOL:XXXXXXXX]/path/to/track.mp3 or [APP]/path/to/track.mp3
+    """Translates absolute paths to portable volume-independent identifiers and vice versa.
+
+    Format:
+        [VOL:XXXXXXXX]/path/to/track.mp3
+        [APP]/path/to/track.mp3
     """
 
     _volume_cache: Dict[str, str] = {}  # serial_number -> current_drive_root (e.g. "E:\\")
@@ -23,38 +27,72 @@ class PathResolver:
 
     @classmethod
     def get_app_dir(cls) -> Path:
-        """Returns the directory where the application is installed/running."""
+        """Returns the directory where the application is installed or running.
+
+        Returns:
+            Path: Absolute path to the directory containing the executable or main script.
+        """
         if getattr(sys, "frozen", False):
-            # PyInstaller creates a temp folder and stores path in _MEIPASS,
+            # PyInstaller creates a temporary folder and stores path in _MEIPASS,
             # but executable lives in sys.executable directory.
             return Path(sys.executable).parent.resolve()
         return Path(__file__).resolve().parent.parent.parent
 
     @classmethod
-    def get_data_dir(cls) -> Path:
-        """
-        Returns portable data directory (musicat_data next to exe/app),
-        falling back to APPDATA if the app directory is read-only.
+    def is_portable_mode(cls) -> bool:
+        """Checks whether Musicat is running in standalone portable mode.
+
+        Portable mode is active if a 'portable.lock' file exists in the application root,
+        or if a local 'musicat_data' directory is already present alongside the executable.
+
+        Returns:
+            bool: True if portable mode is enabled, False for standard OS installation.
         """
         app_dir = cls.get_app_dir()
-        portable_data_dir = app_dir / "musicat_data"
-        try:
-            portable_data_dir.mkdir(parents=True, exist_ok=True)
-            test_file = portable_data_dir / ".write_test"
-            test_file.write_text("ok", encoding="utf-8")
-            test_file.unlink(missing_ok=True)
-            return portable_data_dir
-        except Exception:
-            appdata = os.getenv("APPDATA") or str(Path.home())
-            fallback = Path(appdata) / "Musicat"
-            fallback.mkdir(parents=True, exist_ok=True)
-            return fallback
+        lock_file = app_dir / "portable.lock"
+        local_data = app_dir / "musicat_data"
+        return lock_file.exists() or local_data.exists()
+
+    @classmethod
+    def get_data_dir(cls) -> Path:
+        """Resolves the active data directory for SQLite database, logs, and cache.
+
+        If in portable mode (portable.lock exists), data is strictly isolated
+        in './musicat_data' next to the app. In standard mode, '%APPDATA%/Musicat'
+        is used.
+
+        Returns:
+            Path: Path to the active data folder.
+        """
+        app_dir = cls.get_app_dir()
+
+        if cls.is_portable_mode():
+            portable_data_dir = app_dir / "musicat_data"
+            try:
+                portable_data_dir.mkdir(parents=True, exist_ok=True)
+                test_file = portable_data_dir / ".write_test"
+                test_file.write_text("ok", encoding="utf-8")
+                test_file.unlink(missing_ok=True)
+                return portable_data_dir
+            except Exception:
+                # If USB is read-only, fallback to APPDATA
+                pass
+
+        # Standard installation mode
+        appdata = os.getenv("APPDATA") or str(Path.home())
+        standard_dir = Path(appdata) / "Musicat"
+        standard_dir.mkdir(parents=True, exist_ok=True)
+        return standard_dir
 
     @classmethod
     def get_volume_serial(cls, drive_or_path: str) -> Optional[str]:
-        """
-        Retrieves the 32-bit hex Volume Serial Number for a given path or drive letter on Windows.
-        Returns None on non-Windows or if query fails.
+        """Retrieves the 32-bit hex Volume Serial Number for a given path or drive letter on Windows.
+
+        Args:
+            drive_or_path (str): Filepath or drive letter (e.g. 'E:' or 'E:\\Music').
+
+        Returns:
+            Optional[str]: Hexadecimal Volume Serial Number (e.g. '3C4D1A2B') or None.
         """
         drive = os.path.splitdrive(os.path.abspath(drive_or_path))[0]
         if not drive:
@@ -97,7 +135,7 @@ class PathResolver:
 
     @classmethod
     def refresh_volume_map(cls) -> None:
-        """Refreshes the mapping of all connected drives and their volume serials."""
+        """Refreshes the internal mapping of all connected drives and their volume serials."""
         cls._volume_cache.clear()
         cls._drive_serial_cache.clear()
 
@@ -117,10 +155,15 @@ class PathResolver:
 
     @classmethod
     def to_portable_path(cls, abs_path: str) -> Tuple[str, Optional[str]]:
-        """
-        Converts an absolute path to a portable representation and volume serial.
-        Returns: (portable_path, volume_serial)
-        Example: ('[VOL:9A1B2C3D]/DJs/Tracks/song.mp3', '9A1B2C3D')
+        """Converts an absolute path to a portable volume-independent representation.
+
+        Args:
+            abs_path (str): Full absolute system path.
+
+        Returns:
+            Tuple[str, Optional[str]]: Tuple containing:
+                - portable_path: e.g. '[VOL:3C4D1A2B]/Music/Track.mp3' or '[APP]/Music/Track.mp3'
+                - volume_serial: 8-character hex volume serial number, or None.
         """
         normalized = os.path.abspath(abs_path)
         app_dir = str(cls.get_app_dir())
@@ -144,8 +187,13 @@ class PathResolver:
 
     @classmethod
     def to_absolute_path(cls, portable_path: str) -> str:
-        """
-        Resolves a portable path to the current machine's absolute path.
+        """Resolves a portable path to the current machine's absolute path.
+
+        Args:
+            portable_path (str): Path stored with [VOL:XXXXXXXX] or [APP] token.
+
+        Returns:
+            str: Resolved absolute path on the current system.
         """
         if not portable_path:
             return ""

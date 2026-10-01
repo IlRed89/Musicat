@@ -3,6 +3,7 @@ High-Performance SQLite Database Engine for Musicat.
 Optimized for 50,000+ tracks with WAL mode, prepared statements, and DJ-centric indexes.
 """
 
+import re
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -99,6 +100,40 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks (year);
                 CREATE INDEX IF NOT EXISTS idx_tracks_label ON tracks (label);
                 CREATE INDEX IF NOT EXISTS idx_tracks_rating ON tracks (rating);
+
+                -- FTS5 Full-Text Search Virtual Table
+                CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
+                    title,
+                    artist,
+                    album,
+                    genre,
+                    label,
+                    remixer,
+                    comment,
+                    filename,
+                    content='tracks',
+                    content_rowid='id'
+                );
+
+                -- Synchronize FTS on Insert
+                CREATE TRIGGER IF NOT EXISTS trg_tracks_ai AFTER INSERT ON tracks BEGIN
+                    INSERT INTO tracks_fts(rowid, title, artist, album, genre, label, remixer, comment, filename)
+                    VALUES (new.id, new.title, new.artist, new.album, new.genre, new.label, new.remixer, new.comment, new.filename);
+                END;
+
+                -- Synchronize FTS on Delete
+                CREATE TRIGGER IF NOT EXISTS trg_tracks_ad AFTER DELETE ON tracks BEGIN
+                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist, album, genre, label, remixer, comment, filename)
+                    VALUES('delete', old.id, old.title, old.artist, old.album, old.genre, old.label, old.remixer, old.comment, old.filename);
+                END;
+
+                -- Synchronize FTS on Update
+                CREATE TRIGGER IF NOT EXISTS trg_tracks_au AFTER UPDATE ON tracks BEGIN
+                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist, album, genre, label, remixer, comment, filename)
+                    VALUES('delete', old.id, old.title, old.artist, old.album, old.genre, old.label, old.remixer, old.comment, old.filename);
+                    INSERT INTO tracks_fts(rowid, title, artist, album, genre, label, remixer, comment, filename)
+                    VALUES (new.id, new.title, new.artist, new.album, new.genre, new.label, new.remixer, new.comment, new.filename);
+                END;
             """)
 
     def insert_or_update_track(self, track_data: Dict[str, Any]) -> int:
@@ -206,8 +241,24 @@ class Database:
         limit: int = 100000,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """
-        Searches tracks with fast multi-attribute filtering.
+        """Searches tracks with fast multi-attribute filtering.
+
+        Args:
+            query (str): Substring search across title, artist, album, filename, etc.
+            genre (Optional[str]): Genre filter.
+            bpm_min (Optional[float]): Minimum BPM.
+            bpm_max (Optional[float]): Maximum BPM.
+            camelot_key (Optional[str]): Camelot wheel key.
+            year_min (Optional[int]): Earliest release year.
+            year_max (Optional[int]): Latest release year.
+            rating_min (Optional[int]): Minimum star rating.
+            order_by (str): Comma separated column names for sorting.
+            ascending (bool): Sort direction.
+            limit (int): Max returned tracks.
+            offset (int): Offset for pagination.
+
+        Returns:
+            List[Dict[str, Any]]: Filtered track records.
         """
         where_clauses = ["1=1"]
         params: List[Any] = []
@@ -268,6 +319,46 @@ class Database:
             cur = conn.cursor()
             cur.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]
+
+    def search_fts(self, query: str, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Executes high-speed Full-Text Search (FTS5) across track metadata.
+
+        Args:
+            query (str): Search terms or tokens.
+            limit (int): Maximum records to return.
+
+        Returns:
+            List[Dict[str, Any]]: List of matching track records ordered by relevance.
+        """
+        if not query or not query.strip():
+            return self.search_tracks(limit=limit)
+
+        clean_query = query.strip()
+        # Tokenize and format terms for FTS prefix matching e.g. "carl*" "cox*"
+        terms = [re.sub(r'["\']', '', t) for t in clean_query.split() if t]
+        if not terms:
+            return self.search_tracks(limit=limit)
+
+        fts_expr = " ".join([f'"{t}"*' for t in terms])
+        sql = """
+            SELECT t.* FROM tracks t
+            JOIN tracks_fts fts ON t.id = fts.rowid
+            WHERE tracks_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """
+        try:
+            with self.get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute(sql, (fts_expr, limit))
+                rows = cur.fetchall()
+                if rows:
+                    return [dict(r) for r in rows]
+        except Exception:
+            pass
+
+        # Fallback to standard LIKE search
+        return self.search_tracks(query=query, limit=limit)
 
     def count_tracks(self) -> int:
         """Returns total track count."""

@@ -36,6 +36,7 @@ hiddenimports = [
     'urllib3',
     'musicbrainzngs',
     'acoustid',
+    'vlc',
 ]
 
 datas = []

@@ -1,18 +1,21 @@
 """
 Main Window for Musicat.
+
 Central DJ Console integrating virtual track library, instant multi-attribute filters,
-toolbar actions, background scanner/analyzer threads, and mini-player.
+Voidtools Everything MFT instant search, live logging console, multi-source metadata
+reconciliation, and libVLC mini-player.
 """
 
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QPoint, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -23,6 +26,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QSpinBox,
@@ -35,6 +39,8 @@ from PySide6.QtWidgets import (
 from ..core.db import Database
 from ..core.path_resolver import PathResolver
 from ..core.scanner import LibraryScanner
+from ..core.logger import MusicatLogger
+from ..core.everything_search import EverythingSearchEngine
 from ..audio.analyzer import AcousticAnalyzer
 from .table_model import TrackTableModel
 from .player_widget import MiniPlayerWidget
@@ -42,13 +48,16 @@ from .tag_editor_dialog import TagEditorDialog
 from .sorter_dialog import SorterDialog
 from .pattern_dialog import PatternDialog
 from .scraper_dialog import ScraperDialog
+from .reconciler_dialog import ReconcilerDialog
 
 
 class BackgroundScanWorker(QThread):
+    """Background worker thread for filesystem scanning and SQLite indexing."""
+
     progress = Signal(int, int, str)  # cur, total, path
     finished = Signal(dict)
 
-    def __init__(self, folder_path: str, db: Database):
+    def __init__(self, folder_path: str, db: Database) -> None:
         super().__init__()
         self.folder_path = folder_path
         self.db = db
@@ -63,10 +72,12 @@ class BackgroundScanWorker(QThread):
 
 
 class BackgroundAnalysisWorker(QThread):
+    """Background worker thread for bulk acoustic analysis (BPM & Camelot Key)."""
+
     progress = Signal(int, int, str)
     finished = Signal(int)
 
-    def __init__(self, tracks: List[Dict[str, Any]], db: Database):
+    def __init__(self, tracks: List[Dict[str, Any]], db: Database) -> None:
         super().__init__()
         self.tracks = tracks
         self.db = db
@@ -106,17 +117,20 @@ class BackgroundAnalysisWorker(QThread):
 class MainWindow(QMainWindow):
     """Musicat Primary Window."""
 
-    def __init__(self, db: Optional[Database] = None):
+    log_signal = Signal(str, int, str)  # time, level, msg
+
+    def __init__(self, db: Optional[Database] = None) -> None:
         super().__init__()
         self.db = db or Database()
         self.table_model = TrackTableModel()
         self.all_tracks: List[Dict[str, Any]] = []
 
         self.setWindowTitle("Musicat - DJ Catalog & Smart Organizer")
-        self.resize(1280, 800)
+        self.resize(1300, 820)
 
         self._init_ui()
         self._init_menu_and_toolbar()
+        self._init_live_log_dock()
         self._refresh_library()
 
     def _init_ui(self) -> None:
@@ -133,11 +147,15 @@ class MainWindow(QMainWindow):
         f_layout.setContentsMargins(10, 4, 10, 4)
         f_layout.setSpacing(10)
 
-        # Search box
+        # Search box (Everything MFT or SQLite FTS)
         self.txt_search = QLineEdit()
-        self.txt_search.setPlaceholderText("🔍 Instant Search (Title, Artist, Album, Label, Comment)...")
+        self.txt_search.setPlaceholderText("🔍 Instant Search (Everything MFT / SQLite FTS)...")
         self.txt_search.setClearButtonEnabled(True)
         self.txt_search.textChanged.connect(self._apply_filters)
+
+        # Search engine indicator badge
+        self.lbl_search_engine = QLabel("MFT / FTS")
+        self.lbl_search_engine.setStyleSheet("color: #00d2ff; font-size: 11px; padding: 2px 4px; border: 1px solid #005a73; border-radius: 3px;")
 
         # Genre combo
         self.cmb_filter_genre = QComboBox()
@@ -175,6 +193,7 @@ class MainWindow(QMainWindow):
         btn_reset_filters.clicked.connect(self._reset_filters)
 
         f_layout.addWidget(self.txt_search, 3)
+        f_layout.addWidget(self.lbl_search_engine)
         f_layout.addWidget(self.cmb_filter_genre, 1)
         f_layout.addWidget(self.cmb_filter_camelot, 1)
         f_layout.addLayout(bpm_box)
@@ -239,11 +258,11 @@ class MainWindow(QMainWindow):
         act_patterns.triggered.connect(self._on_open_pattern_converter)
         tb.addAction(act_patterns)
 
-        # Online Scraping
-        act_scrape = QAction("🌐 Beatport / Scraper", self)
-        act_scrape.setShortcut(QKeySequence("Ctrl+B"))
-        act_scrape.triggered.connect(self._on_open_scraper)
-        tb.addAction(act_scrape)
+        # Multi-Source Reconciler
+        act_reconcile = QAction("⚖️ Reconciler & HD Cover", self)
+        act_reconcile.setShortcut(QKeySequence("Ctrl+R"))
+        act_reconcile.triggered.connect(self._on_open_reconciler)
+        tb.addAction(act_reconcile)
 
         # Acoustic Batch Analyzer
         act_acoustic = QAction("🎵 Analyze BPM & Key", self)
@@ -259,10 +278,65 @@ class MainWindow(QMainWindow):
         act_organize.triggered.connect(self._on_open_sorter)
         tb.addAction(act_organize)
 
+        # Toggle Live Log
+        act_log = QAction("📜 Live Log", self)
+        act_log.setShortcut(QKeySequence("Ctrl+L"))
+        act_log.triggered.connect(self._toggle_log_dock)
+        tb.addAction(act_log)
+
         # Stats
         act_stats = QAction("📊 Stats", self)
         act_stats.triggered.connect(self._on_show_stats)
         tb.addAction(act_stats)
+
+    def _init_live_log_dock(self) -> None:
+        """Initializes collapsible live logging dock at the bottom."""
+        self.log_dock = QDockWidget("Musicat Live System Log", self)
+        self.log_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
+
+        dock_widget = QWidget()
+        dock_layout = QVBoxLayout(dock_widget)
+        dock_layout.setContentsMargins(6, 4, 6, 4)
+        dock_layout.setSpacing(4)
+
+        toolbar_row = QHBoxLayout()
+        btn_clear = QPushButton("Clear Log")
+        btn_clear.setFixedWidth(80)
+        btn_clear.clicked.connect(lambda: self.log_console.clear())
+        toolbar_row.addWidget(btn_clear)
+        toolbar_row.addStretch()
+
+        self.log_console = QPlainTextEdit()
+        self.log_console.setReadOnly(True)
+        self.log_console.setMaximumHeight(150)
+        self.log_console.setFont(QFont("Consolas", 10))
+        self.log_console.setStyleSheet("background-color: #0e0f12; color: #a0a5b8; border: 1px solid #232631;")
+
+        dock_layout.addLayout(toolbar_row)
+        dock_layout.addWidget(self.log_console)
+
+        self.log_dock.setWidget(dock_widget)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
+        self.log_dock.setVisible(False)
+
+        # Connect logger callback through Qt Signal
+        self.log_signal.connect(self._append_log_message)
+        MusicatLogger.register_gui_callback(lambda t, lvl, msg: self.log_signal.emit(t, lvl, msg))
+
+    def _toggle_log_dock(self) -> None:
+        self.log_dock.setVisible(not self.log_dock.isVisible())
+
+    def _append_log_message(self, time_str: str, levelno: int, message: str) -> None:
+        color = "#a0a5b8"
+        if levelno >= 40:  # ERROR
+            color = "#ff4d4f"
+        elif levelno >= 30:  # WARNING
+            color = "#faad14"
+        elif levelno >= 20:  # INFO
+            color = "#00d2ff"
+
+        html_line = f'<span style="color: #636878;">[{time_str}]</span> <span style="color: {color};">{message}</span>'
+        self.log_console.appendHtml(html_line)
 
     def _refresh_library(self) -> None:
         """Reloads tracks from SQLite and updates table and genre filters."""
@@ -294,15 +368,23 @@ class MainWindow(QMainWindow):
         bpm_min = self.spin_bpm_min.value() if self.spin_bpm_min.value() > 0 else None
         bpm_max = self.spin_bpm_max.value() if self.spin_bpm_max.value() > 0 else None
 
-        filtered = self.db.search_tracks(
-            query=q,
-            genre=genre,
-            camelot_key=camelot,
-            bpm_min=bpm_min,
-            bpm_max=bpm_max,
-        )
-        self.table_model.set_tracks(filtered)
-        self.status_bar.showMessage(f"Showing {len(filtered):,} of {len(self.all_tracks):,} tracks")
+        if q and not genre and not camelot and bpm_min is None and bpm_max is None:
+            # Use unified Everything MFT / SQLite FTS search
+            results, engine_name = EverythingSearchEngine.unified_search(q, self.db, limit=100000)
+            self.lbl_search_engine.setText(engine_name)
+            self.table_model.set_tracks(results)
+            self.status_bar.showMessage(f"Found {len(results):,} tracks via {engine_name}")
+        else:
+            self.lbl_search_engine.setText("SQLite Index")
+            filtered = self.db.search_tracks(
+                query=q,
+                genre=genre,
+                camelot_key=camelot,
+                bpm_min=bpm_min,
+                bpm_max=bpm_max,
+            )
+            self.table_model.set_tracks(filtered)
+            self.status_bar.showMessage(f"Showing {len(filtered):,} of {len(self.all_tracks):,} tracks")
 
     def _reset_filters(self) -> None:
         self.txt_search.clear()
@@ -376,14 +458,14 @@ class MainWindow(QMainWindow):
         dlg.conversion_applied.connect(self._refresh_library)
         dlg.exec()
 
-    def _on_open_scraper(self) -> None:
+    def _on_open_reconciler(self) -> None:
         selected = self._get_selected_tracks()
         if not selected:
-            QMessageBox.information(self, "Selection", "Please select a track to scrape online.")
+            QMessageBox.information(self, "Selection", "Please select a track to reconcile.")
             return
 
-        dlg = ScraperDialog(selected[0], self)
-        dlg.metadata_applied.connect(lambda updated: [self.db.update_track_tags(updated["filepath"], updated), self._refresh_library()])
+        dlg = ReconcilerDialog(selected[0], self)
+        dlg.metadata_reconciled.connect(lambda updated: [self.db.update_track_tags(updated["filepath"], updated), self._refresh_library()])
         dlg.exec()
 
     def _on_open_sorter(self) -> None:
@@ -449,8 +531,8 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         act_play = menu.addAction("▶ Play in Mini-Player")
         act_edit = menu.addAction("🏷️ Edit Tags (Batch)...")
+        act_reconcile = menu.addAction("⚖️ Reconcile Multi-Source Metadata & HD Cover...")
         act_convert = menu.addAction("🔀 Filename <-> Tag Patterns...")
-        act_scrape = menu.addAction("🌐 Search Online Metadata (Beatport)...")
         act_analyze = menu.addAction("🎵 Calculate BPM & Camelot Key")
         act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
         menu.addSeparator()
@@ -462,10 +544,10 @@ class MainWindow(QMainWindow):
             self.player_widget.play()
         elif action == act_edit:
             self._on_open_tag_editor()
+        elif action == act_reconcile:
+            self._on_open_reconciler()
         elif action == act_convert:
             self._on_open_pattern_converter()
-        elif action == act_scrape:
-            self._on_open_scraper()
         elif action == act_analyze:
             self._on_batch_acoustic_analysis()
         elif action == act_sorter:

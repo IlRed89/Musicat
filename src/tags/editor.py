@@ -629,10 +629,25 @@ class AudioTagEditor:
         image_bytes: bytes,
         mime_type: str = "image/jpeg",
         description: str = "Front Cover",
+        write_folder_copy: bool = False,
+        folder_filename: str = "cover.jpg",
     ) -> bool:
-        """Embeds cover artwork into audio file."""
+        """Embeds cover artwork into audio file and optionally writes local folder copy.
+
+        Args:
+            filepath (Union[str, Path]): Target audio file path.
+            image_bytes (bytes): Binary image data.
+            mime_type (str): Image MIME type ('image/jpeg' or 'image/png').
+            description (str): Frame description.
+            write_folder_copy (bool): If True, also writes cover.jpg in the track folder.
+            folder_filename (str): Name for local image copy (default: 'cover.jpg').
+
+        Returns:
+            bool: True on success, False on error.
+        """
         path_obj = Path(filepath)
         ext = path_obj.suffix.lower()
+        success = False
 
         try:
             if ext in (".mp3", ".wav", ".aif", ".aiff"):
@@ -651,7 +666,7 @@ class AudioTagEditor:
                     )
                 )
                 tags.save(str(path_obj), v2_version=3)
-                return True
+                success = True
             elif ext == ".flac":
                 audio = FLAC(str(path_obj))
                 pic = Picture()
@@ -662,16 +677,23 @@ class AudioTagEditor:
                 audio.clear_pictures()
                 audio.add_picture(pic)
                 audio.save()
-                return True
+                success = True
             elif ext in (".m4a", ".aac"):
                 audio = MP4(str(path_obj))
                 fmt = MP4Cover.FORMAT_PNG if "png" in mime_type.lower() else MP4Cover.FORMAT_JPEG
                 audio["covr"] = [MP4Cover(image_bytes, imageformat=fmt)]
                 audio.save()
-                return True
+                success = True
         except Exception:
-            pass
-        return False
+            success = False
+
+        if success and write_folder_copy:
+            try:
+                (path_obj.parent / folder_filename).write_bytes(image_bytes)
+            except Exception:
+                pass
+
+        return success
 
     @classmethod
     def remove_artwork(cls, filepath: Union[str, Path]) -> bool:
