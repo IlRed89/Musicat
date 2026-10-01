@@ -1,0 +1,58 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+bin/
+build/temp_build/
+dist/
+*.egg-info/
+*.egg
+*.spec.bak
+
+# PyInstaller
+*.manifest
+*.spec.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Database & Runtime local data
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+musicat_data/
+temp/
+logs/
+*.log
+
+# Audio test samples & scratch
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.m4a
+*.ogg
+scratch/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
