@@ -12,6 +12,7 @@ from .analyzer import (
     CAMELOT_TO_KEY,
 )
 from .waveform import WaveformGenerator
+from .camelot import CamelotWheel, CAMELOT_KEYS_ORDERED
 
 __all__ = [
     "AcousticAnalyzer",
@@ -22,4 +23,6 @@ __all__ = [
     "KEY_TO_CAMELOT",
     "CAMELOT_TO_KEY",
     "WaveformGenerator",
+    "CamelotWheel",
+    "CAMELOT_KEYS_ORDERED",
 ]

@@ -7,6 +7,7 @@ from .db import Database
 from .scanner import LibraryScanner
 from .logger import MusicatLogger, GuiLogHandler
 from .everything_search import EverythingSearchEngine
+from .filter_engine import FilterCriteria, LiveFilterQueryBuilder, LiveFilterEngine
 
 __all__ = [
     "PathResolver",
@@ -15,4 +16,7 @@ __all__ = [
     "MusicatLogger",
     "GuiLogHandler",
     "EverythingSearchEngine",
+    "FilterCriteria",
+    "LiveFilterQueryBuilder",
+    "LiveFilterEngine",
 ]

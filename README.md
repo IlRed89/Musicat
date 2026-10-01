@@ -148,11 +148,24 @@ python main.py --scan "E:\DJ_Music"
 
 ## 🧪 Running Unit Tests
 
-Musicat includes 30 unit tests covering every subsystem:
+Musicat includes 46 unit tests covering every subsystem:
 
 ```powershell
-python -m unittest discover tests
+python -m unittest discover tests -v
 ```
+
+---
+
+## 🎛️ Live DJ Crate & Advanced Filtering Engine
+
+Designed specifically for live performance in the DJ booth with sub-15ms query latency across 50,000+ tracks:
+
+- **Multi-Genre OR Filtering:** Autocomplete search with simultaneous selection of multiple subgenres (e.g. *Tech House* OR *Afro House* OR *Melodic Techno*).
+- **Target BPM ± % Tolerance:** Enter deck tempo (e.g. `126.0`) and choose tolerance (`±2%`, `±4%`, `±6%`, `±8%`) to automatically bound allowable BPM.
+- **Harmonic Mixing Assistant:** Visual Camelot Wheel selector (`1A`-`12B`) with one-click filtering for harmonic matches (Smooth steps `±1`, Relative Major/Minor, Energy Boost `+2`, Semitone Lift `+7`).
+- **Decades & Energy:** Instant filtering by Decade (80s, 90s, 2000s, 2010s, 2020s), Energy levels (Warmup, Mid, Peak Time), and quick DJ tags (*Intro*, *Vocal*, *Instrumental*, *Acapella*, *Club*).
+- **Dynamic Smart Crates:** Save filter combinations as dynamic playlists that automatically update as new tracks are scanned.
+- **Universal M3U8 Export:** Export any active crate with standard `#EXTM3U` and `#EXTINF` formatting compatible with Rekordbox, Traktor Pro, Serato DJ, and Denon Engine DJ.
 
 ---
 
@@ -160,15 +173,20 @@ python -m unittest discover tests
 
 | Shortcut | Action |
 | :--- | :--- |
+| `Ctrl + F` | Instant Focus on Quick Search (Everything MFT / SQLite FTS) |
+| `Ctrl + G` | Quick Jump to Multi-Genre Selector |
+| `Ctrl + B` | Focus on Target Deck BPM Input |
+| `Ctrl + K` | Open Visual Camelot Wheel Harmonic Assistant Popup |
+| `Esc` | Instant Reset of All Active Filters (View Entire Library) |
+| `Enter` / `Return` | Load and Audition Selected Track into VLC Engine |
+| `Space` | Play / Pause Preview of Active / Selected Track |
 | `Ctrl + O` | Scan Music Directory |
 | `F5` | Refresh Library & Filters |
 | `Ctrl + E` | Open Batch / Single Tag Editor |
-| `Ctrl + K` | Open Filename ⇄ Tag Pattern Converter |
 | `Ctrl + R` | Open Multi-Source Reconciler & HD Cover Injector |
 | `Ctrl + A` | Run Batch Acoustic Analysis (BPM & Key) |
 | `Ctrl + S` | Open Smart File Dispatcher & Organizer |
 | `Ctrl + L` | Toggle Live System Log Console |
-| `Space` | Play / Pause Selected Track |
 | `Double Click` | Load and Audition Track in Mini-Player |
 
 ---

@@ -213,3 +213,24 @@ class MusicatLogger:
             cls.get_logger().info(f"[DISPATCH:{action.upper()}] '{Path(source).name}' -> '{target}'")
         else:
             cls.get_logger().error(f"[DISPATCH:FAIL] '{Path(source).name}' -> '{target}': {details}")
+
+    @classmethod
+    def debug(cls, domain: str, message: str) -> None:
+        """Logs a debug message with domain prefix."""
+        cls.get_logger().debug(f"[{domain}] {message}")
+
+    @classmethod
+    def info(cls, domain: str, message: str) -> None:
+        """Logs an info message with domain prefix."""
+        cls.get_logger().info(f"[{domain}] {message}")
+
+    @classmethod
+    def warning(cls, domain: str, message: str) -> None:
+        """Logs a warning message with domain prefix."""
+        cls.get_logger().warning(f"[{domain}] {message}")
+
+    @classmethod
+    def error(cls, domain: str, message: str) -> None:
+        """Logs an error message with domain prefix."""
+        cls.get_logger().error(f"[{domain}] {message}")
+

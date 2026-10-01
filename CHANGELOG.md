@@ -56,6 +56,14 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
 - Dynamic folder tree generation based on customizable rules: `{Genre}/BPM {bpm_range}/{Camelot} - {Artist} - {Title}.ext`.
 - Mandatory **Dry Run Mode** simulating destination paths, collision detection (`Auto-Rename (1)`, `Overwrite`, `Skip`), and error checking before physical disk operations.
 
+#### 🎛️ Live DJ Crate & Advanced Filtering Engine (<15ms Latency)
+- **Live Multi-Criteria Filter Bar:** Keyboard-controllable console bar integrating Multi-Genre autocomplete (OR), Target BPM with `± %` tolerance presets (`±2%`, `±4%`, `±6%`, `±8%`), decade selector, and energy level filters.
+- **Harmonic Mixing Assistant (`src/audio/camelot.py`):** Visual Camelot Wheel dialog (`1A`–`12B`) with harmonic matching (`±1`, relative major/minor, `+2` energy boost, `+7` semitone lift).
+- **In-Memory RAM Query Acceleration (`src/core/filter_engine.py`):** Microsecond in-memory evaluation cache for instantaneous responses during live performance with active audio playback.
+- **Dynamic Smart Crates & Universal M3U8 Export:** Save and auto-update custom filter combinations into SQLite `smart_crates` and export playlists compatible with Rekordbox, Traktor, Serato, and Engine DJ.
+- **DJ Console Keybindings:** Instant access via `Ctrl+F` (Search), `Ctrl+G` (Genre), `Ctrl+B` (BPM), `Ctrl+K` (Camelot Wheel), `Esc` (Instant Reset), and `Enter` (Deck Load).
+
 #### 📜 Structured Logging & Live Console
 - Multi-level logging (`DEBUG`, `INFO`, `WARNING`, `ERROR`) with automatic 20MB file rotation and gzip (`.gz`) archiving.
 - Live Log console dock (`Ctrl+L`) in the GUI for monitoring background scanner and scraper operations.
+

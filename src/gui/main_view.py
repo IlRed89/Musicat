@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QPoint, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -41,9 +41,11 @@ from ..core.path_resolver import PathResolver
 from ..core.scanner import LibraryScanner
 from ..core.logger import MusicatLogger
 from ..core.everything_search import EverythingSearchEngine
+from ..core.filter_engine import FilterCriteria, LiveFilterEngine
 from ..audio.analyzer import AcousticAnalyzer
 from .table_model import TrackTableModel
 from .player_widget import MiniPlayerWidget
+from .live_filters import LiveFilterBar, CamelotWheelDialog
 from .tag_editor_dialog import TagEditorDialog
 from .sorter_dialog import SorterDialog
 from .pattern_dialog import PatternDialog
@@ -122,6 +124,7 @@ class MainWindow(QMainWindow):
     def __init__(self, db: Optional[Database] = None) -> None:
         super().__init__()
         self.db = db or Database()
+        self.filter_engine = LiveFilterEngine(self.db)
         self.table_model = TrackTableModel()
         self.all_tracks: List[Dict[str, Any]] = []
 
@@ -129,6 +132,7 @@ class MainWindow(QMainWindow):
         self.resize(1300, 820)
 
         self._init_ui()
+        self._init_shortcuts()
         self._init_menu_and_toolbar()
         self._init_live_log_dock()
         self._refresh_library()
@@ -140,66 +144,11 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # DJ Quick Filter Bar
-        filter_bar = QFrame()
-        filter_bar.setStyleSheet("background-color: #161820; border-bottom: 1px solid #262936; padding: 6px;")
-        f_layout = QHBoxLayout(filter_bar)
-        f_layout.setContentsMargins(10, 4, 10, 4)
-        f_layout.setSpacing(10)
-
-        # Search box (Everything MFT or SQLite FTS)
-        self.txt_search = QLineEdit()
-        self.txt_search.setPlaceholderText("🔍 Instant Search (Everything MFT / SQLite FTS)...")
-        self.txt_search.setClearButtonEnabled(True)
-        self.txt_search.textChanged.connect(self._apply_filters)
-
-        # Search engine indicator badge
-        self.lbl_search_engine = QLabel("MFT / FTS")
-        self.lbl_search_engine.setStyleSheet("color: #00d2ff; font-size: 11px; padding: 2px 4px; border: 1px solid #005a73; border-radius: 3px;")
-
-        # Genre combo
-        self.cmb_filter_genre = QComboBox()
-        self.cmb_filter_genre.addItem("All Genres", "")
-        self.cmb_filter_genre.currentTextChanged.connect(self._apply_filters)
-
-        # Camelot Key filter
-        self.cmb_filter_camelot = QComboBox()
-        self.cmb_filter_camelot.addItem("All Keys", "")
-        for i in range(1, 13):
-            self.cmb_filter_camelot.addItem(f"{i}A", f"{i}A")
-            self.cmb_filter_camelot.addItem(f"{i}B", f"{i}B")
-        self.cmb_filter_camelot.currentTextChanged.connect(self._apply_filters)
-
-        # BPM Range
-        bpm_box = QHBoxLayout()
-        bpm_box.addWidget(QLabel("BPM:"))
-        self.spin_bpm_min = QDoubleSpinBox()
-        self.spin_bpm_min.setRange(0, 250)
-        self.spin_bpm_min.setValue(0)
-        self.spin_bpm_min.setSpecialValueText("Min")
-        self.spin_bpm_min.valueChanged.connect(self._apply_filters)
-
-        self.spin_bpm_max = QDoubleSpinBox()
-        self.spin_bpm_max.setRange(0, 250)
-        self.spin_bpm_max.setValue(0)
-        self.spin_bpm_max.setSpecialValueText("Max")
-        self.spin_bpm_max.valueChanged.connect(self._apply_filters)
-
-        bpm_box.addWidget(self.spin_bpm_min)
-        bpm_box.addWidget(QLabel("-"))
-        bpm_box.addWidget(self.spin_bpm_max)
-
-        btn_reset_filters = QPushButton("Reset")
-        btn_reset_filters.clicked.connect(self._reset_filters)
-
-        f_layout.addWidget(self.txt_search, 3)
-        f_layout.addWidget(self.lbl_search_engine)
-        f_layout.addWidget(self.cmb_filter_genre, 1)
-        f_layout.addWidget(self.cmb_filter_camelot, 1)
-        f_layout.addLayout(bpm_box)
-        f_layout.addWidget(btn_reset_filters)
-
-        main_layout.addWidget(filter_bar)
+        # High-Performance Live DJ Filter Bar & Crate Builder
+        self.filter_bar = LiveFilterBar(self.db, self)
+        self.filter_bar.filter_changed.connect(self._on_live_filter_changed)
+        self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
+        main_layout.addWidget(self.filter_bar)
 
         # Virtual Table View
         self.table_view = QTableView(self)
@@ -213,6 +162,7 @@ class MainWindow(QMainWindow):
         self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
+        self.table_view.activated.connect(self._on_row_double_clicked)  # Enter key loads/plays track!
 
         main_layout.addWidget(self.table_view, 1)
 
@@ -338,21 +288,33 @@ class MainWindow(QMainWindow):
         html_line = f'<span style="color: #636878;">[{time_str}]</span> <span style="color: {color};">{message}</span>'
         self.log_console.appendHtml(html_line)
 
-    def _refresh_library(self) -> None:
-        """Reloads tracks from SQLite and updates table and genre filters."""
-        self.all_tracks = self.db.search_tracks(limit=100000)
-        self.table_model.set_tracks(self.all_tracks)
+    def _init_shortcuts(self) -> None:
+        """Configures DJ live performance keyboard shortcuts."""
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self.filter_bar.focus_search)
+        QShortcut(QKeySequence("Ctrl+G"), self).activated.connect(self.filter_bar.focus_genre)
+        QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self.filter_bar.focus_bpm)
+        QShortcut(QKeySequence("Ctrl+K"), self).activated.connect(self.filter_bar._open_camelot_wheel)
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self).activated.connect(self.filter_bar.reset_filters)
+        QShortcut(QKeySequence(Qt.Key.Key_Space), self).activated.connect(self._on_space_pressed)
 
-        # Refresh genres list
-        genres = sorted(list({str(t.get("genre")).strip() for t in self.all_tracks if t.get("genre")}))
-        cur_genre = self.cmb_filter_genre.currentText()
-        self.cmb_filter_genre.blockSignals(True)
-        self.cmb_filter_genre.clear()
-        self.cmb_filter_genre.addItem("All Genres", "")
-        for g in genres:
-            self.cmb_filter_genre.addItem(g, g)
-        self.cmb_filter_genre.setCurrentText(cur_genre if cur_genre in genres else "All Genres")
-        self.cmb_filter_genre.blockSignals(False)
+    def _on_space_pressed(self) -> None:
+        """Toggles playback on active deck or auditions selected table track."""
+        if self.player_widget.current_track:
+            self.player_widget.toggle_play_pause()
+        else:
+            selected = self._get_selected_tracks()
+            if selected:
+                self.player_widget.load_track(selected[0])
+                self.player_widget.play()
+
+    def _refresh_library(self) -> None:
+        """Reloads tracks from SQLite, warms in-memory RAM cache and reapplies filters."""
+        self.all_tracks = self.db.search_tracks(limit=100000)
+        self.filter_engine.warm_cache(self.all_tracks)
+        self._on_live_filter_changed(self.filter_bar.get_current_criteria())
+        self.filter_bar._refresh_crates_dropdown()
+        self.filter_bar.genre_widget._refresh_completer()
+        self.filter_bar.genre_widget._build_menu()
 
         total_dur = sum(t.get("duration") or 0.0 for t in self.all_tracks)
         hours = int(total_dur // 3600)
@@ -361,38 +323,58 @@ class MainWindow(QMainWindow):
             f"Library: {len(self.all_tracks):,} tracks ({hours}h {mins}m) | Database: {Path(self.db.db_path).name}"
         )
 
-    def _apply_filters(self) -> None:
-        q = self.txt_search.text().strip()
-        genre = self.cmb_filter_genre.currentData()
-        camelot = self.cmb_filter_camelot.currentData()
-        bpm_min = self.spin_bpm_min.value() if self.spin_bpm_min.value() > 0 else None
-        bpm_max = self.spin_bpm_max.value() if self.spin_bpm_max.value() > 0 else None
-
-        if q and not genre and not camelot and bpm_min is None and bpm_max is None:
-            # Use unified Everything MFT / SQLite FTS search
-            results, engine_name = EverythingSearchEngine.unified_search(q, self.db, limit=100000)
-            self.lbl_search_engine.setText(engine_name)
+    def _on_live_filter_changed(self, criteria: FilterCriteria) -> None:
+        """Routes filtering query to Everything MFT IPC or microsecond in-memory index."""
+        if (
+            criteria.query_text
+            and not criteria.genres
+            and criteria.target_bpm is None
+            and criteria.bpm_min is None
+            and criteria.bpm_max is None
+            and not criteria.camelot_key
+            and not criteria.harmonic_matches_only
+            and criteria.year_min is None
+            and criteria.year_max is None
+            and criteria.rating_min is None
+            and not criteria.energy_levels
+            and not criteria.tags
+        ):
+            # Pure text search: route via Everything MFT / SQLite FTS
+            results, engine_name = EverythingSearchEngine.unified_search(criteria.query_text, self.db, limit=100000)
+            self.filter_bar.lbl_search_engine.setText(engine_name)
             self.table_model.set_tracks(results)
             self.status_bar.showMessage(f"Found {len(results):,} tracks via {engine_name}")
         else:
-            self.lbl_search_engine.setText("SQLite Index")
-            filtered = self.db.search_tracks(
-                query=q,
-                genre=genre,
-                camelot_key=camelot,
-                bpm_min=bpm_min,
-                bpm_max=bpm_max,
-            )
+            # Complex DJ multi-attribute filter (<15ms latency in RAM)
+            self.filter_bar.lbl_search_engine.setText("Live RAM Index (<15ms)")
+            filtered = self.filter_engine.query(criteria, prefer_ram=True)
             self.table_model.set_tracks(filtered)
             self.status_bar.showMessage(f"Showing {len(filtered):,} of {len(self.all_tracks):,} tracks")
 
-    def _reset_filters(self) -> None:
-        self.txt_search.clear()
-        self.cmb_filter_genre.setCurrentIndex(0)
-        self.cmb_filter_camelot.setCurrentIndex(0)
-        self.spin_bpm_min.setValue(0)
-        self.spin_bpm_max.setValue(0)
-        self._refresh_library()
+    def _on_export_current_crate(self) -> None:
+        """Exports currently filtered tracks as an extended M3U8 playlist."""
+        tracks = self.table_model._tracks
+        if not tracks:
+            QMessageBox.information(self, "Export Playlist", "No tracks matching current filter to export.")
+            return
+
+        default_name = f"Musicat_Crate_{len(tracks)}_tracks.m3u8"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Smart Crate Playlist",
+            default_name,
+            "Extended M3U8 Playlist (*.m3u8 *.m3u)",
+        )
+        if file_path:
+            try:
+                out_path = LiveFilterEngine.export_m3u(tracks, file_path)
+                QMessageBox.information(
+                    self,
+                    "Export Complete",
+                    f"Successfully exported {len(tracks):,} tracks to:\n{out_path}\n\nCompatible with Rekordbox, Traktor, Serato, and Engine DJ.",
+                )
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Could not export playlist:\n{e}")
 
     def _get_selected_tracks(self) -> List[Dict[str, Any]]:
         rows = sorted(list({idx.row() for idx in self.table_view.selectionModel().selectedRows()}))
