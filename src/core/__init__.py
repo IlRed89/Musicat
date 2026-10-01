@@ -7,6 +7,8 @@ from .db import Database
 from .scanner import LibraryScanner
 from .logger import MusicatLogger, GuiLogHandler
 from .everything_search import EverythingSearchEngine
+from .search_mac import DarwinSearchEngine
+from .search_factory import SearchEngine, SearchFactory, WindowsSearchEngine
 from .filter_engine import FilterCriteria, LiveFilterQueryBuilder, LiveFilterEngine
 
 __all__ = [
@@ -16,6 +18,10 @@ __all__ = [
     "MusicatLogger",
     "GuiLogHandler",
     "EverythingSearchEngine",
+    "DarwinSearchEngine",
+    "WindowsSearchEngine",
+    "SearchEngine",
+    "SearchFactory",
     "FilterCriteria",
     "LiveFilterQueryBuilder",
     "LiveFilterEngine",

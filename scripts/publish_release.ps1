@@ -112,8 +112,10 @@ Write-Host "Repository URL:  https://github.com/IlRed89/Musicat" -ForegroundColo
 Write-Host "CI/CD Actions:   https://github.com/IlRed89/Musicat/actions" -ForegroundColor Cyan
 Write-Host "Release Tracker: https://github.com/IlRed89/Musicat/releases" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "The GitHub Actions workflow (.github/workflows/release.yml) is now automatically building:" -ForegroundColor Yellow
-Write-Host "  - Windows Portable Standalone Executable (.zip)" -ForegroundColor Gray
-Write-Host "  - Inno Setup Dual-Mode Installer (Musicat-Setup.exe)" -ForegroundColor Gray
-Write-Host "  - SHA256 Checksums" -ForegroundColor Gray
+Write-Host "The GitHub Actions workflow (.github/workflows/build-release.yml) is now automatically building:" -ForegroundColor Yellow
+Write-Host "  - Windows Dual-Mode Installer (Musicat-Setup-Windows-x64.exe)" -ForegroundColor Gray
+Write-Host "  - Windows Portable Standalone (.zip)" -ForegroundColor Gray
+Write-Host "  - macOS Disk Image with Drag & Drop Layout (Musicat-macOS.dmg)" -ForegroundColor Gray
+Write-Host "  - macOS Portable Application Bundle (.zip)" -ForegroundColor Gray
+Write-Host "  - Multi-OS SHA256 Checksums (SHA256SUMS.txt)" -ForegroundColor Gray
 Write-Host ""

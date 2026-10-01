@@ -18,9 +18,10 @@ from ..core.logger import MusicatLogger
 # Try importing vlc module
 _VLC_AVAILABLE = False
 try:
+    app_dir = Path(__file__).resolve().parent.parent.parent
+
     # Check potential VLC locations on Windows before importing
     if sys.platform == "win32":
-        app_dir = Path(__file__).resolve().parent.parent.parent
         vlc_search_dirs = [
             app_dir / "vlc",
             app_dir,
@@ -36,6 +37,29 @@ try:
                         os.add_dll_directory(str(vdir))
                     except Exception:
                         pass
+                break
+
+    # Check potential VLC locations on macOS (Apple Silicon & Intel)
+    elif sys.platform == "darwin":
+        mac_vlc_candidates = [
+            # Inside PyInstaller / macOS .app bundle
+            app_dir / "Contents" / "Frameworks" / "libvlc.dylib",
+            app_dir / "Contents" / "MacOS" / "lib" / "libvlc.dylib",
+            app_dir / "libvlc.dylib",
+            # Standard VLC.app installation
+            Path("/Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib"),
+            Path.home() / "Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib",
+            # Homebrew on Apple Silicon (ARM64)
+            Path("/opt/homebrew/lib/libvlc.dylib"),
+            # Homebrew on Intel (x86_64)
+            Path("/usr/local/lib/libvlc.dylib"),
+        ]
+        for dylib_cand in mac_vlc_candidates:
+            if dylib_cand.exists():
+                os.environ["PYTHON_VLC_LIB_PATH"] = str(dylib_cand)
+                plugins_dir = dylib_cand.parent / "vlc" / "plugins"
+                if plugins_dir.exists():
+                    os.environ["VLC_PLUGIN_PATH"] = str(plugins_dir)
                 break
 
     import vlc

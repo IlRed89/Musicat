@@ -138,6 +138,11 @@ class EverythingSearchEngine:
             return False
 
     @classmethod
+    def is_available(cls) -> bool:
+        """Alias for is_everything_available for unified engine compatibility."""
+        return cls.is_everything_available()
+
+    @classmethod
     def search_mft(
         cls,
         query: str,

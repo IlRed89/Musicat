@@ -7,6 +7,7 @@ harmonic Camelot Wheel matching, Decade/Year filtering, Energy level/Stars,
 instant ESC reset, and dynamic Smart Crate management with M3U8 export.
 """
 
+import sys
 from typing import Any, Callable, Dict, List, Optional, Set
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from ..audio.camelot import (
 )
 from ..core.db import Database
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
+from ..core.search_factory import SearchEngine
 from ..core.logger import MusicatLogger
 
 
@@ -377,12 +379,13 @@ class LiveFilterBar(QFrame):
 
         # 1. Text Search Input (Ctrl+F)
         self.txt_search = QLineEdit()
-        self.txt_search.setPlaceholderText("🔍 Quick Search / Everything MFT (Ctrl+F)...")
+        fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
+        self.txt_search.setPlaceholderText(f"🔍 Quick Search / {fast_engine} (Ctrl+F)...")
         self.txt_search.setClearButtonEnabled(True)
         self.txt_search.setMinimumWidth(220)
 
         # Search Engine Badge
-        self.lbl_search_engine = QLabel("MFT / FTS")
+        self.lbl_search_engine = QLabel(SearchEngine.get_engine_badge())
         self.lbl_search_engine.setStyleSheet(
             "color: #00d2ff; font-size: 10px; padding: 2px 5px; border: 1px solid #0284c7; border-radius: 3px;"
         )

@@ -4,7 +4,7 @@
 > *Designed specifically for DJs, record collectors, and audio archivists managing massive libraries across internal and external storage.*
 
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%28Standard%20%26%20Portable%29-brightgreen.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%28Universal%29-brightgreen.svg)]()
 [![Target Repository](https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg)](https://github.com/IlRed89/Musicat)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 
@@ -12,18 +12,21 @@
 
 ## 🌟 Vision & Overview
 
-When managing collections of **50,000+ tracks** on high-capacity external SSDs, standard music players and generic taggers struggle: database paths break when Windows switches external drive letters, batch editing becomes sluggish, and critical DJ metadata (BPM, Camelot Keys, record labels, remixes, electronic subgenres) is treated as an afterthought.
+When managing collections of **50,000+ tracks** on high-capacity external SSDs, standard music players and generic taggers struggle: database paths break when Windows switches external drive letters or when moving between Windows and macOS, batch editing becomes sluggish, and critical DJ metadata (BPM, Camelot Keys, record labels, remixes, electronic subgenres) is treated as an afterthought.
 
-**Musicat** combines eight foundational pillars into a unified, lightning-fast dark desktop interface:
+**Musicat** combines eight foundational pillars into a unified, lightning-fast dark desktop interface native to both **Windows (10/11 x64)** and **macOS (Apple Silicon M-Series + Intel x64)**:
 
 1. ⚡ **DJ Catalog & Multi-Attribute Player:** Virtualized table architecture rendering tens of thousands of tracks with zero lag, instant filtering by BPM range, Camelot Key, and genre, plus a mini-player with interactive audio waveform scrubbing.
-2. 🚀 **Voidtools Everything SDK & MFT Integration:** Instant Master File Table queries via IPC with transparent fallback to SQLite FTS5 (Full-Text Search).
-3. 🎵 **Universal libVLC Audio Engine:** Native decoding for MP3, WAV, FLAC, AIFF, M4A, OGG, ALAC, and OPUS with DJ pitch rate bending ($\pm 8\%$) and waveform scrubbing.
+2. 🚀 **Cross-Platform Fast Search (`SearchEngine`):**
+   - **Windows:** Voidtools Everything SDK IPC querying Master File Table (MFT) in sub-milliseconds.
+   - **macOS:** Native Metadata Services / Spotlight (`mdfind`) APFS driver.
+   - **Fallback:** Indexed SQLite FTS5 (Full-Text Search) with zero configuration.
+3. 🎵 **Universal libVLC Audio Engine:** Native decoding for MP3, WAV (up to 32-bit float), FLAC, AIFF, M4A, OGG, Apple Lossless (ALAC), and OPUS with DJ pitch rate bending ($\pm 8\%$) and waveform scrubbing.
 4. 🏷️ **Advanced Mp3tag-Grade Metadata Engine:** Full support for MP3, FLAC, M4A, WAV, AIFF, and OGG containers with multi-selection batch tag editing and pattern conversions (`%artist% - %title% (%bpm% BPM)`).
 5. 🌐 **Multi-Source Scraping & Discrepancy Reconciliation:** Scrapes Beatport, Traxsource, Discogs, MusicBrainz, and Social/Remix platforms (SoundCloud, YouTube Music, Hypeddit, Remix.audio). Reconciles conflicting metadata with field-by-field selective resolution.
 6. 🖼️ **Studio HD Cover Art Injection:** Discovers lossless studio covers from 500x500 up to 3000x3000px (Apple Music / iTunes CDN, Beatport HD) and injects them directly into file tags (`APIC`, Picture block, `covr`) with optional local `cover.jpg` saving.
-7. 🎛️ **Acoustic Analyzer & Smart Folder Dispatcher:** Automated non-destructive BPM and harmonic key detection (Camelot 1A–12B). Inbound file dispatcher that physically sorts tracks into customizable folder structures with **Dry Run** previews.
-8. 💾 **Dual-Mode Setup (Standard & Portable):** Inno Setup wizard (`Musicat-Setup.exe`) allowing standard `%APPDATA%` installation or zero-installation portable extraction with `portable.lock` and Volume Serial Number (VSN) tracking.
+7. 🎛️ **Live DJ Crate & Acoustic Assistant:** Automated non-destructive BPM and harmonic key detection (Camelot 1A–12B), live filter bar with $<15\text{ms}$ in-memory cache, and Smart Crates with universal M3U8 export.
+8. 💾 **Dual-Mode Setup & Drive Migration:** Runs in standard desktop mode (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS) or zero-installation portable mode (`portable.lock`) with volume serial and mount point translation (`[VOL:...]`), allowing seamless switching of the same USB SSD between Windows and Mac!
 
 ---
 

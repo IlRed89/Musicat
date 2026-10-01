@@ -40,7 +40,7 @@ from ..core.db import Database
 from ..core.path_resolver import PathResolver
 from ..core.scanner import LibraryScanner
 from ..core.logger import MusicatLogger
-from ..core.everything_search import EverythingSearchEngine
+from ..core.search_factory import SearchEngine, EverythingSearchEngine
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
 from ..audio.analyzer import AcousticAnalyzer
 from .table_model import TrackTableModel
@@ -339,8 +339,8 @@ class MainWindow(QMainWindow):
             and not criteria.energy_levels
             and not criteria.tags
         ):
-            # Pure text search: route via Everything MFT / SQLite FTS
-            results, engine_name = EverythingSearchEngine.unified_search(criteria.query_text, self.db, limit=100000)
+            # Pure text search: route via OS fast search (Everything on Win, Spotlight on Mac) or SQLite FTS
+            results, engine_name = SearchEngine.unified_search(criteria.query_text, self.db, limit=100000)
             self.filter_bar.lbl_search_engine.setText(engine_name)
             self.table_model.set_tracks(results)
             self.status_bar.showMessage(f"Found {len(results):,} tracks via {engine_name}")

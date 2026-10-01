@@ -67,3 +67,16 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
 - Multi-level logging (`DEBUG`, `INFO`, `WARNING`, `ERROR`) with automatic 20MB file rotation and gzip (`.gz`) archiving.
 - Live Log console dock (`Ctrl+L`) in the GUI for monitoring background scanner and scraper operations.
 
+#### 🍏 Cross-Platform macOS Support & Multi-OS CI/CD Pipeline
+- **Unified Fast Search Engine (`src/core/search_factory.py`):**
+  - **macOS:** Native Spotlight Metadata Services (`mdfind`) APFS driver (`src/core/search_mac.py`) filtering `kMDItemContentTypeTree == 'public.audio'`.
+  - **Windows:** Voidtools Everything SDK IPC querying NTFS Master File Table.
+  - **Fallback:** Automatic transparent fallback to SQLite FTS5 across both platforms with dynamic UI engine badges (`[EVERYTHING MFT]`, `[SPOTLIGHT APFS]`, `[SQLITE FTS5]`).
+- **Cross-Platform Audio Engine (`src/player/vlc_engine.py`):** Dynamic discovery of `libvlc.dylib` across `.app` bundles, `/Applications/VLC.app`, and Homebrew paths (`/opt/homebrew` and `/usr/local`). Full support for 32-bit float WAV, ALAC, AIFF, FLAC, and AAC on Apple Silicon (ARM64) and Intel Macs.
+- **Cross-Platform Path Resolver (`src/core/path_resolver.py`):** Universal support for Windows Volume Serial Numbers (`[VOL:XXXXXXXX]`) and macOS mount points (`/Volumes/<DiskName>/...`), standard application data directories (`%APPDATA%` on Windows, `~/Library/Application Support/Musicat` on macOS), and portable USB SSD drives switching between Windows and Mac.
+- **Multi-OS Release Pipeline (`.github/workflows/build-release.yml`):** Automated GitHub Actions build matrix simultaneously generating:
+  - `Musicat-Setup-Windows-x64.exe` (Inno Setup dual-mode installer)
+  - `Musicat-Windows-Portable.zip` (standalone Windows portable archive)
+  - `Musicat-macOS.dmg` (macOS Drag & Drop Applications installer DMG)
+  - `Musicat-macOS-Portable.zip` (standalone macOS portable bundle)
+

@@ -33,9 +33,14 @@ class PathResolver:
             Path: Absolute path to the directory containing the executable or main script.
         """
         if getattr(sys, "frozen", False):
-            # PyInstaller creates a temporary folder and stores path in _MEIPASS,
-            # but executable lives in sys.executable directory.
-            return Path(sys.executable).parent.resolve()
+            exec_path = Path(sys.executable).resolve()
+            # If inside macOS app bundle (e.g. Musicat.app/Contents/MacOS/Musicat)
+            posix_path = exec_path.as_posix()
+            if "Contents/MacOS" in posix_path:
+                # App directory is the folder enclosing Musicat.app (or Musicat.app itself)
+                app_bundle = exec_path.parent.parent.parent
+                return app_bundle.parent.resolve()
+            return exec_path.parent.resolve()
         return Path(__file__).resolve().parent.parent.parent
 
     @classmethod
@@ -43,7 +48,7 @@ class PathResolver:
         """Checks whether Musicat is running in standalone portable mode.
 
         Portable mode is active if a 'portable.lock' file exists in the application root,
-        or if a local 'musicat_data' directory is already present alongside the executable.
+        or if a local 'musicat_data' directory is already present alongside the executable or bundle.
 
         Returns:
             bool: True if portable mode is enabled, False for standard OS installation.
@@ -51,15 +56,27 @@ class PathResolver:
         app_dir = cls.get_app_dir()
         lock_file = app_dir / "portable.lock"
         local_data = app_dir / "musicat_data"
-        return lock_file.exists() or local_data.exists()
+
+        if lock_file.exists() or local_data.exists():
+            return True
+
+        # On macOS, check also inside the .app bundle Resources if applicable
+        if sys.platform == "darwin" and getattr(sys, "frozen", False):
+            exec_parent = Path(sys.executable).parent.resolve()
+            if (exec_parent / "portable.lock").exists() or (exec_parent / "musicat_data").exists():
+                return True
+
+        return False
 
     @classmethod
     def get_data_dir(cls) -> Path:
         """Resolves the active data directory for SQLite database, logs, and cache.
 
         If in portable mode (portable.lock exists), data is strictly isolated
-        in './musicat_data' next to the app. In standard mode, '%APPDATA%/Musicat'
-        is used.
+        in './musicat_data' next to the app. In standard mode:
+        - Windows: '%APPDATA%/Musicat'
+        - macOS: '~/Library/Application Support/Musicat'
+        - Linux: '~/.config/musicat'
 
         Returns:
             Path: Path to the active data folder.
@@ -75,12 +92,18 @@ class PathResolver:
                 test_file.unlink(missing_ok=True)
                 return portable_data_dir
             except Exception:
-                # If USB is read-only, fallback to APPDATA
+                # If USB or app dir is read-only, fallback to standard OS directory
                 pass
 
-        # Standard installation mode
-        appdata = os.getenv("APPDATA") or str(Path.home())
-        standard_dir = Path(appdata) / "Musicat"
+        # Standard installation mode based on active OS
+        if sys.platform == "darwin":
+            standard_dir = Path.home() / "Library" / "Application Support" / "Musicat"
+        elif sys.platform == "win32":
+            appdata = os.getenv("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            standard_dir = Path(appdata) / "Musicat"
+        else:
+            standard_dir = Path.home() / ".config" / "musicat"
+
         standard_dir.mkdir(parents=True, exist_ok=True)
         return standard_dir
 
@@ -165,6 +188,15 @@ class PathResolver:
                 - portable_path: e.g. '[VOL:3C4D1A2B]/Music/Track.mp3' or '[APP]/Music/Track.mp3'
                 - volume_serial: 8-character hex volume serial number, or None.
         """
+        # Check /Volumes/<VolumeName>/ mount point (macOS POSIX path)
+        clean_input = abs_path.replace("\\", "/")
+        if clean_input.startswith("/Volumes/"):
+            parts = clean_input.split("/", 3)
+            if len(parts) >= 3 and parts[2]:
+                vol_name = parts[2]
+                rest = parts[3] if len(parts) > 3 else ""
+                return f"[VOL:{vol_name}]/{rest.lstrip('/')}", vol_name
+
         normalized = os.path.abspath(abs_path)
         app_dir = str(cls.get_app_dir())
 
@@ -189,8 +221,11 @@ class PathResolver:
     def to_absolute_path(cls, portable_path: str) -> str:
         """Resolves a portable path to the current machine's absolute path.
 
+        Supports Windows volume serials [VOL:XXXXXXXX], macOS mount points [VOL:VolumeName],
+        and relative application paths [APP]/...
+
         Args:
-            portable_path (str): Path stored with [VOL:XXXXXXXX] or [APP] token.
+            portable_path (str): Path stored with [VOL:...] or [APP] token.
 
         Returns:
             str: Resolved absolute path on the current system.
@@ -202,20 +237,44 @@ class PathResolver:
             rel = portable_path[6:].replace("/", os.sep)
             return str((cls.get_app_dir() / rel).resolve())
 
-        vol_match = re.match(r"^\[VOL:([A-Fa-f0-9]+)\]/(.*)$", portable_path)
+        vol_match = re.match(r"^\[VOL:([^\]]+)\]/(.*)$", portable_path)
         if vol_match:
-            serial, rest = vol_match.group(1).upper(), vol_match.group(2)
-            if serial not in cls._volume_cache:
+            vol_id, rest = vol_match.group(1), vol_match.group(2)
+            clean_rest_native = rest.replace("/", os.sep)
+
+            # 1. If on macOS, check /Volumes/<vol_id>/
+            if sys.platform == "darwin":
+                mac_direct = Path(f"/Volumes/{vol_id}") / clean_rest_native
+                if mac_direct.exists():
+                    return str(mac_direct.resolve())
+
+                # If vol_id was a Windows hex serial or volume renamed, check all /Volumes/
+                volumes_dir = Path("/Volumes")
+                if volumes_dir.exists():
+                    for v in volumes_dir.iterdir():
+                        cand = v / clean_rest_native
+                        if cand.exists():
+                            return str(cand.resolve())
+
+            # 2. If on Windows, check Volume Serial Number cache
+            serial_upper = vol_id.upper()
+            if serial_upper not in cls._volume_cache:
                 cls.refresh_volume_map()
 
-            if serial in cls._volume_cache:
-                drive_root = cls._volume_cache[serial]
-                return os.path.normpath(os.path.join(drive_root, rest.replace("/", os.sep)))
+            if serial_upper in cls._volume_cache:
+                drive_root = cls._volume_cache[serial_upper]
+                return os.path.normpath(os.path.join(drive_root, clean_rest_native))
 
-            # If volume not found by serial, check if rest exists relative to app root or current drive
-            app_drive = os.path.splitdrive(str(cls.get_app_dir()))[0]
-            candidate = os.path.normpath(os.path.join(f"{app_drive}\\", rest.replace("/", os.sep)))
-            if os.path.exists(candidate):
-                return candidate
+            # 3. Fallback: check relative to current app directory or drive
+            app_dir = cls.get_app_dir()
+            app_cand = (app_dir / clean_rest_native).resolve()
+            if app_cand.exists():
+                return str(app_cand)
+
+            app_drive = os.path.splitdrive(str(app_dir))[0]
+            if app_drive:
+                candidate = os.path.normpath(os.path.join(f"{app_drive}\\", clean_rest_native))
+                if os.path.exists(candidate):
+                    return candidate
 
         return os.path.normpath(portable_path)
