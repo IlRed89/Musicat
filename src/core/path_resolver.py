@@ -11,7 +11,7 @@ import sys
 import ctypes
 import re
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 
 class PathResolver:
@@ -177,19 +177,20 @@ class PathResolver:
             pass
 
     @classmethod
-    def to_portable_path(cls, abs_path: str) -> Tuple[str, Optional[str]]:
+    def to_portable_path(cls, abs_path: Union[str, Path]) -> Tuple[str, Optional[str]]:
         """Converts an absolute path to a portable volume-independent representation.
 
         Args:
-            abs_path (str): Full absolute system path.
+            abs_path (str | Path): Full absolute system path.
 
         Returns:
             Tuple[str, Optional[str]]: Tuple containing:
                 - portable_path: e.g. '[VOL:3C4D1A2B]/Music/Track.mp3' or '[APP]/Music/Track.mp3'
                 - volume_serial: 8-character hex volume serial number, or None.
         """
+        abs_str = str(abs_path)
         # Check /Volumes/<VolumeName>/ mount point (macOS POSIX path)
-        clean_input = abs_path.replace("\\", "/")
+        clean_input = abs_str.replace("\\", "/")
         if clean_input.startswith("/Volumes/"):
             parts = clean_input.split("/", 3)
             if len(parts) >= 3 and parts[2]:
@@ -197,7 +198,7 @@ class PathResolver:
                 rest = parts[3] if len(parts) > 3 else ""
                 return f"[VOL:{vol_name}]/{rest.lstrip('/')}", vol_name
 
-        normalized = os.path.abspath(abs_path)
+        normalized = os.path.abspath(abs_str)
         app_dir = str(cls.get_app_dir())
 
         # If inside app directory, use relative [APP] token

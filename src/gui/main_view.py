@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QPoint, Qt, QThread, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,8 +30,11 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSpinBox,
+    QSplitter,
     QTableView,
     QToolBar,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -40,6 +43,8 @@ from ..core.db import Database
 from ..core.path_resolver import PathResolver
 from ..core.scanner import LibraryScanner
 from ..core.logger import MusicatLogger
+from ..core.settings import SettingsManager
+from ..core.file_manager import MusicFileManager
 from ..core.search_factory import SearchEngine, EverythingSearchEngine
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
 from ..audio.analyzer import AcousticAnalyzer
@@ -52,6 +57,9 @@ from .pattern_dialog import PatternDialog
 from .scraper_dialog import ScraperDialog
 from .reconciler_dialog import ReconcilerDialog
 from .analysis_dialog import AcousticAnalysisDialog
+from .settings_dialog import SettingsDialog
+from .mp3tag_workspace import Mp3tagWorkspaceWindow
+from .styles import get_theme_stylesheet
 
 
 class BackgroundScanWorker(QThread):
@@ -125,9 +133,12 @@ class MainWindow(QMainWindow):
     def __init__(self, db: Optional[Database] = None) -> None:
         super().__init__()
         self.db = db or Database()
+        self.settings_manager = SettingsManager()
+        self.file_manager = MusicFileManager(self.db)
         self.filter_engine = LiveFilterEngine(self.db)
         self.table_model = TrackTableModel()
         self.all_tracks: List[Dict[str, Any]] = []
+        self._mp3tag_window: Optional[Mp3tagWorkspaceWindow] = None
 
         self.setWindowTitle("Musicat - DJ Catalog & Smart Organizer")
         self.resize(1300, 820)
@@ -151,6 +162,52 @@ class MainWindow(QMainWindow):
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
         main_layout.addWidget(self.filter_bar)
 
+        # Horizontal Splitter for Collapsible Sidebar + Table View
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+
+        # Collapsible Left Sidebar (Folders & Crates Tree)
+        self.sidebar_widget = QWidget(self)
+        sb_layout = QVBoxLayout(self.sidebar_widget)
+        sb_layout.setContentsMargins(6, 4, 4, 4)
+        sb_layout.setSpacing(4)
+
+        sb_header = QHBoxLayout()
+        sb_title = QLabel("📁 LIBRERIA & CRATES")
+        sb_title.setStyleSheet("font-weight: bold; color: #00d2ff; font-size: 11px;")
+        self.btn_collapse_sidebar = QPushButton("◀")
+        self.btn_collapse_sidebar.setFixedSize(22, 22)
+        self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px;")
+        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
+        sb_header.addWidget(sb_title)
+        sb_header.addStretch()
+        sb_header.addWidget(self.btn_collapse_sidebar)
+        sb_layout.addLayout(sb_header)
+
+        self.sidebar_tree = QTreeWidget(self)
+        self.sidebar_tree.setHeaderHidden(True)
+        self.sidebar_tree.setStyleSheet("""
+            QTreeWidget {
+                background-color: #14161f;
+                border: 1px solid #282c3c;
+                border-radius: 4px;
+            }
+            QTreeWidget::item {
+                padding: 4px 6px;
+                color: #cbd5e1;
+            }
+            QTreeWidget::item:selected {
+                background-color: #00d2ff;
+                color: #0b0c10;
+                font-weight: bold;
+            }
+        """)
+        self.sidebar_tree.itemClicked.connect(self._on_sidebar_item_clicked)
+        sb_layout.addWidget(self.sidebar_tree)
+
+        self.sidebar_widget.setMinimumWidth(160)
+        self.sidebar_widget.setMaximumWidth(320)
+        self.main_splitter.addWidget(self.sidebar_widget)
+
         # Virtual Table View
         self.table_view = QTableView(self)
         self.table_view.setModel(self.table_model)
@@ -165,7 +222,11 @@ class MainWindow(QMainWindow):
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.activated.connect(self._on_row_double_clicked)  # Enter key loads/plays track!
 
-        main_layout.addWidget(self.table_view, 1)
+        self.main_splitter.addWidget(self.table_view)
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 5)
+
+        main_layout.addWidget(self.main_splitter, 1)
 
         # Bottom Mini-Player
         self.player_widget = MiniPlayerWidget(self)
@@ -183,6 +244,12 @@ class MainWindow(QMainWindow):
         tb = self.addToolBar("Main Controls")
         tb.setMovable(False)
 
+        # Sidebar Toggle
+        self.act_toggle_sb = QAction("📁 Sidebar", self)
+        self.act_toggle_sb.setShortcut(QKeySequence("F9"))
+        self.act_toggle_sb.triggered.connect(self._toggle_sidebar)
+        tb.addAction(self.act_toggle_sb)
+
         # Scan Folder
         act_scan = QAction("📂 Scan Folder", self)
         act_scan.setShortcut(QKeySequence("Ctrl+O"))
@@ -197,8 +264,14 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        # Tag Editor
-        act_edit = QAction("🏷️ Tag Editor", self)
+        # Dedicated Mp3tag Workspace
+        act_mp3tag = QAction("🏷️ Mp3tag Workspace", self)
+        act_mp3tag.setShortcut(QKeySequence("Ctrl+T"))
+        act_mp3tag.triggered.connect(self._on_open_mp3tag_workspace)
+        tb.addAction(act_mp3tag)
+
+        # Quick Tag Editor Dialog
+        act_edit = QAction("✏️ Quick Tag", self)
         act_edit.setShortcut(QKeySequence("Ctrl+E"))
         act_edit.triggered.connect(self._on_open_tag_editor)
         tb.addAction(act_edit)
@@ -224,10 +297,16 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         # Smart Organizer
-        act_organize = QAction("📁 Smart Organizer", self)
+        act_organize = QAction("📦 Smart Organizer", self)
         act_organize.setShortcut(QKeySequence("Ctrl+S"))
         act_organize.triggered.connect(self._on_open_sorter)
         tb.addAction(act_organize)
+
+        # Settings
+        act_settings = QAction("⚙️ Impostazioni", self)
+        act_settings.setShortcut(QKeySequence("Ctrl+,"))
+        act_settings.triggered.connect(self._on_open_settings)
+        tb.addAction(act_settings)
 
         # Toggle Live Log
         act_log = QAction("📜 Live Log", self)
@@ -297,6 +376,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+K"), self).activated.connect(self.filter_bar._open_camelot_wheel)
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self).activated.connect(self.filter_bar.reset_filters)
         QShortcut(QKeySequence(Qt.Key.Key_Space), self).activated.connect(self._on_space_pressed)
+        QShortcut(QKeySequence("Ctrl+X"), self).activated.connect(self._on_cut_tracks)
+        QShortcut(QKeySequence("Ctrl+C"), self).activated.connect(self._on_copy_tracks)
+        QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(self._on_paste_tracks)
 
     def _on_space_pressed(self) -> None:
         """Toggles playback on active deck or auditions selected table track."""
@@ -316,6 +398,7 @@ class MainWindow(QMainWindow):
         self.filter_bar._refresh_crates_dropdown()
         self.filter_bar.genre_widget._refresh_completer()
         self.filter_bar.genre_widget._build_menu()
+        self._populate_sidebar_tree()
 
         total_dur = sum(t.get("duration") or 0.0 for t in self.all_tracks)
         hours = int(total_dur // 3600)
@@ -485,25 +568,201 @@ class MainWindow(QMainWindow):
         )
         QMessageBox.information(self, "Library Analytics", msg)
 
-    def _on_table_context_menu(self, pos: QPoint) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._apply_responsive_columns(event.size().width())
+
+    def _apply_responsive_columns(self, width: int) -> None:
+        """Adapts table column visibility dynamically based on viewport width."""
+        header = self.table_view.horizontalHeader()
+        if width < 1100:
+            # Compact view (< 1100px): hide secondary columns (Remixer, Key, Label, Bitrate, Energy, Path)
+            for col_idx in [4, 7, 11, 13, 14, 15]:
+                if col_idx < header.count():
+                    header.setSectionHidden(col_idx, True)
+            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 12]:
+                if col_idx < header.count():
+                    header.setSectionHidden(col_idx, False)
+        elif width < 1350:
+            # Medium view: hide Remixer, Musical Key, and Path
+            for col_idx in [4, 7, 15]:
+                if col_idx < header.count():
+                    header.setSectionHidden(col_idx, True)
+            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14]:
+                if col_idx < header.count():
+                    header.setSectionHidden(col_idx, False)
+        else:
+            # Wide view: show all columns
+            for col_idx in range(header.count()):
+                header.setSectionHidden(col_idx, False)
+
+    def _toggle_sidebar(self) -> None:
+        """Toggles visibility of the left sidebar."""
+        new_vis = not self.sidebar_widget.isVisible()
+        self.sidebar_widget.setVisible(new_vis)
+        self.btn_collapse_sidebar.setText("◀" if new_vis else "▶")
+        self.act_toggle_sb.setText("📁 Sidebar [Show]" if not new_vis else "📁 Sidebar [Hide]")
+
+    def _populate_sidebar_tree(self) -> None:
+        """Populates hierarchical tree in the collapsible sidebar."""
+        self.sidebar_tree.clear()
+
+        # All Tracks item
+        item_all = QTreeWidgetItem(self.sidebar_tree, [f"📚 All Tracks ({len(self.all_tracks):,})"])
+        item_all.setData(0, Qt.ItemDataRole.UserRole, {"type": "all"})
+
+        # Top Genres node
+        genres_count: Dict[str, int] = {}
+        camelot_count: Dict[str, int] = {}
+        for t in self.all_tracks:
+            g = (t.get("genre") or "").strip()
+            if g:
+                genres_count[g] = genres_count.get(g, 0) + 1
+            k = (t.get("camelot_key") or "").strip()
+            if k:
+                camelot_count[k] = camelot_count.get(k, 0) + 1
+
+        genre_root = QTreeWidgetItem(self.sidebar_tree, [f"🏷️ Genres ({len(genres_count)})"])
+        genre_root.setExpanded(True)
+        for g, count in sorted(genres_count.items(), key=lambda x: -x[1])[:12]:
+            g_item = QTreeWidgetItem(genre_root, [f"{g} ({count})"])
+            g_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "genre", "value": g})
+
+        # Smart Crates node
+        crates = self.db.get_crates()
+        crates_root = QTreeWidgetItem(self.sidebar_tree, [f"🎛️ Smart Crates ({len(crates)})"])
+        crates_root.setExpanded(True)
+        for c in crates:
+            c_item = QTreeWidgetItem(crates_root, [f"🗂️ {c['name']}"])
+            c_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "crate", "value": c["name"]})
+
+        # Camelot Keys node
+        camelot_root = QTreeWidgetItem(self.sidebar_tree, ["🔑 Camelot Keys"])
+        for k in sorted(camelot_count.keys()):
+            k_item = QTreeWidgetItem(camelot_root, [f"{k} ({camelot_count[k]})"])
+            k_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "camelot", "value": k})
+
+    def _on_sidebar_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        """Handles selection of sidebar items to filter the main library view."""
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        itype = data.get("type")
+        val = data.get("value")
+
+        if itype == "all":
+            self.filter_bar.reset_filters()
+        elif itype == "genre" and val:
+            self.filter_bar.genre_widget.set_selected_genres([val])
+        elif itype == "crate" and val:
+            idx = self.filter_bar.cb_crates.findText(val)
+            if idx >= 0:
+                self.filter_bar.cb_crates.setCurrentIndex(idx)
+        elif itype == "camelot" and val:
+            self.filter_bar.btn_camelot.setText(f"🔑 Key: {val}")
+            crit = self.filter_bar.get_current_criteria()
+            crit.camelot_key = val
+            self.filter_bar.filter_changed.emit(crit)
+
+    def _on_cut_tracks(self) -> None:
+        """Cuts selected tracks to clipboard for physical moving."""
         selected = self._get_selected_tracks()
         if not selected:
             return
+        paths = [t["filepath"] for t in selected if t.get("filepath")]
+        if paths:
+            self.file_manager.cut_files(paths)
+            self.status_bar.showMessage(f"✂️ Cut {len(paths)} track(s) to clipboard. Ready to paste.")
 
+    def _on_copy_tracks(self) -> None:
+        """Copies selected tracks to clipboard for physical duplication."""
+        selected = self._get_selected_tracks()
+        if not selected:
+            return
+        paths = [t["filepath"] for t in selected if t.get("filepath")]
+        if paths:
+            self.file_manager.copy_files(paths)
+            self.status_bar.showMessage(f"📋 Copied {len(paths)} track(s) to clipboard. Ready to paste.")
+
+    def _on_paste_tracks(self) -> None:
+        """Pastes files from clipboard into a chosen destination directory with DB sync."""
+        if not self.file_manager.clipboard_files:
+            sys_files = self.file_manager._get_system_clipboard_files()
+            if not sys_files:
+                QMessageBox.information(self, "Paste Tracks", "Clipboard is empty. Cut or copy tracks first.")
+                return
+
+        dest_dir = QFileDialog.getExistingDirectory(self, "Select Destination Folder for Paste")
+        if not dest_dir:
+            return
+
+        res = self.file_manager.paste_files(dest_dir)
+        msg = f"Paste complete: {len(res.processed_files)} file(s) processed."
+        if res.errors:
+            msg += f" (Errors: {len(res.errors)})"
+        self.status_bar.showMessage(msg)
+        self._refresh_library()
+
+    def _on_open_mp3tag_workspace(self) -> None:
+        """Launches dedicated Mp3tag Workbench workspace window."""
+        selected = self._get_selected_tracks()
+        tracks_to_edit = selected if selected else self.all_tracks
+        self._mp3tag_window = Mp3tagWorkspaceWindow(self.db, tracks_to_edit, parent=self)
+        self._mp3tag_window.workspace_saved.connect(self._refresh_library)
+        self._mp3tag_window.show()
+
+    def _on_open_settings(self) -> None:
+        """Opens modular Preferences and Settings dialog."""
+        dlg = SettingsDialog(self.settings_manager, parent=self)
+        dlg.settings_applied.connect(self._on_settings_applied)
+        dlg.exec()
+
+    def _on_settings_applied(self, ui_settings: Dict[str, Any]) -> None:
+        """Applies updated UI configuration immediately."""
+        theme_id = ui_settings.get("theme", "dark_dj")
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(get_theme_stylesheet(theme_id))
+        self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
+
+    def _on_table_context_menu(self, pos: QPoint) -> None:
+        selected = self._get_selected_tracks()
         menu = QMenu(self)
-        act_play = menu.addAction("▶ Play in Mini-Player")
-        act_edit = menu.addAction("🏷️ Edit Tags (Batch)...")
-        act_reconcile = menu.addAction("⚖️ Reconcile Multi-Source Metadata & HD Cover...")
-        act_convert = menu.addAction("🔀 Filename <-> Tag Patterns...")
-        act_analyze = menu.addAction("🎵 Calculate BPM & Camelot Key")
-        act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
-        menu.addSeparator()
-        act_folder = menu.addAction("📂 Open in Windows Explorer")
+
+        if selected:
+            act_play = menu.addAction("▶ Play in Mini-Player")
+            menu.addSeparator()
+            act_cut = menu.addAction("✂️ Cut Track(s) (Ctrl+X)")
+            act_copy = menu.addAction("📋 Copy Track(s) (Ctrl+C)")
+            act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
+            menu.addSeparator()
+            act_mp3tag = menu.addAction("🏷️ Open in Mp3tag Workbench (Ctrl+T)...")
+            act_edit = menu.addAction("✏️ Edit Tags (Batch)...")
+            act_reconcile = menu.addAction("⚖️ Reconcile Multi-Source Metadata & HD Cover...")
+            act_convert = menu.addAction("🔀 Filename <-> Tag Patterns...")
+            act_analyze = menu.addAction("🎵 Calculate BPM & Camelot Key")
+            act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
+            menu.addSeparator()
+            act_folder = menu.addAction("📂 Open in Windows Explorer")
+        else:
+            act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
+            act_play = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_sorter = act_folder = None
 
         action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
-        if action == act_play:
+        if not action:
+            return
+
+        if action == act_play and selected:
             self.player_widget.load_track(selected[0])
             self.player_widget.play()
+        elif action == act_cut:
+            self._on_cut_tracks()
+        elif action == act_copy:
+            self._on_copy_tracks()
+        elif action == act_paste:
+            self._on_paste_tracks()
+        elif action == act_mp3tag:
+            self._on_open_mp3tag_workspace()
         elif action == act_edit:
             self._on_open_tag_editor()
         elif action == act_reconcile:
@@ -514,7 +773,7 @@ class MainWindow(QMainWindow):
             self._on_batch_acoustic_analysis()
         elif action == act_sorter:
             self._on_open_sorter()
-        elif action == act_folder:
+        elif action == act_folder and selected:
             fp = selected[0].get("filepath", "")
             if fp and Path(fp).exists():
                 os.system(f'explorer /select,"{os.path.normpath(fp)}"')

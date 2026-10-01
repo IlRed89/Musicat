@@ -176,6 +176,8 @@ class Database:
             cur.execute(sql, track_data)
             return cur.lastrowid or 0
 
+    insert_track = insert_or_update_track
+
     def bulk_insert_or_update(self, track_list: List[Dict[str, Any]]) -> int:
         """Performs batch upsert in a single transaction."""
         if not track_list:
@@ -248,6 +250,8 @@ class Database:
                 cur.execute("SELECT * FROM tracks WHERE filepath = ?", (str(track_id_or_path),))
             row = cur.fetchone()
             return dict(row) if row else None
+
+    get_track_by_path = get_track
 
     def search_tracks(
         self,

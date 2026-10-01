@@ -21,6 +21,7 @@ from .worker import (
     extract_high_energy_chroma,
 )
 from .parallel_analyzer import ParallelAnalyzer
+from .gpu_analyzer import BatchGpuAcousticEngine
 
 __all__ = [
     "AcousticAnalyzer",
@@ -39,4 +40,5 @@ __all__ = [
     "load_partial_audio_window",
     "extract_high_energy_chroma",
     "ParallelAnalyzer",
+    "BatchGpuAcousticEngine",
 ]

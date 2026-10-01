@@ -1,0 +1,8 @@
+"""
+Musicat Plugins Package.
+"""
+
+from .base import BasePlugin
+from .manager import PluginManager
+
+__all__ = ["BasePlugin", "PluginManager"]

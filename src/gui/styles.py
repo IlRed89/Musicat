@@ -333,3 +333,143 @@ QLabel#BpmBadge {
     padding: 2px 6px;
 }
 """
+
+HIGH_CONTRAST_THEME_QSS = """
+/* High-Contrast Club Booth Theme */
+QWidget {
+    background-color: #000000;
+    color: #ffffff;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+    font-size: 13px;
+    selection-background-color: #ffff00;
+    selection-color: #000000;
+}
+
+QMainWindow, QDialog {
+    background-color: #000000;
+}
+
+QMenuBar {
+    background-color: #0a0a0a;
+    border-bottom: 2px solid #00ffff;
+}
+
+QMenuBar::item:selected {
+    background-color: #00ffff;
+    color: #000000;
+}
+
+QTableView {
+    background-color: #050505;
+    color: #ffffff;
+    gridline-color: #333333;
+    selection-background-color: #ffff00;
+    selection-color: #000000;
+}
+
+QHeaderView::section {
+    background-color: #111111;
+    color: #00ffff;
+    font-weight: bold;
+    border: 1px solid #333333;
+    padding: 5px;
+}
+
+QPushButton {
+    background-color: #111111;
+    color: #00ffff;
+    border: 2px solid #00ffff;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #00ffff;
+    color: #000000;
+}
+
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #0a0a0a;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+"""
+
+LIGHT_THEME_QSS = """
+/* Light Studio Theme */
+QWidget {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+    font-size: 13px;
+    selection-background-color: #0284c7;
+    selection-color: #ffffff;
+}
+
+QMainWindow, QDialog {
+    background-color: #f1f5f9;
+}
+
+QMenuBar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #cbd5e1;
+}
+
+QMenuBar::item:selected {
+    background-color: #e2e8f0;
+    color: #0284c7;
+}
+
+QTableView {
+    background-color: #ffffff;
+    color: #0f172a;
+    gridline-color: #e2e8f0;
+    selection-background-color: #0284c7;
+    selection-color: #ffffff;
+}
+
+QHeaderView::section {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    font-weight: bold;
+    border: 1px solid #cbd5e1;
+    padding: 5px;
+}
+
+QPushButton {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #94a3b8;
+    border-radius: 5px;
+    padding: 6px 14px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #f1f5f9;
+    border-color: #0284c7;
+    color: #0284c7;
+}
+
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+"""
+
+
+def get_theme_stylesheet(theme_id: str) -> str:
+    """Returns the appropriate QSS stylesheet for the given theme ID."""
+    t = (theme_id or "").lower().strip()
+    if "high" in t or "contrast" in t:
+        return HIGH_CONTRAST_THEME_QSS
+    elif "light" in t:
+        return LIGHT_THEME_QSS
+    return DARK_THEME_QSS
+
