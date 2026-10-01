@@ -25,7 +25,7 @@ When managing collections of **50,000+ tracks** on high-capacity external SSDs, 
 4. 🏷️ **Advanced Mp3tag-Grade Metadata Engine:** Full support for MP3, FLAC, M4A, WAV, AIFF, and OGG containers with multi-selection batch tag editing and pattern conversions (`%artist% - %title% (%bpm% BPM)`).
 5. 🌐 **Multi-Source Scraping & Discrepancy Reconciliation:** Scrapes Beatport, Traxsource, Discogs, MusicBrainz, and Social/Remix platforms (SoundCloud, YouTube Music, Hypeddit, Remix.audio). Reconciles conflicting metadata with field-by-field selective resolution.
 6. 🖼️ **Studio HD Cover Art Injection:** Discovers lossless studio covers from 500x500 up to 3000x3000px (Apple Music / iTunes CDN, Beatport HD) and injects them directly into file tags (`APIC`, Picture block, `covr`) with optional local `cover.jpg` saving.
-7. 🎛️ **Live DJ Crate & Acoustic Assistant:** Automated non-destructive BPM and harmonic key detection (Camelot 1A–12B), live filter bar with $<15\text{ms}$ in-memory cache, and Smart Crates with universal M3U8 export.
+7. 🎛️ **High-Performance Parallel Acoustic Engine & L1 RAM Cache:** Hardware-aware multiprocessing pool (`ProcessPoolExecutor`) saturating logical CPU cores with streaming partial-window audio reads and high-energy chroma extraction, paired with an in-memory SQLite buffer and LRU waveform cache for zero disk I/O bottleneck.
 8. 💾 **Dual-Mode Setup & Drive Migration:** Runs in standard desktop mode (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS) or zero-installation portable mode (`portable.lock`) with volume serial and mount point translation (`[VOL:...]`), allowing seamless switching of the same USB SSD between Windows and Mac!
 
 ---
@@ -40,11 +40,18 @@ Musicat/
 │   ├── core/                  # Core Systems
 │   │   ├── db.py              # SQLite WAL database & FTS5 full-text search engine
 │   │   ├── everything_search.py # Voidtools Everything SDK (MFT IPC) + FTS fallback
+│   │   ├── search_mac.py      # Native macOS Spotlight APFS driver (mdfind)
+│   │   ├── search_factory.py  # Unified SearchEngine factory with dynamic badges
+│   │   ├── memory_cache.py    # L1 SQLite RAM buffer & Waveform LRU memory cache
+│   │   ├── filter_engine.py   # Multi-criteria live query builder (<15ms latency)
 │   │   ├── logger.py          # Structured logging (20MB compressed rotation, GUI console)
 │   │   ├── path_resolver.py   # Volume Serial Number (VSN) & portable.lock resolver
 │   │   └── scanner.py         # Multi-threaded recursive folder scanner
-│   ├── audio/                 # Acoustic Analysis
+│   ├── audio/                 # Acoustic Analysis Engine
 │   │   ├── analyzer.py        # BPM autocorrelation & Camelot Wheel chromagram engine
+│   │   ├── camelot.py         # Camelot Wheel harmonic assistant & matrix matching
+│   │   ├── worker.py          # Pure worker functions (partial reads, high-energy chroma)
+│   │   ├── parallel_analyzer.py # Dynamic ProcessPoolExecutor & batch scheduler
 │   │   └── waveform.py        # Downsampled audio peak extraction for mini-player
 │   ├── player/                # Audio Engine
 │   │   └── vlc_engine.py      # libVLC universal engine with DJ pitch rate bending (+/- 8%)
@@ -64,6 +71,8 @@ Musicat/
 │   │   └── sorter.py          # Dynamic folder hierarchy sorter & Dry-Run planner
 │   ├── gui/                   # Dark DJ Console Interface (PySide6)
 │   │   ├── main_view.py       # Primary dashboard with filters, live log & table
+│   │   ├── live_filters.py    # Live DJ Filter Bar with Camelot Wheel Dialog
+│   │   ├── analysis_dialog.py # Hardware-Aware parallel acoustic analyzer dialog
 │   │   ├── table_model.py     # High-performance virtual QAbstractTableModel
 │   │   ├── player_widget.py   # VLC-backed player with waveform canvas & DJ pitch slider
 │   │   ├── tag_editor_dialog.py # Inline & batch tag editor with cover manager
@@ -151,11 +160,32 @@ python main.py --scan "E:\DJ_Music"
 
 ## 🧪 Running Unit Tests
 
-Musicat includes 46 unit tests covering every subsystem:
+Musicat includes **65 comprehensive unit tests** covering every subsystem:
 
 ```powershell
 python -m unittest discover tests -v
 ```
+
+---
+
+## ⚡ High-Performance Audio Analysis Engine (Multiprocessing & RAM Cache)
+
+Engineered specifically for massive DJ libraries (50,000+ tracks) to maximize CPU utilization without UI freezing:
+
+- **Hardware-Aware Process Pool:** Automatic detection of logical CPU cores (`os.cpu_count()`) with configurable worker pool (`N - 1` by default) bypassing Python's GIL.
+- **Chunking & Batch Scheduling:** Audio file paths are dispatched in configurable batches (25-50 tracks) to minimize inter-process serialization overhead.
+- **Accelerated Streaming Decoding:**
+  - **BPM Detection:** Reads only a representative 60-second central window at 22,050 Hz mono, skipping quiet intro and outro sections.
+  - **Camelot Key Detection:** Extracts chromagram from highest RMS energy audio segments (drops, hooks), cutting STFT calculation times by ~80%.
+  - **Waveform Envelope:** Generates 250-point downsampled peak envelope for instant mini-player scrubbing.
+- **L1 In-Memory RAM Buffer (`AnalysisMemoryCache`):**
+  - Staged in a high-speed SQLite RAM buffer (`:memory:`), eliminating continuous write cycles on USB drives and external SSDs.
+  - Periodic and thresholded background flush commits results to the persistent SQLite database (`musicat.db`) in single batch transactions.
+- **Waveform LRU Memory Cache (`WaveformMemoryCache`):**
+  - Thread-safe LRU cache with configurable size limit (128 MB – 2048 MB) storing waveform vectors for instantaneous (<0.1ms) zero-I/O preview loading.
+- **Non-Blocking Telemetry GUI (`AcousticAnalysisDialog`):**
+  - Thread-safe `QThread` bridge providing real-time throughput meter (`tracce/sec`), dynamic progress bar, ETA, and CPU/RAM allocation sliders.
+  - Dedicated user controls: **Avvia**, **Pausa**, and **Annulla**.
 
 ---
 

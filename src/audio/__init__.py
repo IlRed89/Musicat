@@ -13,6 +13,14 @@ from .analyzer import (
 )
 from .waveform import WaveformGenerator
 from .camelot import CamelotWheel, CAMELOT_KEYS_ORDERED
+from .worker import (
+    WorkerAnalysisResult,
+    analyze_single_track,
+    analyze_track_batch_worker,
+    load_partial_audio_window,
+    extract_high_energy_chroma,
+)
+from .parallel_analyzer import ParallelAnalyzer
 
 __all__ = [
     "AcousticAnalyzer",
@@ -25,4 +33,10 @@ __all__ = [
     "WaveformGenerator",
     "CamelotWheel",
     "CAMELOT_KEYS_ORDERED",
+    "WorkerAnalysisResult",
+    "analyze_single_track",
+    "analyze_track_batch_worker",
+    "load_partial_audio_window",
+    "extract_high_energy_chroma",
+    "ParallelAnalyzer",
 ]

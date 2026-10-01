@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..audio.waveform import WaveformGenerator
+from ..core.memory_cache import WaveformMemoryCache
 from ..player.vlc_engine import VLCAudioPlayer
 
 
@@ -283,9 +284,23 @@ class MiniPlayerWidget(QFrame):
         camelot = track.get("camelot_key") or track.get("musical_key") or "--"
         self.camelot_badge.setText(camelot)
 
-        # Generate waveform peak envelope
-        peaks = WaveformGenerator.generate_peaks(filepath, num_points=250)
-        self.waveform_canvas.set_peaks(peaks)
+        # Retrieve or generate waveform peak envelope
+        waveform_cache = WaveformMemoryCache.get_instance()
+        peaks = waveform_cache.get_waveform(filepath)
+        if not peaks:
+            raw_peaks = track.get("waveform_peaks")
+            if isinstance(raw_peaks, str) and raw_peaks:
+                peaks = WaveformGenerator.deserialize_peaks(raw_peaks)
+            elif isinstance(raw_peaks, list) and raw_peaks:
+                peaks = raw_peaks
+
+        if not peaks:
+            peaks = WaveformGenerator.generate_peaks(filepath, num_points=250)
+
+        if peaks:
+            waveform_cache.put_waveform(filepath, peaks)
+
+        self.waveform_canvas.set_peaks(peaks or [])
         self.waveform_canvas.set_position_ratio(0.0)
 
         # Load media into active audio engine

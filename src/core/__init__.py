@@ -10,6 +10,7 @@ from .everything_search import EverythingSearchEngine
 from .search_mac import DarwinSearchEngine
 from .search_factory import SearchEngine, SearchFactory, WindowsSearchEngine
 from .filter_engine import FilterCriteria, LiveFilterQueryBuilder, LiveFilterEngine
+from .memory_cache import AnalysisMemoryCache, WaveformMemoryCache
 
 __all__ = [
     "PathResolver",
@@ -25,4 +26,6 @@ __all__ = [
     "FilterCriteria",
     "LiveFilterQueryBuilder",
     "LiveFilterEngine",
+    "AnalysisMemoryCache",
+    "WaveformMemoryCache",
 ]

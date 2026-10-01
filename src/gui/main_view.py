@@ -51,6 +51,7 @@ from .sorter_dialog import SorterDialog
 from .pattern_dialog import PatternDialog
 from .scraper_dialog import ScraperDialog
 from .reconciler_dialog import ReconcilerDialog
+from .analysis_dialog import AcousticAnalysisDialog
 
 
 class BackgroundScanWorker(QThread):
@@ -461,33 +462,12 @@ class MainWindow(QMainWindow):
         tracks_to_analyze = selected if selected else self.all_tracks
 
         if not tracks_to_analyze:
-            QMessageBox.information(self, "Empty", "No tracks available to analyze.")
+            QMessageBox.information(self, "Libreria Vuota", "Nessuna traccia disponibile da analizzare.")
             return
 
-        confirm = QMessageBox.question(
-            self,
-            "Confirm Acoustic Analysis",
-            f"Run BPM & Camelot Key detection on {len(tracks_to_analyze)} tracks?\nThis will analyze audio envelopes and save BPM & Key to file tags.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if confirm != QMessageBox.StandardButton.Yes:
-            return
-
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, len(tracks_to_analyze))
-        self.progress_bar.setValue(0)
-
-        self.analysis_worker = BackgroundAnalysisWorker(tracks_to_analyze, self.db)
-        self.analysis_worker.progress.connect(
-            lambda cur, tot, name: [self.progress_bar.setValue(cur), self.status_bar.showMessage(f"Analyzing ({cur}/{tot}): {name}")]
-        )
-        self.analysis_worker.finished.connect(self._on_analysis_finished)
-        self.analysis_worker.start()
-
-    def _on_analysis_finished(self, success_count: int) -> None:
-        self.progress_bar.setVisible(False)
+        dlg = AcousticAnalysisDialog(tracks_to_analyze, self.db, self)
+        dlg.exec()
         self._refresh_library()
-        QMessageBox.information(self, "Analysis Finished", f"Acoustic analysis complete!\nAnalyzed: {success_count} tracks.")
 
     def _on_show_stats(self) -> None:
         stats = self.db.get_library_statistics()

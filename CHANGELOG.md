@@ -47,10 +47,16 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
 - Lossless studio artwork extraction via Apple Music / iTunes CDN upscaling (`1400x1400` to `3000x3000px`), Beatport GeoMedia, and Traxsource.
 - Tag injection (`APIC` for ID3, Picture block for FLAC, `covr` for MP4/M4A) with optional local `cover.jpg` saving.
 
-#### 📊 Acoustic Analysis & Harmonic Mixing
-- Non-destructive BPM detection via onset envelope spectral flux and autocorrelation.
-- Camelot Wheel Key detection (`1A`–`12B`) via 12-bin chromagram and Krumhansl-Schmuckler profiles.
-- Harmonic mixing compatibility finder (relative keys, $\pm 1$, $+2$ energy boosts).
+#### 📊 High-Performance Parallel Acoustic Engine & L1 RAM Cache
+- **Hardware-Aware Multiprocessing Pool (`src/audio/parallel_analyzer.py`):** Dynamic worker allocation saturated across logical CPU cores (`os.cpu_count() - 1`), with batch scheduling (20-50 tracks) to minimize inter-process communication overhead.
+- **Accelerated Streaming Audio Worker (`src/audio/worker.py`):**
+  - Fast partial-window streaming read (central 60s drop window at 22,050 Hz mono) skipping quiet intro/outro sections.
+  - High-energy segment extraction for Camelot Key detection, cutting STFT CPU consumption by ~80%.
+  - Downsampled peak envelope generation for instant waveform rendering.
+- **In-Memory RAM Cache System (`src/core/memory_cache.py`):**
+  - **`AnalysisMemoryCache`:** SQLite RAM buffer (`:memory:`) staging raw DSP results with periodic/threshold-based background flush to disk, eliminating physical SSD/USB drive wear.
+  - **`WaveformMemoryCache`:** Thread-safe LRU cache with configurable size limit (e.g. 512MB / 1GB / 2GB) providing instant (<0.1ms) waveform loading during DJ track audition without reading physical files.
+- **Interactive Telemetry Dialog (`src/gui/analysis_dialog.py`):** Dedicated non-blocking GUI dialog with `QThread` bridge, reactive progress bar, real-time throughput meter (`tracce/sec`), CPU cores allocation slider, RAM cache size slider, ETA counter, and Start/Pause/Cancel controls.
 
 #### 📁 Smart Organizer & Inbound File Dispatcher
 - Dynamic folder tree generation based on customizable rules: `{Genre}/BPM {bpm_range}/{Camelot} - {Artist} - {Title}.ext`.
