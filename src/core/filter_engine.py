@@ -41,6 +41,7 @@ class FilterCriteria:
     rating_min: Optional[int] = None                # Minimum star rating (1-5)
     energy_levels: List[int] = field(default_factory=list) # e.g. [1, 2, 3, 4, 5]
     tags: List[str] = field(default_factory=list)   # e.g. ['Intro', 'Vocal', 'Acapella']
+    quality_filter: Optional[str] = None            # 'clipping', 'low_volume', 'brickwall', 'problematic', 'ok'
     order_by: str = "artist, title"
     ascending: bool = True
     limit: int = 50000
@@ -61,6 +62,7 @@ class FilterCriteria:
             and self.rating_min is None
             and not self.energy_levels
             and not self.tags
+            and not self.quality_filter
         )
 
     def effective_bpm_range(self) -> Tuple[Optional[float], Optional[float]]:
@@ -195,11 +197,29 @@ class LiveFilterQueryBuilder:
             if tag_conds:
                 where_clauses.append(f"({' OR '.join(tag_conds)})")
 
+        # 9. Audio Quality Filter (Clipping, Low Volume, Brickwall, Conformance)
+        if criteria.quality_filter:
+            qf = criteria.quality_filter.lower().strip()
+            if qf == "clipping":
+                where_clauses.append("(audio_status = 'CLIPPING' OR true_peak > 0.0)")
+            elif qf == "low_volume":
+                where_clauses.append("(audio_status = 'LOW_VOLUME' OR (lufs IS NOT NULL AND lufs < -18.0))")
+            elif qf == "brickwall":
+                where_clauses.append("(audio_status = 'BRICKWALL' OR (lra IS NOT NULL AND lra < 3.0))")
+            elif qf == "problematic":
+                where_clauses.append(
+                    "(audio_status IN ('CLIPPING', 'LOW_VOLUME', 'BRICKWALL') "
+                    "OR true_peak > 0.0 OR (lufs IS NOT NULL AND lufs < -18.0))"
+                )
+            elif qf == "ok":
+                where_clauses.append("audio_status = 'OK'")
+
         # Sorting sanitation
         allowed_sort = {
             "id", "filepath", "filename", "artist", "title", "album", "year",
             "genre", "bpm", "camelot_key", "musical_key", "duration", "bitrate",
-            "rating", "energy_level", "label", "remixer", "updated_at"
+            "rating", "energy_level", "label", "remixer", "updated_at",
+            "lufs", "true_peak", "lra", "audio_status"
         }
         sort_cols = [c.strip() for c in criteria.order_by.split(",") if c.strip() in allowed_sort]
         clean_sort = ", ".join(sort_cols) if sort_cols else "artist, title"
@@ -290,6 +310,7 @@ class LiveFilterEngine:
         rating_min = criteria.rating_min
         year_min = criteria.year_min
         year_max = criteria.year_max
+        quality_filter = criteria.quality_filter.lower().strip() if criteria.quality_filter else None
 
         filtered: List[Dict[str, Any]] = []
 
@@ -356,6 +377,33 @@ class LiveFilterEngine:
                 ttl = (tr.get("title") or "").lower()
                 if not any(t in comm or t in ttl for t in tags_lower):
                     continue
+
+            # 9. Audio Quality Filter
+            if quality_filter:
+                status = (tr.get("audio_status") or "").upper()
+                tp = tr.get("true_peak")
+                lufs = tr.get("lufs")
+                lra = tr.get("lra")
+                if quality_filter == "clipping":
+                    if not (status == "CLIPPING" or (tp is not None and tp > 0.0)):
+                        continue
+                elif quality_filter == "low_volume":
+                    if not (status == "LOW_VOLUME" or (lufs is not None and lufs < -18.0)):
+                        continue
+                elif quality_filter == "brickwall":
+                    if not (status == "BRICKWALL" or (lra is not None and lra < 3.0)):
+                        continue
+                elif quality_filter == "problematic":
+                    is_prob = (
+                        status in ("CLIPPING", "LOW_VOLUME", "BRICKWALL")
+                        or (tp is not None and tp > 0.0)
+                        or (lufs is not None and lufs < -18.0)
+                    )
+                    if not is_prob:
+                        continue
+                elif quality_filter == "ok":
+                    if status != "OK":
+                        continue
 
             filtered.append(tr)
 

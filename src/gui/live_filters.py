@@ -522,6 +522,21 @@ class LiveFilterBar(QFrame):
         rating_box.addWidget(rating_lbl)
         rating_box.addWidget(self.cmb_rating)
 
+        # Audio Quality / Diagnostics Filter
+        quality_box = QHBoxLayout()
+        quality_box.setSpacing(4)
+        quality_lbl = QLabel("Audio:")
+        self.cmb_quality = QComboBox()
+        self.cmb_quality.addItem("🔊 All Audio", "")
+        self.cmb_quality.addItem("⚠️ Clipping (>0 dBTP)", "clipping")
+        self.cmb_quality.addItem("🔈 Basso Vol (<-18 LUFS)", "low_volume")
+        self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
+        self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
+        self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
+        self.cmb_quality.setFixedWidth(135)
+        quality_box.addWidget(quality_lbl)
+        quality_box.addWidget(self.cmb_quality)
+
         # Quick DJ Tags (Pills)
         tags_box = QHBoxLayout()
         tags_box.setSpacing(4)
@@ -565,6 +580,7 @@ class LiveFilterBar(QFrame):
         row2.addLayout(year_box)
         row2.addLayout(energy_box)
         row2.addLayout(rating_box)
+        row2.addLayout(quality_box)
         row2.addLayout(tags_box)
         row2.addStretch()
         row2.addLayout(crate_box)
@@ -584,6 +600,7 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_energy.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_rating.currentIndexChanged.connect(self._trigger_debounce)
+        self.cmb_quality.currentIndexChanged.connect(self._trigger_debounce)
 
     def _trigger_debounce(self) -> None:
         self._debounce_timer.start()
@@ -620,6 +637,7 @@ class LiveFilterBar(QFrame):
         year_min, year_max = self.cmb_decade.currentData() or (None, None)
         energy_levels = self.cmb_energy.currentData() or []
         rating_min = self.cmb_rating.currentData()
+        quality_filter = self.cmb_quality.currentData() or None
 
         active_tags = []
         if self.btn_tag_intro.isChecked():
@@ -647,6 +665,7 @@ class LiveFilterBar(QFrame):
             rating_min=rating_min,
             energy_levels=energy_levels,
             tags=active_tags,
+            quality_filter=quality_filter,
         )
 
     def set_criteria(self, criteria: FilterCriteria) -> None:
@@ -678,6 +697,13 @@ class LiveFilterBar(QFrame):
 
         self.chk_harmonic_only.setChecked(criteria.harmonic_matches_only)
 
+        if getattr(criteria, "quality_filter", None):
+            idx = self.cmb_quality.findData(criteria.quality_filter)
+            if idx >= 0:
+                self.cmb_quality.setCurrentIndex(idx)
+        else:
+            self.cmb_quality.setCurrentIndex(0)
+
         # Tags
         tags = set(criteria.tags)
         self.btn_tag_intro.setChecked("Intro" in tags)
@@ -700,6 +726,7 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.setCurrentIndex(0)
         self.cmb_energy.setCurrentIndex(0)
         self.cmb_rating.setCurrentIndex(0)
+        self.cmb_quality.setCurrentIndex(0)
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setChecked(False)
 

@@ -203,6 +203,9 @@ class SettingsDialog(QDialog):
             ("label", "Etichetta (Label)"),
             ("remixer", "Remixer"),
             ("energy_level", "Energy Level"),
+            ("lufs", "LUFS"),
+            ("true_peak", "True Peak (dBTP)"),
+            ("audio_status", "Qualità Audio"),
         ]
 
         for idx, (col_id, col_name) in enumerate(all_columns):

@@ -59,6 +59,7 @@ from .reconciler_dialog import ReconcilerDialog
 from .analysis_dialog import AcousticAnalysisDialog
 from .settings_dialog import SettingsDialog
 from .mp3tag_workspace import Mp3tagWorkspaceWindow
+from .views import QualityDiagnosisDialog
 from .styles import get_theme_stylesheet
 
 
@@ -230,6 +231,7 @@ class MainWindow(QMainWindow):
 
         # Bottom Mini-Player
         self.player_widget = MiniPlayerWidget(self)
+        self.player_widget.track_normalized.connect(lambda _: self._refresh_library())
         main_layout.addWidget(self.player_widget)
 
         # Status Bar
@@ -293,6 +295,12 @@ class MainWindow(QMainWindow):
         act_acoustic.setShortcut(QKeySequence("Ctrl+A"))
         act_acoustic.triggered.connect(self._on_batch_acoustic_analysis)
         tb.addAction(act_acoustic)
+
+        # Audio Quality Diagnosis & Loudnorm
+        act_quality = QAction("🔊 Audio Quality", self)
+        act_quality.setShortcut(QKeySequence("Ctrl+Q"))
+        act_quality.triggered.connect(self._on_action_quality_diagnosis)
+        tb.addAction(act_quality)
 
         tb.addSeparator()
 
@@ -576,19 +584,19 @@ class MainWindow(QMainWindow):
         """Adapts table column visibility dynamically based on viewport width."""
         header = self.table_view.horizontalHeader()
         if width < 1100:
-            # Compact view (< 1100px): hide secondary columns (Remixer, Key, Label, Bitrate, Energy, Path)
-            for col_idx in [4, 7, 11, 13, 14, 15]:
+            # Compact view (< 1100px): hide secondary columns (Remixer, Key, Label, Bitrate, Energy, LUFS, True Peak, Path)
+            for col_idx in [4, 7, 11, 13, 14, 15, 16, 18]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, True)
-            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 12]:
+            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 12, 17]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, False)
         elif width < 1350:
             # Medium view: hide Remixer, Musical Key, and Path
-            for col_idx in [4, 7, 15]:
+            for col_idx in [4, 7, 18]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, True)
-            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14]:
+            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, False)
         else:
@@ -741,12 +749,13 @@ class MainWindow(QMainWindow):
             act_reconcile = menu.addAction("⚖️ Reconcile Multi-Source Metadata & HD Cover...")
             act_convert = menu.addAction("🔀 Filename <-> Tag Patterns...")
             act_analyze = menu.addAction("🎵 Calculate BPM & Camelot Key")
+            act_quality = menu.addAction("🔊 Diagnosi Qualità Audio & Normalizza...")
             act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
             menu.addSeparator()
             act_folder = menu.addAction("📂 Open in Windows Explorer")
         else:
             act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
-            act_play = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_sorter = act_folder = None
+            act_play = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_quality = act_sorter = act_folder = None
 
         action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
         if not action:
@@ -771,9 +780,35 @@ class MainWindow(QMainWindow):
             self._on_open_pattern_converter()
         elif action == act_analyze:
             self._on_batch_acoustic_analysis()
+        elif action == act_quality and selected:
+            self._on_open_quality_diagnosis(selected[0])
         elif action == act_sorter:
             self._on_open_sorter()
         elif action == act_folder and selected:
             fp = selected[0].get("filepath", "")
             if fp and Path(fp).exists():
                 os.system(f'explorer /select,"{os.path.normpath(fp)}"')
+
+    def _on_action_quality_diagnosis(self) -> None:
+        """Opens audio quality diagnosis for selected track or currently playing deck."""
+        selected = self._get_selected_tracks()
+        if selected:
+            self._on_open_quality_diagnosis(selected[0])
+        elif self.player_widget.current_track:
+            self._on_open_quality_diagnosis(self.player_widget.current_track)
+        else:
+            QMessageBox.information(
+                self,
+                "Qualità Audio & Normalizzazione",
+                "Seleziona una traccia dalla tabella o carica un brano nel player per avviare la diagnostica.",
+            )
+
+    def _on_open_quality_diagnosis(self, track: Dict[str, Any]) -> None:
+        """Opens modal audio quality diagnosis and loudnorm dialog for given track."""
+        fp = track.get("filepath", "")
+        if not fp or not Path(fp).exists():
+            QMessageBox.warning(self, "File Non Trovato", f"Il file audio non esiste su disco:\n{fp}")
+            return
+        dlg = QualityDiagnosisDialog(fp, db=self.db, parent=self)
+        dlg.normalization_applied.connect(lambda _: self._refresh_library())
+        dlg.exec()

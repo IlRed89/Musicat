@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from ..audio.waveform import WaveformGenerator
 from ..core.memory_cache import WaveformMemoryCache
 from ..player.vlc_engine import VLCAudioPlayer
+from .views import LoudnessMeterBar, QualityDiagnosisDialog
 
 
 class WaveformCanvas(QWidget):
@@ -113,6 +114,7 @@ class MiniPlayerWidget(QFrame):
     """Compact DJ bottom bar player with VLC audio backend and pitch bending."""
 
     position_tick = Signal(int, int)
+    track_normalized = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -193,20 +195,49 @@ class MiniPlayerWidget(QFrame):
         ctrl_layout.addWidget(self.btn_stop)
         ctrl_layout.addWidget(self.btn_loop)
 
-        # Center: Waveform & Time Label
+        # Center: Waveform, VU Meter & Time Label
         waveform_container = QVBoxLayout()
-        waveform_container.setSpacing(4)
+        waveform_container.setSpacing(3)
 
         self.waveform_canvas = WaveformCanvas(self)
 
-        time_layout = QHBoxLayout()
+        meter_layout = QHBoxLayout()
+        meter_layout.setSpacing(6)
+
+        self.meter_bar = LoudnessMeterBar(self)
+        self.meter_bar.setFixedHeight(16)
+        self.meter_bar.setMinimumWidth(160)
+        self.meter_bar.setToolTip("Livello Sonoro Integrato (LUFS) e True Peak (dBTP)")
+
+        self.btn_normalize = QPushButton("⚡ Correggi")
+        self.btn_normalize.setToolTip("Diagnosi e Normalizzazione Qualità Audio (LUFS / Clipping)")
+        self.btn_normalize.setStyleSheet("""
+            QPushButton {
+                background-color: #1a2234;
+                border: 1px solid #0284c7;
+                color: #38bdf8;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 7px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #0284c7;
+                color: #ffffff;
+            }
+        """)
+        self.btn_normalize.clicked.connect(self._on_open_quality_dialog)
+
         self.time_label = QLabel("00:00 / 00:00")
         self.time_label.setStyleSheet("color: #8c92a4; font-size: 11px; font-family: monospace;")
-        time_layout.addStretch()
-        time_layout.addWidget(self.time_label)
+
+        meter_layout.addWidget(self.meter_bar, 1)
+        meter_layout.addWidget(self.btn_normalize)
+        meter_layout.addStretch()
+        meter_layout.addWidget(self.time_label)
 
         waveform_container.addWidget(self.waveform_canvas)
-        waveform_container.addLayout(time_layout)
+        waveform_container.addLayout(meter_layout)
 
         # Right: DJ Pitch / Rate Control Slider (+/- 8%)
         pitch_box = QVBoxLayout()
@@ -283,6 +314,15 @@ class MiniPlayerWidget(QFrame):
 
         camelot = track.get("camelot_key") or track.get("musical_key") or "--"
         self.camelot_badge.setText(camelot)
+
+        # Update Audio Quality & Loudness Meter
+        lufs = track.get("lufs")
+        tp = track.get("true_peak")
+        status = track.get("audio_status") or "OK"
+        if lufs is not None and tp is not None:
+            self.meter_bar.set_metrics(float(lufs), float(tp), str(status))
+        else:
+            self.meter_bar.set_metrics(-70.0, -100.0, "OK")
 
         # Retrieve or generate waveform peak envelope
         waveform_cache = WaveformMemoryCache.get_instance()
@@ -398,3 +438,22 @@ class MiniPlayerWidget(QFrame):
         c_m, c_s = divmod(int(pos_ms / 1000), 60)
         t_m, t_s = divmod(int(dur_ms / 1000), 60)
         self.time_label.setText(f"{c_m:02d}:{c_s:02d} / {t_m:02d}:{t_s:02d}")
+
+    def _on_open_quality_dialog(self) -> None:
+        """Opens audio quality and loudness normalization modal for current track."""
+        if not self.current_track:
+            return
+        fp = self.current_track.get("filepath", "")
+        if not fp or not Path(fp).exists():
+            return
+
+        parent_db = getattr(self.parent(), "db", None) if self.parent() else None
+        dlg = QualityDiagnosisDialog(fp, db=parent_db, parent=self)
+        dlg.normalization_applied.connect(self._on_track_normalized)
+        dlg.exec()
+
+    def _on_track_normalized(self, normalized_path: str) -> None:
+        """Handles post-normalization refresh and notification."""
+        self.track_normalized.emit(normalized_path)
+        if self.parent() and hasattr(self.parent(), "_refresh_library"):
+            self.parent()._refresh_library()

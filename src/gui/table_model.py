@@ -27,6 +27,9 @@ class TrackTableModel(QAbstractTableModel):
         ("Time", "duration"),
         ("Bitrate", "bitrate"),
         ("Energy", "energy_level"),
+        ("LUFS", "lufs"),
+        ("True Peak", "true_peak"),
+        ("Quality", "audio_status"),
         ("Path", "filepath"),
     ]
 
@@ -72,10 +75,28 @@ class TrackTableModel(QAbstractTableModel):
                 return str(val) if val else ""
             elif col_key == "energy_level":
                 return f"⚡ {val}" if val else ""
+            elif col_key == "lufs":
+                return f"{val:.1f} LUFS" if val is not None else ""
+            elif col_key == "true_peak":
+                return f"{val:+.1f} dBTP" if val is not None else ""
+            elif col_key == "audio_status":
+                if val == "CLIPPING":
+                    return "⚠️ CLIP"
+                elif val == "LOW_VOLUME":
+                    return "🔈 LOW"
+                elif val == "BRICKWALL":
+                    return "🧱 BRICK"
+                elif val == "OK":
+                    return "✅ OK"
+                return str(val) if val else ""
             return str(val) if val is not None else ""
 
         elif role == Qt.ItemDataRole.TextAlignmentRole:
-            if col_key in ("id", "has_cover", "bpm", "camelot_key", "musical_key", "year", "duration", "bitrate", "energy_level"):
+            if col_key in (
+                "id", "has_cover", "bpm", "camelot_key", "musical_key",
+                "year", "duration", "bitrate", "energy_level",
+                "lufs", "true_peak", "audio_status",
+            ):
                 return int(Qt.AlignmentFlag.AlignCenter)
             return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
@@ -88,6 +109,24 @@ class TrackTableModel(QAbstractTableModel):
                     return QColor("#00d2ff")
             elif col_key == "bpm":
                 return QColor("#38bdf8")
+            elif col_key == "audio_status":
+                val = track.get("audio_status")
+                if val == "CLIPPING":
+                    return QColor("#ef4444")
+                elif val == "LOW_VOLUME":
+                    return QColor("#eab308")
+                elif val == "BRICKWALL":
+                    return QColor("#f97316")
+                elif val == "OK":
+                    return QColor("#10b981")
+            elif col_key == "true_peak":
+                val = track.get("true_peak")
+                if val is not None and val > 0.0:
+                    return QColor("#ef4444")
+            elif col_key == "lufs":
+                val = track.get("lufs")
+                if val is not None and val < -18.0:
+                    return QColor("#eab308")
 
         return None
 

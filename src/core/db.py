@@ -159,6 +159,20 @@ class Database:
             except sqlite3.OperationalError:
                 pass  # Already present
 
+            # Schema migration for EBU R128 audio quality columns
+            for col_name, col_type in (
+                ("lufs", "REAL"),
+                ("true_peak", "REAL"),
+                ("lra", "REAL"),
+                ("audio_status", "TEXT"),
+                ("replaygain_track_gain", "TEXT"),
+                ("replaygain_track_peak", "TEXT"),
+            ):
+                try:
+                    conn.execute(f"ALTER TABLE tracks ADD COLUMN {col_name} {col_type};")
+                except sqlite3.OperationalError:
+                    pass
+
     def insert_or_update_track(self, track_data: Dict[str, Any]) -> int:
         """Inserts or updates a single track record."""
         cols = list(track_data.keys())
