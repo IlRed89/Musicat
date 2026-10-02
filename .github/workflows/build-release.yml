@@ -63,7 +63,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist/Musicat
           Copy-Item dist/Musicat.exe dist/Musicat/Musicat.exe
           Copy-Item README.md dist/Musicat/README.md
+          if (Test-Path README_EN.md) { Copy-Item README_EN.md dist/Musicat/README_EN.md }
           Copy-Item LICENSE dist/Musicat/LICENSE
+          if (Test-Path locales) { Copy-Item -Recurse locales dist/Musicat/locales }
           
           # Create portable.lock flag in portable package
           New-Item -ItemType File -Force -Path dist/Musicat/portable.lock
@@ -86,8 +88,10 @@ jobs:
           # Package macOS Portable ZIP (including portable.lock)
           touch dist/portable.lock
           cp README.md LICENSE dist/
+          [ -f README_EN.md ] && cp README_EN.md dist/
+          [ -d locales ] && cp -r locales dist/
           cd dist
-          zip -r -y "Musicat-macOS-Portable.zip" "Musicat.app" "portable.lock" "README.md" "LICENSE"
+          zip -r -y "Musicat-macOS-Portable.zip" "Musicat.app" "portable.lock" "README.md" "LICENSE" locales || zip -r -y "Musicat-macOS-Portable.zip" "Musicat.app" "portable.lock" "README.md" "LICENSE"
           cd ..
           
           # Package styled macOS DMG with drag & drop Applications link

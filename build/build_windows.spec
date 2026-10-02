@@ -39,7 +39,9 @@ hiddenimports = [
     'vlc',
 ]
 
-datas = []
+datas = [
+    (str(project_root / 'locales'), 'locales'),
+]
 
 # Collect soundfile bundled DLLs
 try:

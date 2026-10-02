@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.core.gpu_detector import GpuDetector, GpuInfo
+from src.core.i18n import I18n, _t
 from src.core.settings import SettingsManager
 from src.plugins.manager import PluginManager
 
@@ -50,18 +51,25 @@ class SettingsDialog(QDialog):
 
     settings_applied = Signal(dict)
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
+    def __init__(self, settings_or_parent: Any = None, parent: Optional[QWidget] = None) -> None:
+        if isinstance(settings_or_parent, QWidget):
+            actual_parent = settings_or_parent
+        else:
+            actual_parent = parent
+        super().__init__(actual_parent)
         self.settings = SettingsManager.get_instance()
         self.plugin_manager = PluginManager.get_instance(self.settings)
         self.gpu_info: GpuInfo = GpuDetector.get_gpu_info()
+        self._current_saved_lang = self.settings.get("ui", "language", "it")
 
-        self.setWindowTitle("Musicat — Preferenze di Sistema")
+        self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
         self.resize(840, 600)
         self.setMinimumSize(780, 520)
 
         self._init_ui()
         self._load_values()
+        self._retranslate_ui()
+        I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self) -> None:
         main_layout = QHBoxLayout(self)
@@ -135,20 +143,20 @@ class SettingsDialog(QDialog):
         btn_bar = QHBoxLayout()
         btn_bar.setSpacing(10)
 
-        btn_reset = QPushButton("Ripristina Predefiniti")
-        btn_reset.clicked.connect(self._on_reset_defaults)
-        btn_bar.addWidget(btn_reset)
+        self.btn_reset = QPushButton("Ripristina Predefiniti")
+        self.btn_reset.clicked.connect(self._on_reset_defaults)
+        btn_bar.addWidget(self.btn_reset)
 
         btn_bar.addStretch()
 
-        btn_cancel = QPushButton("Annulla")
-        btn_cancel.clicked.connect(self.reject)
-        btn_bar.addWidget(btn_cancel)
+        self.btn_cancel = QPushButton("Annulla")
+        self.btn_cancel.clicked.connect(self.reject)
+        btn_bar.addWidget(self.btn_cancel)
 
-        btn_save = QPushButton("Salva ed Applica")
-        btn_save.setStyleSheet("background-color: #0077b6; border-color: #0096c7; font-weight: bold;")
-        btn_save.clicked.connect(self._on_save_clicked)
-        btn_bar.addWidget(btn_save)
+        self.btn_save = QPushButton("Salva ed Applica")
+        self.btn_save.setStyleSheet("background-color: #0077b6; border-color: #0096c7; font-weight: bold;")
+        self.btn_save.clicked.connect(self._on_save_clicked)
+        btn_bar.addWidget(self.btn_save)
 
         right_container.addLayout(btn_bar)
         main_layout.addLayout(right_container)
@@ -162,32 +170,43 @@ class SettingsDialog(QDialog):
         layout.setSpacing(12)
 
         # Theme & Scaling Group
-        grp_theme = QGroupBox("🎨 Aspetto & Tema Visivo")
-        form_theme = QFormLayout(grp_theme)
+        self.grp_theme = QGroupBox("🎨 Aspetto & Tema Visivo")
+        form_theme = QFormLayout(self.grp_theme)
 
+        self.lbl_language = QLabel("Lingua dell'Interfaccia:")
+        self.cmb_language = QComboBox()
+        self.cmb_language.addItem("Italiano (IT)", "it")
+        self.cmb_language.addItem("English (EN)", "en")
+        self.cmb_language.currentIndexChanged.connect(self._on_language_changed)
+        form_theme.addRow(self.lbl_language, self.cmb_language)
+
+        self.lbl_theme = QLabel("Tema Interfaccia:")
         self.cmb_theme = QComboBox()
         self.cmb_theme.addItems(["Dark DJ Console (Predefinito)", "High-Contrast Club Booth", "Light Studio Mode"])
-        form_theme.addRow("Tema Interfaccia:", self.cmb_theme)
+        form_theme.addRow(self.lbl_theme, self.cmb_theme)
 
+        self.lbl_dpi = QLabel("Scala Display (HiDPI Zoom):")
         self.cmb_dpi = QComboBox()
         self.cmb_dpi.addItems(["Automatico (Consigliato)", "100%", "125%", "150%"])
-        form_theme.addRow("Scala Display (HiDPI Zoom):", self.cmb_dpi)
+        form_theme.addRow(self.lbl_dpi, self.cmb_dpi)
 
+        self.lbl_font_size = QLabel("Dimensione Font Tabelle:")
         self.spin_font_size = QSpinBox()
         self.spin_font_size.setRange(9, 18)
         self.spin_font_size.setValue(12)
-        form_theme.addRow("Dimensione Font Tabelle:", self.spin_font_size)
+        form_theme.addRow(self.lbl_font_size, self.spin_font_size)
 
+        self.lbl_row_height = QLabel("Altezza Righe Tabella (px):")
         self.spin_row_height = QSpinBox()
         self.spin_row_height.setRange(20, 50)
         self.spin_row_height.setValue(28)
-        form_theme.addRow("Altezza Righe Tabella (px):", self.spin_row_height)
+        form_theme.addRow(self.lbl_row_height, self.spin_row_height)
 
-        layout.addWidget(grp_theme)
+        layout.addWidget(self.grp_theme)
 
         # Columns Group
-        grp_cols = QGroupBox("📋 Colonne Visibili della Tabella Brani")
-        cols_grid = QGridLayout(grp_cols)
+        self.grp_cols = QGroupBox("📋 Colonne Visibili della Tabella Brani")
+        cols_grid = QGridLayout(self.grp_cols)
 
         self.col_checkboxes: Dict[str, QCheckBox] = {}
         all_columns = [
@@ -515,6 +534,14 @@ class SettingsDialog(QDialog):
     def _load_values(self) -> None:
         """Fills UI fields with current values from SettingsManager."""
         # UI
+        lang = self.settings.get("ui", "language", "it")
+        self._current_saved_lang = lang
+        idx = self.cmb_language.findData(lang)
+        if idx >= 0:
+            self.cmb_language.blockSignals(True)
+            self.cmb_language.setCurrentIndex(idx)
+            self.cmb_language.blockSignals(False)
+
         theme = self.settings.get("ui", "theme", "dark_dj")
         if "high" in theme or "contrast" in theme:
             self.cmb_theme.setCurrentIndex(1)
@@ -552,9 +579,59 @@ class SettingsDialog(QDialog):
         self.txt_bp_user.setText(self.settings.get("scrapers", "beatport_username", ""))
         self.txt_bp_pass.setText(self.settings.get("scrapers", "beatport_password", ""))
 
+    def _on_language_changed(self, index: int) -> None:
+        """Applies language change dynamically across the application."""
+        lang = self.cmb_language.currentData()
+        if lang:
+            I18n.get_instance().set_language(lang)
+
+    def reject(self) -> None:
+        """Restores previous language if user cancels without saving."""
+        saved_lang = self.settings.get("ui", "language", "it")
+        if I18n.get_instance().language != saved_lang:
+            I18n.get_instance().set_language(saved_lang)
+        super().reject()
+
+    def _retranslate_ui(self) -> None:
+        """Dynamically retranslates preferences dialog widgets."""
+        self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
+
+        categories = [
+            _t("settings_tab_ui", "🎨  Grafica & UI"),
+            _t("settings_tab_audio", "🎵  Audio & libVLC"),
+            _t("settings_tab_perf", "⚡  Prestazioni & Hardware"),
+            _t("settings_tab_scrapers", "🌐  Scrapers & API Keys"),
+            _t("settings_tab_plugins", "🧩  Plugin & Estensioni"),
+        ]
+        for i, text in enumerate(categories):
+            if i < self.sidebar.count():
+                self.sidebar.item(i).setText(text)
+
+        self.btn_reset.setText(_t("settings_btn_reset", "Ripristina Predefiniti"))
+        self.btn_cancel.setText(_t("settings_btn_cancel", "Annulla"))
+        self.btn_save.setText(_t("settings_btn_save", "Salva ed Applica"))
+
+        if hasattr(self, "lbl_language"):
+            self.lbl_language.setText(_t("settings_lang_label", "Lingua dell'Interfaccia:"))
+        if hasattr(self, "lbl_theme"):
+            self.lbl_theme.setText(_t("settings_theme_label", "Tema Interfaccia:"))
+        if hasattr(self, "lbl_dpi"):
+            self.lbl_dpi.setText(_t("settings_dpi_label", "Scala Display (HiDPI Zoom):"))
+        if hasattr(self, "lbl_font_size"):
+            self.lbl_font_size.setText(_t("settings_font_size", "Dimensione Font Tabelle:"))
+        if hasattr(self, "lbl_row_height"):
+            self.lbl_row_height.setText(_t("settings_row_height", "Altezza Righe Tabella (px):"))
+        if hasattr(self, "grp_cols"):
+            self.grp_cols.setTitle(_t("settings_visible_cols", "📋 Colonne Visibili della Tabella Brani"))
+
     def _on_save_clicked(self) -> None:
         """Persists all UI settings into SettingsManager."""
         # UI
+        lang = self.cmb_language.currentData() or "it"
+        self.settings.set("ui", "language", lang)
+        self._current_saved_lang = lang
+        I18n.get_instance().set_language(lang)
+
         theme_names = ["dark_dj", "high_contrast", "light"]
         self.settings.set("ui", "theme", theme_names[self.cmb_theme.currentIndex()])
 
@@ -609,7 +686,7 @@ class SettingsDialog(QDialog):
         """Confirms and resets settings to default."""
         reply = QMessageBox.question(
             self,
-            "Ripristina Predefiniti",
+            _t("settings_btn_reset", "Ripristina Predefiniti"),
             "Desideri ripristinare tutte le impostazioni ai valori iniziali di fabbrica?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )

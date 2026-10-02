@@ -36,6 +36,11 @@ class TrackTableModel(QAbstractTableModel):
     def __init__(self, tracks: Optional[List[Dict[str, Any]]] = None):
         super().__init__()
         self._tracks: List[Dict[str, Any]] = tracks or []
+        from ..core.i18n import I18n
+        I18n.get_instance().language_changed.connect(self._on_language_changed)
+
+    def _on_language_changed(self, lang: str) -> None:
+        self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, len(self.COLUMNS) - 1)
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._tracks)
@@ -45,7 +50,10 @@ class TrackTableModel(QAbstractTableModel):
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
-            return self.COLUMNS[section][0]
+            col_id = self.COLUMNS[section][1]
+            default_name = self.COLUMNS[section][0]
+            from ..core.i18n import _t
+            return _t(f"col_{col_id}", default=default_name)
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:

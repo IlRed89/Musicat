@@ -80,9 +80,30 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
   - **Fallback:** Automatic transparent fallback to SQLite FTS5 across both platforms with dynamic UI engine badges (`[EVERYTHING MFT]`, `[SPOTLIGHT APFS]`, `[SQLITE FTS5]`).
 - **Cross-Platform Audio Engine (`src/player/vlc_engine.py`):** Dynamic discovery of `libvlc.dylib` across `.app` bundles, `/Applications/VLC.app`, and Homebrew paths (`/opt/homebrew` and `/usr/local`). Full support for 32-bit float WAV, ALAC, AIFF, FLAC, and AAC on Apple Silicon (ARM64) and Intel Macs.
 - **Cross-Platform Path Resolver (`src/core/path_resolver.py`):** Universal support for Windows Volume Serial Numbers (`[VOL:XXXXXXXX]`) and macOS mount points (`/Volumes/<DiskName>/...`), standard application data directories (`%APPDATA%` on Windows, `~/Library/Application Support/Musicat` on macOS), and portable USB SSD drives switching between Windows and Mac.
-- **Multi-OS Release Pipeline (`.github/workflows/build-release.yml`):** Automated GitHub Actions build matrix simultaneously generating:
+- **Multi-OS Release Pipeline (`.github/workflows/build-release.yml` & `release.yml`):** Automated GitHub Actions build matrix simultaneously generating:
   - `Musicat-Setup-Windows-x64.exe` (Inno Setup dual-mode installer)
   - `Musicat-Windows-Portable.zip` (standalone Windows portable archive)
   - `Musicat-macOS.dmg` (macOS Drag & Drop Applications installer DMG)
   - `Musicat-macOS-Portable.zip` (standalone macOS portable bundle)
+
+#### ⚙️ Settings Architecture, File Management & Mp3tag Workspace
+- **Modular Preferences Dialog (`src/gui/settings_dialog.py`):** Sidebar navigation across 5 categories: UI/Theme, Audio/libVLC, Performance/GPU, Scrapers/Tokens, Plugins.
+- **Physical File Operations (`src/core/file_manager.py`):** OS-level Cut/Copy/Paste operations synchronized automatically with the SQLite library database.
+- **Dedicated Mp3tag Workbench (`src/gui/mp3tag_workspace.py`):** Full-screen table editor for inline cell edits, multi-track batch modification, and album art injection.
+- **Hardware Acceleration Telemetry (`src/core/gpu_detector.py`):** GPU detection badge (NVIDIA CUDA, Apple Metal, AMD ROCm, Direct3D).
+
+#### 🔊 Audio Quality Normalizer, Clipping Detector & Loudnorm Plugin
+- **Plugin Architecture (`src/plugins/quality_analyzer/`):** Extensible plugin architecture with schema discovery and dynamic activation.
+- **Acoustic Standards (ITU-R BS.1770-4 / EBU R128):** Integrated Loudness (LUFS), True Peak (dBTP with 4x oversampling), and Loudness Range (LRA).
+- **Quality Diagnostics Modal (`src/gui/views/quality_view.py`):** Visual loudness meters, clipping warnings, and non-destructive ReplayGain or physical FFmpeg two-pass normalization.
+
+#### 🏠 Smart Recommendations, Spotify Trends Home & Breadcrumb Navigation
+- **Home Dashboard (`src/gui/views/home_view.py`):** Live Spotify trending charts with local 24h caching and instant library ownership check (`✓ In Library` vs `+ Missing`).
+- **Acoustic Similarity Engine (`src/scrapers/similarity_engine.py`):** Cosine similarity lookup via Cosine.club / Chosic / Last.fm with local library matching.
+- **Breadcrumb Path Bar (`BreadcrumbBar`):** Interactive folder breadcrumbs in the mini-player for 1-click filtering of parent folders.
+
+#### 🌐 Bilingual Localization (IT/EN) & Release Pipeline
+- **Localization Engine (`src/core/i18n.py`):** Full Italian (default) and English (secondary) translations loaded from `locales/it.json` and `locales/en.json` with embedded fallback safety.
+- **Hot Language Switching:** Dynamic live retranslation across all widgets without restarting the application.
+- **Bilingual Documentation:** Dual-language comprehensive guides in `README.md` (Italian), `README_EN.md` (English), and `ARCHITECTURE.md`.
 

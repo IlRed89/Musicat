@@ -31,7 +31,7 @@ if exist "build\temp_build" rmdir /s /q "build\temp_build"
 
 echo.
 echo [*] Compiling Musicat Portable with PyInstaller...
-pyinstaller --clean --workpath build/temp_build build/musicat.spec
+pyinstaller --clean --workpath build/temp_build build/windows.spec 2>nul || pyinstaller --clean --workpath build/temp_build build_windows.spec
 
 if errorlevel 1 (
     echo [ERROR] Compilation failed.
@@ -40,9 +40,25 @@ if errorlevel 1 (
 )
 
 echo.
+echo [*] Structuring Portable Bundle...
+if not exist "dist\Musicat" mkdir "dist\Musicat"
+copy /y "dist\Musicat.exe" "dist\Musicat\Musicat.exe"
+if exist "README.md" copy /y "README.md" "dist\Musicat\README.md"
+if exist "README_EN.md" copy /y "README_EN.md" "dist\Musicat\README_EN.md"
+if exist "LICENSE" copy /y "LICENSE" "dist\Musicat\LICENSE"
+if exist "locales" xcopy /e /i /y "locales" "dist\Musicat\locales"
+echo portable > "dist\Musicat\portable.lock"
+
+echo.
+echo [*] Creating Portable ZIP archive...
+powershell -NoProfile -Command "Compress-Archive -Path dist\Musicat\* -DestinationPath dist\Musicat-Windows-Portable.zip -Force"
+
+echo.
 echo =====================================================================
 echo [SUCCESS] Musicat Portable compiled successfully!
-echo Executable located in: dist\Musicat.exe
+echo Executable: dist\Musicat.exe
+echo Portable folder: dist\Musicat\
+echo Portable ZIP: dist\Musicat-Windows-Portable.zip
 echo =====================================================================
 echo.
 pause

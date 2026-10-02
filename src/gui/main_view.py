@@ -48,6 +48,7 @@ from ..core.settings import SettingsManager
 from ..core.file_manager import MusicFileManager
 from ..core.search_factory import SearchEngine, EverythingSearchEngine
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
+from ..core.i18n import I18n, _t
 from ..audio.analyzer import AcousticAnalyzer
 from .table_model import TrackTableModel
 from .player_widget import MiniPlayerWidget
@@ -142,7 +143,7 @@ class MainWindow(QMainWindow):
         self.all_tracks: List[Dict[str, Any]] = []
         self._mp3tag_window: Optional[Mp3tagWorkspaceWindow] = None
 
-        self.setWindowTitle("Musicat - DJ Catalog & Smart Organizer")
+        self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
         self.resize(1300, 820)
 
         self._init_ui()
@@ -150,6 +151,8 @@ class MainWindow(QMainWindow):
         self._init_menu_and_toolbar()
         self._init_live_log_dock()
         self._refresh_library()
+        self._retranslate_ui()
+        I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self) -> None:
         central_widget = QWidget(self)
@@ -171,11 +174,11 @@ class MainWindow(QMainWindow):
         nav_layout.setContentsMargins(10, 4, 10, 4)
         nav_layout.setSpacing(8)
 
-        self.btn_nav_library = QPushButton("🎵 DJ Library & Crates")
+        self.btn_nav_library = QPushButton(_t("nav_library", "🎵 DJ Library & Crates"))
         self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
 
-        self.btn_nav_trends = QPushButton("🏠 Home Trends & Top Charts")
+        self.btn_nav_trends = QPushButton(_t("nav_trends", "🏠 Home Trends & Top Charts"))
         self.btn_nav_trends.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_trends.clicked.connect(lambda: self._switch_view(1))
 
@@ -210,13 +213,13 @@ class MainWindow(QMainWindow):
         sb_layout.setSpacing(4)
 
         sb_header = QHBoxLayout()
-        sb_title = QLabel("📁 LIBRERIA & CRATES")
-        sb_title.setStyleSheet("font-weight: bold; color: #00d2ff; font-size: 11px;")
+        self.sb_title = QLabel("📁 LIBRERIA & CRATES")
+        self.sb_title.setStyleSheet("font-weight: bold; color: #00d2ff; font-size: 11px;")
         self.btn_collapse_sidebar = QPushButton("◀")
         self.btn_collapse_sidebar.setFixedSize(22, 22)
         self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px;")
         self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
-        sb_header.addWidget(sb_title)
+        sb_header.addWidget(self.sb_title)
         sb_header.addStretch()
         sb_header.addWidget(self.btn_collapse_sidebar)
         sb_layout.addLayout(sb_header)
@@ -289,99 +292,99 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.progress_bar.setMaximumWidth(200)
         self.status_bar.addPermanentWidget(self.progress_bar)
-        self.status_bar.showMessage("Ready")
+        self.status_bar.showMessage(_t("ready", "Pronto"))
 
     def _init_menu_and_toolbar(self) -> None:
         tb = self.addToolBar("Main Controls")
         tb.setMovable(False)
 
         # Sidebar Toggle
-        self.act_toggle_sb = QAction("📁 Sidebar", self)
+        self.act_toggle_sb = QAction(_t("tb_sidebar", "📁 Barra laterale"), self)
         self.act_toggle_sb.setShortcut(QKeySequence("F9"))
         self.act_toggle_sb.triggered.connect(self._toggle_sidebar)
         tb.addAction(self.act_toggle_sb)
 
         # Scan Folder
-        act_scan = QAction("📂 Scan Folder", self)
-        act_scan.setShortcut(QKeySequence("Ctrl+O"))
-        act_scan.triggered.connect(self._on_scan_folder)
-        tb.addAction(act_scan)
+        self.act_scan = QAction(_t("tb_scan", "📂 Scansiona cartella"), self)
+        self.act_scan.setShortcut(QKeySequence("Ctrl+O"))
+        self.act_scan.triggered.connect(self._on_scan_folder)
+        tb.addAction(self.act_scan)
 
         # Refresh
-        act_refresh = QAction("🔄 Refresh", self)
-        act_refresh.setShortcut(QKeySequence("F5"))
-        act_refresh.triggered.connect(self._refresh_library)
-        tb.addAction(act_refresh)
+        self.act_refresh = QAction(_t("tb_refresh", "🔄 Aggiorna"), self)
+        self.act_refresh.setShortcut(QKeySequence("F5"))
+        self.act_refresh.triggered.connect(self._refresh_library)
+        tb.addAction(self.act_refresh)
 
         tb.addSeparator()
 
         # Dedicated Mp3tag Workspace
-        act_mp3tag = QAction("🏷️ Mp3tag Workspace", self)
-        act_mp3tag.setShortcut(QKeySequence("Ctrl+T"))
-        act_mp3tag.triggered.connect(self._on_open_mp3tag_workspace)
-        tb.addAction(act_mp3tag)
+        self.act_mp3tag = QAction(_t("tb_mp3tag", "🏷️ Spazio Mp3tag"), self)
+        self.act_mp3tag.setShortcut(QKeySequence("Ctrl+T"))
+        self.act_mp3tag.triggered.connect(self._on_open_mp3tag_workspace)
+        tb.addAction(self.act_mp3tag)
 
         # Quick Tag Editor Dialog
-        act_edit = QAction("✏️ Quick Tag", self)
-        act_edit.setShortcut(QKeySequence("Ctrl+E"))
-        act_edit.triggered.connect(self._on_open_tag_editor)
-        tb.addAction(act_edit)
+        self.act_edit = QAction(_t("tb_quick_tag", "✏️ Tag Rapidi"), self)
+        self.act_edit.setShortcut(QKeySequence("Ctrl+E"))
+        self.act_edit.triggered.connect(self._on_open_tag_editor)
+        tb.addAction(self.act_edit)
 
         # Pattern Converter
-        act_patterns = QAction("🔀 Filename <-> Tag", self)
-        act_patterns.setShortcut(QKeySequence("Ctrl+K"))
-        act_patterns.triggered.connect(self._on_open_pattern_converter)
-        tb.addAction(act_patterns)
+        self.act_patterns = QAction(_t("tb_filename_tag", "🔀 Nome File <-> Tag"), self)
+        self.act_patterns.setShortcut(QKeySequence("Ctrl+K"))
+        self.act_patterns.triggered.connect(self._on_open_pattern_converter)
+        tb.addAction(self.act_patterns)
 
         # Multi-Source Reconciler
-        act_reconcile = QAction("⚖️ Reconciler & HD Cover", self)
-        act_reconcile.setShortcut(QKeySequence("Ctrl+R"))
-        act_reconcile.triggered.connect(self._on_open_reconciler)
-        tb.addAction(act_reconcile)
+        self.act_reconcile = QAction(_t("tb_reconcile", "⚖️ Riconciliazione & Cover HD"), self)
+        self.act_reconcile.setShortcut(QKeySequence("Ctrl+R"))
+        self.act_reconcile.triggered.connect(self._on_open_reconciler)
+        tb.addAction(self.act_reconcile)
 
         # Acoustic Batch Analyzer
-        act_acoustic = QAction("🎵 Analyze BPM & Key", self)
-        act_acoustic.setShortcut(QKeySequence("Ctrl+A"))
-        act_acoustic.triggered.connect(self._on_batch_acoustic_analysis)
-        tb.addAction(act_acoustic)
+        self.act_acoustic = QAction(_t("tb_analyze", "🎵 Analizza BPM & Key"), self)
+        self.act_acoustic.setShortcut(QKeySequence("Ctrl+A"))
+        self.act_acoustic.triggered.connect(self._on_batch_acoustic_analysis)
+        tb.addAction(self.act_acoustic)
 
         # Audio Quality Diagnosis & Loudnorm
-        act_quality = QAction("🔊 Audio Quality", self)
-        act_quality.setShortcut(QKeySequence("Ctrl+Q"))
-        act_quality.triggered.connect(self._on_action_quality_diagnosis)
-        tb.addAction(act_quality)
+        self.act_quality = QAction(_t("tb_audio_quality", "🔊 Qualità Audio"), self)
+        self.act_quality.setShortcut(QKeySequence("Ctrl+Q"))
+        self.act_quality.triggered.connect(self._on_action_quality_diagnosis)
+        tb.addAction(self.act_quality)
 
         # Smart Recommendations (Similar Tracks)
-        act_similar = QAction("✨ Trova Simili", self)
-        act_similar.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        act_similar.setToolTip("Cerca tracce simili per affinità armonica, BPM e genere online e locale")
-        act_similar.triggered.connect(self._on_action_find_similar)
-        tb.addAction(act_similar)
+        self.act_similar = QAction(_t("tb_find_similar", "✨ Trova Simili"), self)
+        self.act_similar.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self.act_similar.setToolTip("Cerca tracce simili per affinità armonica, BPM e genere online e locale")
+        self.act_similar.triggered.connect(self._on_action_find_similar)
+        tb.addAction(self.act_similar)
 
         tb.addSeparator()
 
         # Smart Organizer
-        act_organize = QAction("📦 Smart Organizer", self)
-        act_organize.setShortcut(QKeySequence("Ctrl+S"))
-        act_organize.triggered.connect(self._on_open_sorter)
-        tb.addAction(act_organize)
+        self.act_organize = QAction(_t("tb_organizer", "📦 Organizzatore Smart"), self)
+        self.act_organize.setShortcut(QKeySequence("Ctrl+S"))
+        self.act_organize.triggered.connect(self._on_open_sorter)
+        tb.addAction(self.act_organize)
 
         # Settings
-        act_settings = QAction("⚙️ Impostazioni", self)
-        act_settings.setShortcut(QKeySequence("Ctrl+,"))
-        act_settings.triggered.connect(self._on_open_settings)
-        tb.addAction(act_settings)
+        self.act_settings = QAction(_t("tb_settings", "⚙️ Impostazioni"), self)
+        self.act_settings.setShortcut(QKeySequence("Ctrl+,"))
+        self.act_settings.triggered.connect(self._on_open_settings)
+        tb.addAction(self.act_settings)
 
         # Toggle Live Log
-        act_log = QAction("📜 Live Log", self)
-        act_log.setShortcut(QKeySequence("Ctrl+L"))
-        act_log.triggered.connect(self._toggle_log_dock)
-        tb.addAction(act_log)
+        self.act_log = QAction(_t("tb_live_log", "📜 Log in Tempo Reale"), self)
+        self.act_log.setShortcut(QKeySequence("Ctrl+L"))
+        self.act_log.triggered.connect(self._toggle_log_dock)
+        tb.addAction(self.act_log)
 
         # Stats
-        act_stats = QAction("📊 Stats", self)
-        act_stats.triggered.connect(self._on_show_stats)
-        tb.addAction(act_stats)
+        self.act_stats = QAction(_t("tb_stats", "📊 Statistiche"), self)
+        self.act_stats.triggered.connect(self._on_show_stats)
+        tb.addAction(self.act_stats)
 
     def _init_live_log_dock(self) -> None:
         """Initializes collapsible live logging dock at the bottom."""
@@ -474,7 +477,8 @@ class MainWindow(QMainWindow):
         hours = int(total_dur // 3600)
         mins = int((total_dur % 3600) // 60)
         self.status_bar.showMessage(
-            f"Library: {len(self.all_tracks):,} tracks ({hours}h {mins}m) | Database: {Path(self.db.db_path).name}"
+            _t("library_status", "Libreria: {count} tracce ({hours}h {mins}m) | Database: {db}",
+               count=f"{len(self.all_tracks):,}", hours=hours, mins=mins, db=Path(self.db.db_path).name)
         )
 
     def _on_live_filter_changed(self, criteria: FilterCriteria) -> None:
@@ -497,13 +501,19 @@ class MainWindow(QMainWindow):
             results, engine_name = SearchEngine.unified_search(criteria.query_text, self.db, limit=100000)
             self.filter_bar.lbl_search_engine.setText(engine_name)
             self.table_model.set_tracks(results)
-            self.status_bar.showMessage(f"Found {len(results):,} tracks via {engine_name}")
+            self.status_bar.showMessage(
+                _t("found_tracks", "Trovate {count} tracce tramite {engine}",
+                   count=f"{len(results):,}", engine=engine_name)
+            )
         else:
             # Complex DJ multi-attribute filter (<15ms latency in RAM)
             self.filter_bar.lbl_search_engine.setText("Live RAM Index (<15ms)")
             filtered = self.filter_engine.query(criteria, prefer_ram=True)
             self.table_model.set_tracks(filtered)
-            self.status_bar.showMessage(f"Showing {len(filtered):,} of {len(self.all_tracks):,} tracks")
+            self.status_bar.showMessage(
+                _t("showing_tracks", "Visualizzate {filtered} di {total} tracce",
+                   filtered=f"{len(filtered):,}", total=f"{len(self.all_tracks):,}")
+            )
 
     def _on_export_current_crate(self) -> None:
         """Exports currently filtered tracks as an extended M3U8 playlist."""
@@ -800,24 +810,24 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
 
         if selected:
-            act_play = menu.addAction("▶ Play in Mini-Player")
-            act_similar = menu.addAction("✨ Trova Tracce Simili (Cosine & Library)...")
+            act_play = menu.addAction(_t("ctx_play", "▶ Riproduci nel Mini-Player"))
+            act_similar = menu.addAction(_t("ctx_find_similar", "✨ Trova Tracce Simili (Cosine & Library)..."))
             menu.addSeparator()
-            act_cut = menu.addAction("✂️ Cut Track(s) (Ctrl+X)")
-            act_copy = menu.addAction("📋 Copy Track(s) (Ctrl+C)")
-            act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
+            act_cut = menu.addAction(_t("ctx_cut", "✂️ Taglia Traccia(e) (Ctrl+X)"))
+            act_copy = menu.addAction(_t("ctx_copy", "📋 Copia Traccia(e) (Ctrl+C)"))
+            act_paste = menu.addAction(_t("ctx_paste", "📥 Incolla Traccia(e) Qui (Ctrl+V)"))
             menu.addSeparator()
-            act_mp3tag = menu.addAction("🏷️ Open in Mp3tag Workbench (Ctrl+T)...")
-            act_edit = menu.addAction("✏️ Edit Tags (Batch)...")
-            act_reconcile = menu.addAction("⚖️ Reconcile Multi-Source Metadata & HD Cover...")
-            act_convert = menu.addAction("🔀 Filename <-> Tag Patterns...")
-            act_analyze = menu.addAction("🎵 Calculate BPM & Camelot Key")
-            act_quality = menu.addAction("🔊 Diagnosi Qualità Audio & Normalizza...")
-            act_sorter = menu.addAction("📁 Organize & Dispatch to Folder...")
+            act_mp3tag = menu.addAction(_t("ctx_mp3tag", "🏷️ Spazio Mp3tag (Ctrl+T)..."))
+            act_edit = menu.addAction(_t("ctx_edit_tags", "✏️ Modifica Tag (Batch)..."))
+            act_reconcile = menu.addAction(_t("ctx_reconcile", "⚖️ Riconciliazione & Cover HD..."))
+            act_convert = menu.addAction(_t("ctx_patterns", "🔀 Pattern Nome File <-> Tag..."))
+            act_analyze = menu.addAction(_t("ctx_analyze", "🎵 Calcola BPM & Chiave Camelot"))
+            act_quality = menu.addAction(_t("ctx_quality", "🔊 Diagnosi Qualità Audio & Normalizza..."))
+            act_sorter = menu.addAction(_t("ctx_sorter", "📁 Smista & Sposta in Cartella..."))
             menu.addSeparator()
-            act_folder = menu.addAction("📂 Mostra nella cartella (Show in Folder)")
+            act_folder = menu.addAction(_t("ctx_show_folder", "📂 Mostra nella cartella (Show in Folder)"))
         else:
-            act_paste = menu.addAction("📥 Paste Track(s) Here (Ctrl+V)")
+            act_paste = menu.addAction(_t("ctx_paste", "📥 Incolla Traccia(e) Qui (Ctrl+V)"))
             act_play = act_similar = act_cut = act_copy = act_mp3tag = act_edit = act_reconcile = act_convert = act_analyze = act_quality = act_sorter = act_folder = None
 
         action = menu.exec(self.table_view.viewport().mapToGlobal(pos))
@@ -944,3 +954,40 @@ class MainWindow(QMainWindow):
         """Filters library table to directory clicked in MiniPlayer breadcrumbs."""
         self._switch_view(0)
         self.filter_bar.set_folder_filter(directory_path)
+
+    def _retranslate_ui(self) -> None:
+        """Dynamically retranslates all top-level main window components."""
+        self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
+        self.btn_nav_library.setText(_t("nav_library", "🎵 DJ Library & Crates"))
+        self.btn_nav_trends.setText(_t("nav_trends", "🏠 Home Trends & Top Charts"))
+        if hasattr(self, "sb_title"):
+            self.sb_title.setText(_t("filter_smart_crates", "📁 Libreria & Crates").upper())
+
+        if hasattr(self, "act_toggle_sb"):
+            self.act_toggle_sb.setText(_t("tb_sidebar", "📁 Barra laterale"))
+        if hasattr(self, "act_scan"):
+            self.act_scan.setText(_t("tb_scan", "📂 Scansiona cartella"))
+        if hasattr(self, "act_refresh"):
+            self.act_refresh.setText(_t("tb_refresh", "🔄 Aggiorna"))
+        if hasattr(self, "act_mp3tag"):
+            self.act_mp3tag.setText(_t("tb_mp3tag", "🏷️ Spazio Mp3tag"))
+        if hasattr(self, "act_edit"):
+            self.act_edit.setText(_t("tb_quick_tag", "✏️ Tag Rapidi"))
+        if hasattr(self, "act_patterns"):
+            self.act_patterns.setText(_t("tb_filename_tag", "🔀 Nome File <-> Tag"))
+        if hasattr(self, "act_reconcile"):
+            self.act_reconcile.setText(_t("tb_reconcile", "⚖️ Riconciliazione & Cover HD"))
+        if hasattr(self, "act_acoustic"):
+            self.act_acoustic.setText(_t("tb_analyze", "🎵 Analizza BPM & Key"))
+        if hasattr(self, "act_quality"):
+            self.act_quality.setText(_t("tb_audio_quality", "🔊 Qualità Audio"))
+        if hasattr(self, "act_similar"):
+            self.act_similar.setText(_t("tb_find_similar", "✨ Trova Simili"))
+        if hasattr(self, "act_organize"):
+            self.act_organize.setText(_t("tb_organizer", "📦 Organizzatore Smart"))
+        if hasattr(self, "act_settings"):
+            self.act_settings.setText(_t("tb_settings", "⚙️ Impostazioni"))
+        if hasattr(self, "act_log"):
+            self.act_log.setText(_t("tb_live_log", "📜 Log in Tempo Reale"))
+        if hasattr(self, "act_stats"):
+            self.act_stats.setText(_t("tb_stats", "📊 Statistiche"))

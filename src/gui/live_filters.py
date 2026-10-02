@@ -50,6 +50,7 @@ from ..core.db import Database
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
 from ..core.search_factory import SearchEngine
 from ..core.logger import MusicatLogger
+from ..core.i18n import I18n, _t
 
 
 COMMON_DJ_GENRES = [
@@ -248,6 +249,9 @@ class GenreMultiSelectWidget(QWidget):
         layout.addWidget(self.btn_genre_menu)
         layout.addWidget(self.btn_count)
 
+        self._update_display()
+        I18n.get_instance().language_changed.connect(self._retranslate_ui)
+
     def _refresh_completer(self) -> None:
         genres = list(COMMON_DJ_GENRES)
         if self.db:
@@ -271,7 +275,7 @@ class GenreMultiSelectWidget(QWidget):
             except Exception:
                 pass
 
-        act_all = menu.addAction("Clear All Genres")
+        act_all = menu.addAction(_t("filter_clear_genres", "Rimuovi Selezione Generi"))
         act_all.triggered.connect(self.clear_selection)
         menu.addSeparator()
 
@@ -282,6 +286,10 @@ class GenreMultiSelectWidget(QWidget):
             act.toggled.connect(lambda chk, genre=g: self._toggle_genre(genre, chk))
 
         self.btn_genre_menu.setMenu(menu)
+
+    def _retranslate_ui(self) -> None:
+        self._update_display()
+        self._build_menu()
 
     def _toggle_genre(self, genre: str, checked: bool) -> None:
         if checked:
@@ -302,14 +310,14 @@ class GenreMultiSelectWidget(QWidget):
 
     def _update_display(self) -> None:
         if not self.selected_genres:
-            self.btn_count.setText("All")
-            self.txt_genre.setPlaceholderText("Select / Search Genres (Ctrl+G)...")
+            self.btn_count.setText(_t("filter_all_genres", "Tutti i Generi"))
+            self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Seleziona / Cerca Generi (Ctrl+G)..."))
         elif len(self.selected_genres) == 1:
             g = list(self.selected_genres)[0]
-            self.btn_count.setText("1 Genre")
+            self.btn_count.setText(_t("filter_one_genre", "1 Genere"))
             self.txt_genre.setPlaceholderText(g)
         else:
-            self.btn_count.setText(f"{len(self.selected_genres)} Genres (OR)")
+            self.btn_count.setText(_t("filter_multi_genres", "{count} Generi (OR)", count=len(self.selected_genres)))
             self.txt_genre.setPlaceholderText(", ".join(sorted(self.selected_genres)))
 
     def _show_selected_summary(self) -> None:
@@ -365,6 +373,8 @@ class LiveFilterBar(QFrame):
 
         self._init_ui()
         self._connect_signals()
+        self._retranslate_ui()
+        I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -396,7 +406,7 @@ class LiveFilterBar(QFrame):
         # 3. BPM Range & Target Tolerance (Ctrl+B)
         bpm_box = QHBoxLayout()
         bpm_box.setSpacing(4)
-        bpm_lbl = QLabel("BPM:")
+        self.lbl_bpm = QLabel("BPM:")
 
         self.spin_target_bpm = QDoubleSpinBox()
         self.spin_target_bpm.setRange(0, 250)
@@ -426,7 +436,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.setSpecialValueText("Max")
         self.spin_bpm_max.setFixedWidth(64)
 
-        bpm_box.addWidget(bpm_lbl)
+        bpm_box.addWidget(self.lbl_bpm)
         bpm_box.addWidget(self.spin_target_bpm)
         bpm_box.addWidget(self.cmb_bpm_tolerance)
         bpm_box.addWidget(QLabel("or"))
@@ -437,7 +447,7 @@ class LiveFilterBar(QFrame):
         # 4. Harmonic Mixing Assistant (Camelot Wheel Matching) (Ctrl+K)
         camelot_box = QHBoxLayout()
         camelot_box.setSpacing(4)
-        camelot_lbl = QLabel("Key:")
+        self.lbl_key = QLabel("Key:")
 
         self.cmb_camelot = QComboBox()
         self.cmb_camelot.addItem("All Keys", "")
@@ -456,7 +466,7 @@ class LiveFilterBar(QFrame):
         self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_wheel_popup.clicked.connect(self._open_camelot_wheel)
 
-        camelot_box.addWidget(camelot_lbl)
+        camelot_box.addWidget(self.lbl_key)
         camelot_box.addWidget(self.cmb_camelot)
         camelot_box.addWidget(self.chk_harmonic_only)
         camelot_box.addWidget(self.btn_wheel_popup)
@@ -484,7 +494,7 @@ class LiveFilterBar(QFrame):
         # Decade / Year Filter
         year_box = QHBoxLayout()
         year_box.setSpacing(4)
-        year_lbl = QLabel("Year:")
+        self.lbl_year = QLabel("Year:")
         self.cmb_decade = QComboBox()
         self.cmb_decade.addItem("Any Year", (None, None))
         self.cmb_decade.addItem("2020s (2020-2026)", (2020, 2026))
@@ -493,39 +503,39 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
         self.cmb_decade.setFixedWidth(135)
-        year_box.addWidget(year_lbl)
+        year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
 
         # Energy Level Selector
         energy_box = QHBoxLayout()
         energy_box.setSpacing(4)
-        energy_lbl = QLabel("Energy:")
+        self.lbl_energy = QLabel("Energy:")
         self.cmb_energy = QComboBox()
         self.cmb_energy.addItem("⚡ Any Energy", [])
         self.cmb_energy.addItem("⚡ Low Warmup (1-2)", [1, 2])
         self.cmb_energy.addItem("⚡ Mid Building (3)", [3])
         self.cmb_energy.addItem("⚡ Peak Time (4-5)", [4, 5])
         self.cmb_energy.setFixedWidth(125)
-        energy_box.addWidget(energy_lbl)
+        energy_box.addWidget(self.lbl_energy)
         energy_box.addWidget(self.cmb_energy)
 
         # Rating Filter
         rating_box = QHBoxLayout()
         rating_box.setSpacing(4)
-        rating_lbl = QLabel("Rating:")
+        self.lbl_rating = QLabel("Rating:")
         self.cmb_rating = QComboBox()
         self.cmb_rating.addItem("⭐ Any", None)
         self.cmb_rating.addItem("3★ & Above", 3)
         self.cmb_rating.addItem("4★ & Above", 4)
         self.cmb_rating.addItem("5★ Elite", 5)
         self.cmb_rating.setFixedWidth(90)
-        rating_box.addWidget(rating_lbl)
+        rating_box.addWidget(self.lbl_rating)
         rating_box.addWidget(self.cmb_rating)
 
         # Audio Quality / Diagnostics Filter
         quality_box = QHBoxLayout()
         quality_box.setSpacing(4)
-        quality_lbl = QLabel("Audio:")
+        self.lbl_quality = QLabel("Audio:")
         self.cmb_quality = QComboBox()
         self.cmb_quality.addItem("🔊 All Audio", "")
         self.cmb_quality.addItem("⚠️ Clipping (>0 dBTP)", "clipping")
@@ -534,7 +544,7 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
         self.cmb_quality.setFixedWidth(135)
-        quality_box.addWidget(quality_lbl)
+        quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
         # Quick DJ Tags (Pills)
@@ -580,31 +590,71 @@ class LiveFilterBar(QFrame):
         # Drive / Directory Folder Filter
         folder_box = QHBoxLayout()
         folder_box.setSpacing(4)
-        folder_lbl = QLabel("📁 Cartella:")
+        self.lbl_folder = QLabel("📁 Cartella:")
         self.cmb_folder = QComboBox()
         self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
         self.cmb_folder.setFixedWidth(150)
         self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
-        folder_box.addWidget(folder_lbl)
+        folder_box.addWidget(self.lbl_folder)
         folder_box.addWidget(self.cmb_folder)
 
         # Cover Art Filter
         cover_box = QHBoxLayout()
         cover_box.setSpacing(4)
-        cover_lbl = QLabel("🖼️ Cover:")
+        self.lbl_cover = QLabel("🖼️ Cover:")
         self.cmb_cover = QComboBox()
         self.cmb_cover.addItem("Tutte", "")
         self.cmb_cover.addItem("Con Cover", "with_cover")
         self.cmb_cover.addItem("Senza Cover", "without_cover")
         self.cmb_cover.setFixedWidth(110)
         self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
-        cover_box.addWidget(cover_lbl)
+        cover_box.addWidget(self.lbl_cover)
         cover_box.addWidget(self.cmb_cover)
 
         row2.addLayout(folder_box)
         row2.addLayout(cover_box)
         row2.addLayout(year_box)
         row2.addLayout(energy_box)
+
+    def _retranslate_ui(self) -> None:
+        """Dynamically updates filter bar text in response to language change."""
+        fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
+        self.txt_search.setPlaceholderText(_t("filter_search_placeholder", "🔍 Ricerca Rapida / {engine} (Ctrl+F)...", engine=fast_engine))
+        self.btn_reset.setText(_t("filter_reset", "✕ Ripristina (ESC)"))
+        self.btn_wheel_popup.setText(_t("filter_wheel_btn", "🎡 Ruota"))
+        self.chk_harmonic_only.setText(_t("filter_harmonic_only", "Solo Armonici"))
+        self.spin_target_bpm.setSpecialValueText(_t("filter_target_bpm", "Target"))
+        self.spin_bpm_min.setSpecialValueText(_t("filter_min_bpm", "Min"))
+        self.spin_bpm_max.setSpecialValueText(_t("filter_max_bpm", "Max"))
+        self.lbl_bpm.setText(_t("filter_bpm", "BPM:"))
+        self.lbl_key.setText(_t("filter_key", "Key:"))
+        self.lbl_year.setText(_t("filter_year", "Anno:"))
+        self.lbl_energy.setText(_t("filter_energy", "Energia:"))
+        self.lbl_rating.setText(_t("filter_rating", "Valutazione:"))
+        self.lbl_quality.setText(_t("filter_audio", "Audio:"))
+        self.lbl_folder.setText(_t("filter_folder", "📁 Cartella:"))
+        self.lbl_cover.setText(_t("filter_cover", "🖼️ Cover:"))
+
+        self.cmb_camelot.setItemText(0, _t("filter_all_keys", "Tutte le Chiavi"))
+        self.cmb_decade.setItemText(0, _t("filter_any_year", "Qualsiasi Anno"))
+        self.cmb_energy.setItemText(0, _t("filter_any_energy", "⚡ Qualsiasi Energia"))
+        self.cmb_energy.setItemText(1, _t("filter_warmup", "⚡ Warmup Basso (1-2)"))
+        self.cmb_energy.setItemText(2, _t("filter_building", "⚡ Costruzione Media (3)"))
+        self.cmb_energy.setItemText(3, _t("filter_peak_time", "⚡ Peak Time (4-5)"))
+        self.cmb_rating.setItemText(0, _t("filter_any_rating", "⭐ Tutte"))
+        self.cmb_quality.setItemText(0, _t("filter_all_audio", "🔊 Tutto l'Audio"))
+        self.cmb_quality.setItemText(1, _t("filter_clipping", "⚠️ Clipping (>0 dBTP)"))
+        self.cmb_quality.setItemText(2, _t("filter_low_vol", "🔈 Basso Vol (<-18 LUFS)"))
+        self.cmb_quality.setItemText(3, _t("filter_brickwall", "🧱 Brickwall (LRA < 3)"))
+        self.cmb_quality.setItemText(4, _t("filter_problematic", "⚡ Tracce Problematiche"))
+        self.cmb_quality.setItemText(5, _t("filter_conforme", "✅ Conforme (OK)"))
+        self.cmb_crates.setItemText(0, _t("filter_smart_crates", "📁 Smart Crates..."))
+        self.btn_save_crate.setText(_t("filter_save_crate", "💾 Salva Crate"))
+        self.btn_export_m3u.setText(_t("filter_export_m3u", "📤 Esporta M3U8"))
+        self.cmb_folder.setItemText(0, _t("filter_all_folders", "Tutte le Cartelle / Drive"))
+        self.cmb_cover.setItemText(0, _t("filter_all_covers", "Tutte"))
+        self.cmb_cover.setItemText(1, _t("filter_with_cover", "Con Cover"))
+        self.cmb_cover.setItemText(2, _t("filter_without_cover", "Senza Cover"))
         row2.addLayout(rating_box)
         row2.addLayout(quality_box)
         row2.addLayout(tags_box)

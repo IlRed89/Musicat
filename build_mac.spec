@@ -39,7 +39,9 @@ hiddenimports = [
     'vlc',
 ]
 
-datas = []
+datas = [
+    (str(project_root / 'locales'), 'locales'),
+]
 try:
     datas += collect_data_files('soundfile')
 except Exception:

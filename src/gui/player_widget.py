@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from ..audio.waveform import WaveformGenerator
 from ..core.memory_cache import WaveformMemoryCache
 from ..player.vlc_engine import VLCAudioPlayer
+from ..core.i18n import I18n, _t
 from .views import (
     BreadcrumbBar,
     LoudnessMeterBar,
@@ -141,6 +142,8 @@ class MiniPlayerWidget(QFrame):
 
         self._init_ui()
         self._connect_signals()
+        self._retranslate_ui()
+        I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
@@ -156,11 +159,11 @@ class MiniPlayerWidget(QFrame):
         info_layout = QVBoxLayout()
         info_layout.setSpacing(2)
 
-        self.title_label = QLabel("No track playing")
+        self.title_label = QLabel(_t("player_no_track", "Nessuna traccia in riproduzione"))
         self.title_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self.title_label.setStyleSheet("color: #ffffff;")
 
-        self.artist_label = QLabel("Select a track to audition")
+        self.artist_label = QLabel(_t("player_select_prompt", "Seleziona una traccia da ascoltare"))
         self.artist_label.setStyleSheet("color: #8c92a4; font-size: 11px;")
 
         badges_layout = QHBoxLayout()
@@ -506,3 +509,13 @@ class MiniPlayerWidget(QFrame):
         self.track_normalized.emit(normalized_path)
         if self.parent() and hasattr(self.parent(), "_refresh_library"):
             self.parent()._refresh_library()
+
+    def _retranslate_ui(self) -> None:
+        """Dynamically retranslates mini player widgets."""
+        if not self.current_track:
+            self.title_label.setText(_t("player_no_track", "Nessuna traccia in riproduzione"))
+            self.artist_label.setText(_t("player_select_prompt", "Seleziona una traccia da ascoltare"))
+        self.btn_normalize.setText(_t("player_normalize", "⚡ Correggi"))
+        self.btn_similar.setText(_t("player_similar", "✨ Simili"))
+        if hasattr(self, "breadcrumb_bar") and hasattr(self.breadcrumb_bar, "btn_show_folder"):
+            self.breadcrumb_bar.btn_show_folder.setToolTip(_t("player_show_in_folder", "📂 Mostra nella cartella"))

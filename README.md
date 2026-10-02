@@ -1,231 +1,193 @@
 # 🐱🎧 Musicat
 
-> **The Ultimate Desktop Music Catalog, DJ Tag Editor & Acoustic Smart Organizer.**  
-> *Designed specifically for DJs, record collectors, and audio archivists managing massive libraries across internal and external storage.*
+> **Il Catalogatore Universale per DJ, Metadata Engine Stile Mp3tag & Smart Organizer Acustico.**  
+> *Sviluppato specificamente per DJ professionisti, collezionisti musicali e archivisti con librerie di grandi dimensioni (50.000+ tracce su dischi esterni).*
 
+[![Lingua: Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.md)
+[![Language: English](https://img.shields.io/badge/Language-English-blue.svg)](README_EN.md)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%28Universal%29-brightgreen.svg)]()
-[![Target Repository](https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg)](https://github.com/IlRed89/Musicat)
-[![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
+[![Piattaforma](https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg)]()
+[![Repository Ufficiale](https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg)](https://github.com/IlRed89/Musicat)
+[![Licenza](https://img.shields.io/badge/licenza-MIT-purple.svg)](LICENSE)
 
 ---
 
-## 🌟 Vision & Overview
+## 🌟 Panoramica & Visione
 
-When managing collections of **50,000+ tracks** on high-capacity external SSDs, standard music players and generic taggers struggle: database paths break when Windows switches external drive letters or when moving between Windows and macOS, batch editing becomes sluggish, and critical DJ metadata (BPM, Camelot Keys, record labels, remixes, electronic subgenres) is treated as an afterthought.
+La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a qualsiasi DJ:
+- Le lettere di unità di Windows o i punti di mount APFS/HFS+ di macOS cambiano costantemente quando si collegano dischi a porte diverse o si passa tra computer diversi, corrompendo i database dei player tradizionali.
+- I software DJ da console (Rekordbox, Traktor, Serato, Engine DJ) non offrono funzionalità complete di tag editing massivo, scraping da fonti multiple e diagnosi acustica.
+- Gli editor di tag generici (come Mp3tag) non dispongono di player audio integrato con pitch bending, analisi DSP (BPM e Camelot Key), filtri live in tempo reale né sincronizzazione con le classifiche online.
 
-**Musicat** combines eight foundational pillars into a unified, lightning-fast dark desktop interface native to both **Windows (10/11 x64)** and **macOS (Apple Silicon M-Series + Intel x64)**:
-
-1. ⚡ **DJ Catalog & Multi-Attribute Player:** Virtualized table architecture rendering tens of thousands of tracks with zero lag, instant filtering by BPM range, Camelot Key, and genre, plus a mini-player with interactive audio waveform scrubbing.
-2. 🚀 **Cross-Platform Fast Search (`SearchEngine`):**
-   - **Windows:** Voidtools Everything SDK IPC querying Master File Table (MFT) in sub-milliseconds.
-   - **macOS:** Native Metadata Services / Spotlight (`mdfind`) APFS driver.
-   - **Fallback:** Indexed SQLite FTS5 (Full-Text Search) with zero configuration.
-3. 🎵 **Universal libVLC Audio Engine:** Native decoding for MP3, WAV (up to 32-bit float), FLAC, AIFF, M4A, OGG, Apple Lossless (ALAC), and OPUS with DJ pitch rate bending ($\pm 8\%$) and waveform scrubbing.
-4. 🏷️ **Advanced Mp3tag-Grade Metadata Engine:** Full support for MP3, FLAC, M4A, WAV, AIFF, and OGG containers with multi-selection batch tag editing and pattern conversions (`%artist% - %title% (%bpm% BPM)`).
-5. 🌐 **Multi-Source Scraping & Discrepancy Reconciliation:** Scrapes Beatport, Traxsource, Discogs, MusicBrainz, and Social/Remix platforms (SoundCloud, YouTube Music, Hypeddit, Remix.audio). Reconciles conflicting metadata with field-by-field selective resolution.
-6. 🖼️ **Studio HD Cover Art Injection:** Discovers lossless studio covers from 500x500 up to 3000x3000px (Apple Music / iTunes CDN, Beatport HD) and injects them directly into file tags (`APIC`, Picture block, `covr`) with optional local `cover.jpg` saving.
-7. 🎛️ **High-Performance Parallel Acoustic Engine & L1 RAM Cache:** Hardware-aware multiprocessing pool (`ProcessPoolExecutor`) saturating logical CPU cores with streaming partial-window audio reads and high-energy chroma extraction, paired with an in-memory SQLite buffer and LRU waveform cache for zero disk I/O bottleneck.
-8. 💾 **Dual-Mode Setup & Drive Migration:** Runs in standard desktop mode (`%APPDATA%` on Windows, `~/Library/Application Support` on macOS) or zero-installation portable mode (`portable.lock`) with volume serial and mount point translation (`[VOL:...]`), allowing seamless switching of the same USB SSD between Windows and Mac!
+**Musicat** integra in un'unica interfaccia desktop dark e ad alte prestazioni 10 pilastri fondamentali compatibili nativamente con **Windows (10/11 x64)** e **macOS (Apple Silicon M-Series + Intel x64)**.
 
 ---
 
-## 🏗️ Architecture
+## 🚀 Architettura dei 10 Moduli Chiave
 
 ```
-Musicat/
-├── installer/
-│   └── setup.iss              # Inno Setup dual-mode installer (Standard vs Portable)
-├── src/
-│   ├── core/                  # Core Systems
-│   │   ├── db.py              # SQLite WAL database & FTS5 full-text search engine
-│   │   ├── everything_search.py # Voidtools Everything SDK (MFT IPC) + FTS fallback
-│   │   ├── search_mac.py      # Native macOS Spotlight APFS driver (mdfind)
-│   │   ├── search_factory.py  # Unified SearchEngine factory with dynamic badges
-│   │   ├── memory_cache.py    # L1 SQLite RAM buffer & Waveform LRU memory cache
-│   │   ├── filter_engine.py   # Multi-criteria live query builder (<15ms latency)
-│   │   ├── logger.py          # Structured logging (20MB compressed rotation, GUI console)
-│   │   ├── path_resolver.py   # Volume Serial Number (VSN) & portable.lock resolver
-│   │   └── scanner.py         # Multi-threaded recursive folder scanner
-│   ├── audio/                 # Acoustic Analysis Engine
-│   │   ├── analyzer.py        # BPM autocorrelation & Camelot Wheel chromagram engine
-│   │   ├── camelot.py         # Camelot Wheel harmonic assistant & matrix matching
-│   │   ├── worker.py          # Pure worker functions (partial reads, high-energy chroma)
-│   │   ├── parallel_analyzer.py # Dynamic ProcessPoolExecutor & batch scheduler
-│   │   └── waveform.py        # Downsampled audio peak extraction for mini-player
-│   ├── player/                # Audio Engine
-│   │   └── vlc_engine.py      # libVLC universal engine with DJ pitch rate bending (+/- 8%)
-│   ├── tags/                  # Tag & Metadata Engine
-│   │   ├── editor.py          # Unified Mutagen wrapper (ID3, Vorbis, MP4, RIFF)
-│   │   └── patterns.py        # Pattern parser (%artist% - %title% (%bpm% BPM))
-│   ├── scrapers/              # Online Metadata Scraping & Reconciliation
-│   │   ├── beatport.py        # Beatport club & dance metadata + high-res artwork
-│   │   ├── traxsource.py      # Traxsource house/club metadata scraper
-│   │   ├── discogs.py         # Discogs vinyl/digital search & catalog numbers
-│   │   ├── musicbrainz.py     # MusicBrainz canonical recording & release search
-│   │   ├── social_remix.py    # SoundCloud, YouTube Music, Hypeddit, Remix.audio
-│   │   ├── artwork_hd.py      # Studio HD artwork discovery (Apple Music up to 3000px)
-│   │   ├── reconciler.py      # Multi-source discrepancy reconciliation engine
-│   │   └── acoustid.py        # Chromaprint acoustic fingerprinting lookup
-│   ├── organizer/             # Smart File Dispatcher
-│   │   └── sorter.py          # Dynamic folder hierarchy sorter & Dry-Run planner
-│   ├── gui/                   # Dark DJ Console Interface (PySide6)
-│   │   ├── main_view.py       # Primary dashboard with filters, live log & table
-│   │   ├── live_filters.py    # Live DJ Filter Bar with Camelot Wheel Dialog
-│   │   ├── analysis_dialog.py # Hardware-Aware parallel acoustic analyzer dialog
-│   │   ├── table_model.py     # High-performance virtual QAbstractTableModel
-│   │   ├── player_widget.py   # VLC-backed player with waveform canvas & DJ pitch slider
-│   │   ├── tag_editor_dialog.py # Inline & batch tag editor with cover manager
-│   │   ├── reconciler_dialog.py # Multi-source discrepancy & HD cover dialog
-│   │   ├── sorter_dialog.py   # Smart Organizer GUI with interactive dry-run table
-│   │   ├── pattern_dialog.py  # Filename <-> Tag conversion dialog with live preview
-│   │   ├── scraper_dialog.py  # "Before / After" split-table scraper comparison
-│   │   ├── styles.py          # Dark DJ booth theme stylesheet (QSS)
-│   │   └── app.py             # Qt application bootstrap
-│   └── main.py                # Main executable entry point & CLI scanner
-├── build/
-│   ├── build_portable.bat     # Windows automated portable builder
-│   └── musicat.spec           # PyInstaller bundle specification
-├── tests/                     # Comprehensive test suite (30+ unit tests)
-├── requirements.txt
-├── LICENSE
-└── README.md
++----------------------------------------------------------------------------------------------------+
+|                                              MUSICAT                                               |
++----------------------------------------------------------------------------------------------------+
+|  [Live DJ Crates]   |  [Spazio Mp3tag]     |  [Motore Acustico]  |  [Plugin Loudnorm]  | [Trends]  |
+|  - Filtri RAM <15ms |  - Foglio di Calcolo |  - Multiprocessing  |  - EBU R128 LUFS    | - Spotify |
+|  - Ruota Camelot    |  - Editing Batch     |  - FFT BPM & Key    |  - True Peak dBTP   | - Cosine  |
+|  - Generi Multi (OR)|  - Pattern %tag%     |  - Cache L1 in RAM  |  - Normalizzazione  | - Simili  |
++----------------------------------------------------------------------------------------------------+
+|         Motore Ricerca Rapida (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)           |
++----------------------------------------------------------------------------------------------------+
+|                 Engine libVLC con Pitch Bend +/-8% e Waveform Scrubbing Interattivo                |
++----------------------------------------------------------------------------------------------------+
+|          Risolutore Path Multi-Piattaforma ([VOL:XXXXXXXX] & portable.lock Drive Migration)        |
++----------------------------------------------------------------------------------------------------+
 ```
 
+### 1. 🎛️ Live DJ Crates & Barra Filtri Rapidi (<15ms di Latenza)
+- **Selettore Multi-Genere:** Autocomplete istantaneo con selezione multipla e logica `OR` (es. *Tech House* OR *Afro House* OR *Melodic Techno*).
+- **Target BPM & Tolleranze Pitch:** Box numerico con preset a percentuale (`±2%`, `±4%`, `±6%`, `±8%`) ed estremi Min/Max personalizzabili.
+- **Assistente Armonico Ruota Camelot:** Griglia interattiva a 12 colonne (`1A`–`12B`) con indicazione di percorsi armonici:
+  - $\pm 1$ Passaggio armonico fluido (stabilità energetica)
+  - Scala Relativa (passaggio Maggiore $\leftrightarrow$ Minore)
+  - $+2$ Energy Boost (innalzamento netto dell'energia)
+  - $+7$ Semitone Peak Lift (salto di semitono per picchi di climax)
+- **Smart Crates & Esportazione M3U8:** Salvataggio istantaneo delle combinazioni di filtri in crate dinamici ed esportazione in playlist `.m3u8` compatibili con Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
+
+### 2. 🏷️ Spazio Mp3tag Dedicato & Tag Editor Avanzato
+- **Visualizzazione Tabellare a Foglio di Calcolo:** Modifica inline rapida su singola cella o editing simultaneo batch su selezioni multiple.
+- **Convertitore Pattern Nome File <-> Tag:** Motore bidirezionale con token `%artist% - %title% (%bpm% BPM) [%camelot%]`.
+- **Iniezione Copertine HD Studio:** Download e incorporamento di cover fino a 3000x3000px (da Apple Music CDN e Beatport) direttamente nei file (`APIC`, Picture block FLAC, atomo `covr` MP4).
+- **Supporto Contenitori Universali:** MP3, FLAC, WAV (fino a 32-bit float), AIFF, M4A/ALAC, OGG Vorbis e OPUS.
+
+### 3. ⚡ Motore di Indicizzazione Ultra-Rapido (`SearchEngine`)
+- **Windows (NTFS MFT):** Binding Ctypes nativo su `Everything64.dll` per query dirette alla Master File Table in meno di 1 millisecondo su dischi con 100.000+ brani.
+- **macOS (APFS/HFS+):** Driver nativo tramite CLI Spotlight (`mdfind`) filtrato su `kMDItemContentTypeTree == 'public.audio'`.
+- **Fallback Automatico:** Passaggio trasparente a SQLite FTS5 (Full-Text Search) con trigger automatici e zero configurazione.
+
+### 4. 🎛️ Analisi Acustica Parallela Multiprocesso & Cache L1 in RAM
+- **Saturazione CPU Hardware-Aware:** Pool di worker dinamico (`ProcessPoolExecutor`) su tutti i core logici disponibili.
+- **Streaming Window Reads:** Analisi spettrale focalizzata sulla finestra centrale di 60s (drop) a 22.050 Hz mono, tagliando l'uso della CPU dell'80%.
+- **Cache L1 in RAM (SQLite In-Memory):** Buffer temporaneo in RAM (`:memory:`) per evitare scritture premature su SSD e preservare la vita dei supporti flash; cache LRU in memoria per forme d'onda istantanee.
+
+### 5. 🔊 Plugin Qualità Audio, Clipping Detector & Loudnorm (EBU R128)
+- **Conformità Standard EBU R128 / ITU-R BS.1770-4:** Misurazione Integrated Loudness (LUFS), True Peak (dBTP) con oversampling 4x e Loudness Range (LRA).
+- **Diagnosi Anomalie:** Segnalazione visiva di tracce con clipping inter-sample ($>0$ dBTP), volume troppo basso ($<-18$ LUFS) o dinamica compressa tipo brickwall ($\text{LRA} < 3$ LU).
+- **Doppia Correzione:**
+  - *Non distruttiva:* Tag metadati ReplayGain (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
+  - *Fisica con FFmpeg:* Re-encoding a 2 passaggi con filtro `loudnorm` (target: $-14$ LUFS, $-1.0$ dBTP).
+
+### 6. 🏠 Spotify Top Trends & Motore Tracce Simili
+- **Top Trends Spotify Live:** Classifiche suddivise per genere (Dance/Electro, Tech House, Techno, Global Top 50) con caching locale di 24 ore.
+- **Riconciliazione Istantanea con la Collezione:** Badge visivo per verificare al volo se la traccia in classifica è già presente nel proprio hard disk (`✓ In Libreria`) o mancante (`+ Mancante`).
+- **Motore di Similarità (Cosine.club):** Ricerca vettoriale su database online e matching acustico diretto contro la propria libreria locale.
+
+### 7. ⚖️ Scraping Multi-Fonte & Riconciliazione Conflitti
+- Query simultanea verso **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz** e piattaforme social (**SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**).
+- Tabella di riconciliazione "Prima / Dopo" con risoluzione campo per campo (seleziona Titolo da Beatport, Anno da Discogs, Etichetta da Traxsource).
+
+### 8. 📦 Smart Organizer & Smistamento Fisico su Disco
+- Riorganizzazione della struttura delle cartelle in base a maschere flessibili: `{Genre}/{bpm_range}/{Camelot} - {Artist} - {Title}.ext`.
+- Modalità **Dry Run (Simulazione)** obbligatoria con tabella di anteprima, collision detection e spostamento fisico sicuro.
+
+### 9. 💾 Installazione Dual-Mode & Portabilità Totale (`portable.lock`)
+- **Modalità Standard:** Installazione guidata in `Program Files`, collegamenti di sistema e dati utente in `%APPDATA%\Musicat`.
+- **Modalità Portable:** Estrazione pulita su qualsiasi chiavetta o SSD esterno. La presenza di `portable.lock` forza il salvataggio di impostazioni, database e log esclusivamente nella cartella locale dell'app.
+- **Risolutore Volume Serial Number (`[VOL:XXXXXXXX]`):** Converte i path assoluti in percorsi relativi al drive fisico, consentendo di spostare lo stesso SSD tra Windows e macOS senza perdere il catalogo.
+
+### 10. 🌐 Localizzazione Bilingue (Italiano / Inglese)
+- **Italiano (Lingua Predefinita):** Supporto completo in lingua italiana di ogni finestra, tabella, filtro e menu contestuale.
+- **Inglese (Lingua Secondaria):** Traduzione integrale per il mercato internazionale.
+- **Cambio Istantaneo a Caldo:** Selezione della lingua nelle Preferenze senza alcun riavvio dell'applicazione.
+
 ---
 
-## 🚀 Key Features
+## ⌨️ Scorciatoie da Tastiera DJ Console
 
-### 1. Dual-Mode Installer & Portability (`setup.iss`)
-- **Standard Mode:** Installs in `Program Files`, adds Start Menu/Desktop shortcuts, writes registry keys, and isolates data in `%APPDATA%\Musicat`.
-- **Portable Mode:** Extracts into any folder (e.g. external SSD `E:\Musicat_Portable`), writes `portable.lock`, and keeps database, configuration, and logs strictly in `./musicat_data/`.
-
-### 2. Voidtools Everything MFT Search
-- Connects directly to `Everything64.dll` via IPC to search NTFS drives with 100,000+ files in milliseconds.
-- If Everything is closed or not installed, falls back seamlessly to the internal SQLite FTS5 (Full-Text Search) index without UI freezing.
-
-### 3. libVLC Integrated Player & DJ Pitch Control
-- Native support for every audio format: **MP3, WAV, FLAC, AIFF, M4A, OGG, ALAC, OPUS**.
-- **DJ Pitch / Tempo Slider:** Real-time speed/pitch bending from $-8.0\%$ to $+8.0\%$ for auditioning tracks at club tempos.
-- Interactive waveform scrubbing with click-to-seek and looping.
-
-### 4. Multi-Source Scraping & Discrepancy Reconciliation
-- Aggregates metadata across:
-  - **Club/DJ sources:** Beatport, Traxsource, Discogs, MusicBrainz.
-  - **Social/Remix platforms:** SoundCloud, YouTube Music, Hypeddit, Remix.audio.
-- **Reconciliation Engine:** Compares results side-by-side, detects conflicts (e.g., Beatport says "Melodic Techno", Discogs says "Progressive House"), and allows selective field-by-field merging.
-
-### 5. Studio HD Cover Art Discovery (up to 3000x3000px)
-- Fetches studio uncompressed artwork via Apple Music CDN upscaling, Beatport GeoMedia, and Traxsource.
-- Injects artwork directly into audio tags (`APIC` for MP3, Picture block for FLAC, `covr` for M4A) and optionally writes `cover.jpg` in the folder.
-
-### 6. Tag Editor & Pattern Engine (Stile Mp3tag)
-- **Batch Editing:** Select 200 tracks, modify Genre or Year with `<keep existing>` safety for untouched fields.
-- **Conversions:**
-  - *Filename ➔ Tag:* `%artist% - %title% (%bpm% BPM)`
-  - *Tag ➔ Filename:* Mass physical renaming based on database tags.
-  - *Tag ➔ Tag:* Copy, swap, or merge fields.
-
-### 7. Structured Logging with Compressed Rotation
-- Centralized multi-level logger (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
-- Automatic 20MB file rotation with `.gz` compression.
-- Live Log console dock in the GUI (`Ctrl+L`) for monitoring background tasks.
+| Tasto Rapido | Azione | Descrizione |
+|---|---|---|
+| `Ctrl + F` | Ricerca Rapida | Attiva la barra di ricerca unificata (Everything MFT / Spotlight / FTS) |
+| `Ctrl + G` | Filtro Generi | Attiva la casella generi con autocomplete multi-selezione |
+| `Ctrl + B` | Filtro BPM | Seleziona la casella Target BPM |
+| `Ctrl + K` | Ruota Camelot | Apre l'assistente visivo Ruota Camelot per il mix armonico |
+| `Esc` | Ripristina Filtri | Cancella istantaneamente ogni filtro e mostra l'intera libreria |
+| `Spazio` | Play / Pausa | Avvia/ferma la riproduzione del brano o preascolta la traccia selezionata |
+| `Invio` | Carica nel Deck | Carica il brano selezionato nel mini-player |
+| `Ctrl + T` | Spazio Mp3tag | Apre la workbench dedicata in stile Mp3tag |
+| `Ctrl + E` | Tag Rapidi | Apre il modal di modifica batch dei tag |
+| `Ctrl + R` | Riconciliazione | Avvia la riconciliazione metadati da fonti multiple |
+| `Ctrl + Q` | Qualità Audio | Apre la diagnostica del volume e clipping EBU R128 |
+| `Ctrl + Shift + S`| Trova Simili | Trova tracce compatibili nella propria libreria locale e online |
+| `Ctrl + S` | Smart Organizer | Apre lo strumento di smistamento e spostamento fisico su disco |
+| `Ctrl + L` | Log in Tempo Reale | Mostra/nasconde la console dei log di sistema |
+| `Ctrl + ,` | Impostazioni | Apre la finestra Preferenze di Sistema |
+| `Alt + 1` / `Alt + 2` | Cambio Vista | Alterna rapidamente tra Libreria DJ e Home Trends |
 
 ---
 
-## 💻 Quickstart & Installation
+## 📦 Download & Release Ufficiali
 
-### Requirements
-- **OS:** Windows 10 / 11 (64-bit)
-- **Python:** 3.11, 3.12, or 3.13
+Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actions i pacchetti pronti all'uso:
 
-### 1. Clone & Setup
-```powershell
+| Piattaforma | File di Rilascio | Descrizione |
+|---|---|---|
+| **Windows 10/11 x64** | `Musicat-Setup-Windows-x64.exe` | Installer Inno Setup Dual-Mode (Standard o Portabile) |
+| **Windows 10/11 x64** | `Musicat-Windows-Portable.zip` | Archivio standalone portabile pronto all'uso (`portable.lock`) |
+| **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
+| **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
+
+👉 **[Scarica l'Ultima Release Ufficiale (v1.0.0)](https://github.com/IlRed89/Musicat/releases)**
+
+---
+
+## 🛠️ Installazione dai Sorgenti
+
+### Prerequisiti
+- Python 3.11, 3.12 o 3.13 (64-bit)
+- `git`
+- libVLC (o VLC Media Player installato nel sistema)
+- (Opzionale su Windows) Inno Setup 6.2+ per generare l'installer
+
+### Procedura
+
+```bash
+# 1. Clona il repository
 git clone https://github.com/IlRed89/Musicat.git
 cd Musicat
-pip install -r requirements.txt
-```
 
-### 2. Run the Application
-```powershell
+# 2. Crea ed attiva un ambiente virtuale
+python -m venv venv
+# Su Windows:
+.\venv\Scripts\activate
+# Su macOS / Linux:
+source venv/bin/activate
+
+# 3. Installa le dipendenze
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# 4. Esegui la suite completa di test unitari (124+ test)
+python -m unittest discover tests -v
+
+# 5. Avvia l'applicazione
 python main.py
 ```
 
-### 3. CLI Mode (Headless Folder Scan)
-```powershell
-python main.py --scan "E:\DJ_Music"
+### Compilazione Standalone Locale
+
+```bash
+# Eseguibile Standalone per Windows
+pyinstaller --clean build_windows.spec
+
+# Pacchetto Portatile Windows completo (Batch)
+.\build\build_portable.bat
+
+# Applicazione macOS e creazione DMG
+pyinstaller --clean build_mac.spec
+./build/build_mac_dmg.sh
 ```
 
 ---
 
-## 🧪 Running Unit Tests
+## 📄 Licenza
 
-Musicat includes **65 comprehensive unit tests** covering every subsystem:
-
-```powershell
-python -m unittest discover tests -v
-```
-
----
-
-## ⚡ High-Performance Audio Analysis Engine (Multiprocessing & RAM Cache)
-
-Engineered specifically for massive DJ libraries (50,000+ tracks) to maximize CPU utilization without UI freezing:
-
-- **Hardware-Aware Process Pool:** Automatic detection of logical CPU cores (`os.cpu_count()`) with configurable worker pool (`N - 1` by default) bypassing Python's GIL.
-- **Chunking & Batch Scheduling:** Audio file paths are dispatched in configurable batches (25-50 tracks) to minimize inter-process serialization overhead.
-- **Accelerated Streaming Decoding:**
-  - **BPM Detection:** Reads only a representative 60-second central window at 22,050 Hz mono, skipping quiet intro and outro sections.
-  - **Camelot Key Detection:** Extracts chromagram from highest RMS energy audio segments (drops, hooks), cutting STFT calculation times by ~80%.
-  - **Waveform Envelope:** Generates 250-point downsampled peak envelope for instant mini-player scrubbing.
-- **L1 In-Memory RAM Buffer (`AnalysisMemoryCache`):**
-  - Staged in a high-speed SQLite RAM buffer (`:memory:`), eliminating continuous write cycles on USB drives and external SSDs.
-  - Periodic and thresholded background flush commits results to the persistent SQLite database (`musicat.db`) in single batch transactions.
-- **Waveform LRU Memory Cache (`WaveformMemoryCache`):**
-  - Thread-safe LRU cache with configurable size limit (128 MB – 2048 MB) storing waveform vectors for instantaneous (<0.1ms) zero-I/O preview loading.
-- **Non-Blocking Telemetry GUI (`AcousticAnalysisDialog`):**
-  - Thread-safe `QThread` bridge providing real-time throughput meter (`tracce/sec`), dynamic progress bar, ETA, and CPU/RAM allocation sliders.
-  - Dedicated user controls: **Avvia**, **Pausa**, and **Annulla**.
-
----
-
-## 🎛️ Live DJ Crate & Advanced Filtering Engine
-
-Designed specifically for live performance in the DJ booth with sub-15ms query latency across 50,000+ tracks:
-
-- **Multi-Genre OR Filtering:** Autocomplete search with simultaneous selection of multiple subgenres (e.g. *Tech House* OR *Afro House* OR *Melodic Techno*).
-- **Target BPM ± % Tolerance:** Enter deck tempo (e.g. `126.0`) and choose tolerance (`±2%`, `±4%`, `±6%`, `±8%`) to automatically bound allowable BPM.
-- **Harmonic Mixing Assistant:** Visual Camelot Wheel selector (`1A`-`12B`) with one-click filtering for harmonic matches (Smooth steps `±1`, Relative Major/Minor, Energy Boost `+2`, Semitone Lift `+7`).
-- **Decades & Energy:** Instant filtering by Decade (80s, 90s, 2000s, 2010s, 2020s), Energy levels (Warmup, Mid, Peak Time), and quick DJ tags (*Intro*, *Vocal*, *Instrumental*, *Acapella*, *Club*).
-- **Dynamic Smart Crates:** Save filter combinations as dynamic playlists that automatically update as new tracks are scanned.
-- **Universal M3U8 Export:** Export any active crate with standard `#EXTM3U` and `#EXTINF` formatting compatible with Rekordbox, Traktor Pro, Serato DJ, and Denon Engine DJ.
-
----
-
-## ⌨️ DJ Console Shortcuts
-
-| Shortcut | Action |
-| :--- | :--- |
-| `Ctrl + F` | Instant Focus on Quick Search (Everything MFT / SQLite FTS) |
-| `Ctrl + G` | Quick Jump to Multi-Genre Selector |
-| `Ctrl + B` | Focus on Target Deck BPM Input |
-| `Ctrl + K` | Open Visual Camelot Wheel Harmonic Assistant Popup |
-| `Esc` | Instant Reset of All Active Filters (View Entire Library) |
-| `Enter` / `Return` | Load and Audition Selected Track into VLC Engine |
-| `Space` | Play / Pause Preview of Active / Selected Track |
-| `Ctrl + O` | Scan Music Directory |
-| `F5` | Refresh Library & Filters |
-| `Ctrl + E` | Open Batch / Single Tag Editor |
-| `Ctrl + R` | Open Multi-Source Reconciler & HD Cover Injector |
-| `Ctrl + A` | Run Batch Acoustic Analysis (BPM & Key) |
-| `Ctrl + S` | Open Smart File Dispatcher & Organizer |
-| `Ctrl + L` | Toggle Live System Log Console |
-| `Double Click` | Load and Audition Track in Mini-Player |
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-Developed with ❤️ for the DJ and music collector community by [IlRed89](https://github.com/IlRed89).
+Musicat è distribuito sotto licenza open-source **MIT**.  
+Consulta il file [LICENSE](LICENSE) per i termini completi.
