@@ -358,9 +358,11 @@ class MiniPlayerWidget(QFrame):
             self.qt_player.durationChanged.connect(self._on_qt_duration_changed)
 
     def update_theme(self, theme_id: str = "light") -> None:
-        """Updates internal styling and waveform canvas upon theme change."""
+        """Updates internal styling, waveform canvas and breadcrumbs upon theme change."""
         if hasattr(self, "waveform_canvas"):
             self.waveform_canvas.update_theme(theme_id)
+        if hasattr(self, "breadcrumb_bar") and hasattr(self.breadcrumb_bar, "update_theme"):
+            self.breadcrumb_bar.update_theme(theme_id)
         self.update()
 
     def load_track(self, track: Dict) -> None:

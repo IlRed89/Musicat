@@ -132,12 +132,49 @@ class HardwareMonitor:
         return 120.0
 
     @classmethod
-    def get_status_text(cls, cache_mb: int = 2048) -> str:
-        """Returns formatted hardware status string, e.g. 'CPU: 18% | RAM: 420 MB / 2 GB'."""
+    def get_total_system_memory_gb(cls) -> float:
+        """Returns total physical system RAM in GB natively without dependencies."""
+        try:
+            if sys.platform == "win32":
+                import ctypes
+                from ctypes import wintypes
+
+                class MEMORYSTATUSEX(ctypes.Structure):
+                    _fields_ = [
+                        ("dwLength", wintypes.DWORD),
+                        ("dwMemoryLoad", wintypes.DWORD),
+                        ("ullTotalPhys", ctypes.c_uint64),
+                        ("ullAvailPhys", ctypes.c_uint64),
+                        ("ullTotalPageFile", ctypes.c_uint64),
+                        ("ullAvailPageFile", ctypes.c_uint64),
+                        ("ullTotalVirtual", ctypes.c_uint64),
+                        ("ullAvailVirtual", ctypes.c_uint64),
+                        ("ullAvailExtendedVirtual", ctypes.c_uint64),
+                    ]
+
+                m = MEMORYSTATUSEX()
+                m.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+                if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                    return round(m.ullTotalPhys / (1024 ** 3), 1)
+            elif sys.platform == "darwin":
+                import subprocess
+                out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True)
+                return round(int(out.strip()) / (1024 ** 3), 1)
+            else:
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if line.startswith("MemTotal:"):
+                            kb = int(line.split()[1])
+                            return round(kb / (1024 * 1024), 1)
+        except Exception:
+            pass
+        return 16.0
+
+    @classmethod
+    def get_status_text(cls, cache_mb: Optional[int] = None) -> str:
+        """Returns formatted hardware status string, e.g. 'CPU: 18% | RAM: 420 MB / 24 GB (Sistema)'."""
         cpu = cls.get_cpu_percent()
         ram_mb = cls.get_process_memory_mb()
-        if cache_mb >= 1024 and (cache_mb % 1024 == 0):
-            cache_str = f"{int(cache_mb / 1024)} GB"
-        else:
-            cache_str = f"{cache_mb} MB"
-        return f"CPU: {int(cpu)}%  |  RAM: {int(ram_mb)} MB / {cache_str}"
+        total_sys_gb = cls.get_total_system_memory_gb()
+        return f"CPU: {int(cpu)}%  |  RAM: {int(ram_mb)} MB / {total_sys_gb:.0f} GB"
+

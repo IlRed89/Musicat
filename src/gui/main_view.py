@@ -145,6 +145,7 @@ class MainWindow(QMainWindow):
         self.table_model = TrackTableModel()
         self.all_tracks: List[Dict[str, Any]] = []
         self._mp3tag_window: Optional[Mp3tagWorkspaceWindow] = None
+        self._custom_columns_active: bool = False
 
         self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
         self.resize(1300, 820)
@@ -237,14 +238,24 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setSortingEnabled(True)
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_header = self.table_view.horizontalHeader()
+        self.table_header.setStretchLastSection(True)
+        self.table_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table_header.customContextMenuRequested.connect(self._on_table_header_context_menu)
         self.table_view.verticalHeader().setDefaultSectionSize(28)
         self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.activated.connect(self._on_row_double_clicked)  # Enter key loads/plays track!
         self.main_splitter.addWidget(self.table_view)
+
+        # Restore custom visible columns if user configured them
+        self._custom_columns_active = bool(self.settings_manager.get("ui.custom_columns_active", False))
+        if self._custom_columns_active:
+            saved_cols = self.settings_manager.get("ui.visible_columns", [])
+            if saved_cols and isinstance(saved_cols, list):
+                self._apply_saved_column_visibility(saved_cols)
 
         # Dynamic Collapsible Right Sidebar (Dedicated Folder Tree / Filesystem Navigator)
         self.sidebar_widget = QWidget(self)
@@ -323,9 +334,16 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(self.progress_bar)
 
         self.lbl_hw_monitor = QLabel()
+        self.lbl_hw_monitor.setToolTip(
+            _t(
+                "status_hw_tooltip",
+                "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\n"
+                "Processo a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni."
+            )
+        )
         self.lbl_hw_monitor.setStyleSheet(
-            "color: #94a3b8; font-size: 11px; font-weight: 600; padding: 2px 10px; "
-            "background-color: #12141c; border: 1px solid #232738; border-radius: 4px; margin-right: 4px;"
+            "color: #495057; font-size: 11px; font-weight: 600; padding: 2px 10px; "
+            "background-color: #f1f3f5; border: 1px solid #dee2e6; border-radius: 4px; margin-right: 4px;"
         )
         self.status_bar.addPermanentWidget(self.lbl_hw_monitor)
         self.status_bar.showMessage(_t("ready", "Pronto"))
@@ -335,12 +353,11 @@ class MainWindow(QMainWindow):
         self._hw_timer.timeout.connect(self._update_hardware_monitor)
         self._hw_timer.start()
         self._update_hardware_monitor()
+        self._update_nav_button_styles(0)
 
     def _update_hardware_monitor(self) -> None:
         """Refreshes hardware telemetry metrics asynchronously."""
-        cache_mb = self.settings_manager.get("performance", "ram_cache_mb", 512)
-        disp_cache = max(2048, cache_mb)
-        self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text(disp_cache))
+        self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text())
 
     def _on_folder_tree_clicked(self, index: QModelIndex) -> None:
         """Filters library to filesystem folder clicked in the sidebar folder tree."""
@@ -772,8 +789,10 @@ class MainWindow(QMainWindow):
         self._apply_responsive_columns(event.size().width())
 
     def _apply_responsive_columns(self, width: int) -> None:
-        """Adapts table column visibility dynamically based on viewport width."""
-        header = self.table_view.horizontalHeader()
+        """Adapts table column visibility dynamically based on viewport width if user hasn't set custom columns."""
+        if getattr(self, "_custom_columns_active", False):
+            return
+        header = getattr(self, "table_header", self.table_view.horizontalHeader())
         if width < 1100:
             # Compact view (< 1100px): hide secondary columns (Remixer, Key, Label, Bitrate, Energy, LUFS, True Peak, Path)
             for col_idx in [4, 7, 11, 13, 14, 15, 16, 18]:
@@ -934,6 +953,76 @@ class MainWindow(QMainWindow):
         if hasattr(self, "player_widget"):
             self.player_widget.update_theme(theme_id)
         self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
+
+    def _on_table_header_context_menu(self, pos: QPoint) -> None:
+        """Opens context menu to toggle column visibility when right-clicking the table header."""
+        menu = QMenu(self)
+        title_action = menu.addAction(_t("menu_columns_title", "Colonne Visibili"))
+        title_action.setEnabled(False)
+        menu.addSeparator()
+
+        for idx, (default_name, col_id) in enumerate(TrackTableModel.COLUMNS):
+            col_name = _t(f"col_{col_id}", default=default_name)
+            action = menu.addAction(col_name)
+            action.setCheckable(True)
+            action.setChecked(not self.table_header.isSectionHidden(idx))
+            action.triggered.connect(
+                lambda checked, c_idx=idx, c_id=col_id: self._toggle_column_visibility(c_idx, c_id, checked)
+            )
+
+        menu.addSeparator()
+        act_show_all = menu.addAction(_t("menu_columns_show_all", "Mostra Tutte le Colonne"))
+        act_show_all.triggered.connect(self._show_all_columns)
+
+        act_reset_def = menu.addAction(_t("menu_columns_reset_default", "Ripristina Colonne Predefinite"))
+        act_reset_def.triggered.connect(self._reset_default_columns)
+
+        menu.exec(self.table_header.mapToGlobal(pos))
+
+    def _toggle_column_visibility(self, col_idx: int, col_id: str, visible: bool) -> None:
+        """Toggles visibility of an individual table column and saves preference."""
+        visible_count = sum(
+            1 for i in range(self.table_header.count()) if not self.table_header.isSectionHidden(i)
+        )
+        if not visible and visible_count <= 1:
+            return
+
+        self.table_header.setSectionHidden(col_idx, not visible)
+        self._custom_columns_active = True
+        self.settings_manager.set("ui.custom_columns_active", True)
+        self._save_current_column_visibility()
+
+    def _show_all_columns(self) -> None:
+        """Shows all columns and marks custom layout active."""
+        for i in range(self.table_header.count()):
+            self.table_header.setSectionHidden(i, False)
+        self._custom_columns_active = True
+        self.settings_manager.set("ui.custom_columns_active", True)
+        self._save_current_column_visibility()
+
+    def _reset_default_columns(self) -> None:
+        """Resets column visibility to responsive dynamic default."""
+        self._custom_columns_active = False
+        self.settings_manager.set("ui.custom_columns_active", False)
+        self.settings_manager.save()
+        self._apply_responsive_columns(self.width())
+
+    def _save_current_column_visibility(self) -> None:
+        """Saves currently visible column IDs to configuration."""
+        visible_cols = [
+            col_id
+            for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS)
+            if not self.table_header.isSectionHidden(idx)
+        ]
+        self.settings_manager.set("ui.visible_columns", visible_cols)
+        self.settings_manager.save()
+
+    def _apply_saved_column_visibility(self, saved_cols: List[str]) -> None:
+        """Applies saved column visibility list from configuration."""
+        saved_set = set(saved_cols)
+        for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
+            is_visible = col_id in saved_set
+            self.table_header.setSectionHidden(idx, not is_visible)
 
     def _on_table_context_menu(self, pos: QPoint) -> None:
         selected = self._get_selected_tracks()
@@ -1183,6 +1272,17 @@ class MainWindow(QMainWindow):
             self.btn_nav_organizer.setStyleSheet(nav_action_style)
         if hasattr(self, "btn_nav_settings"):
             self.btn_nav_settings.setStyleSheet(nav_settings_style)
+        if hasattr(self, "lbl_hw_monitor"):
+            if is_light:
+                self.lbl_hw_monitor.setStyleSheet(
+                    "color: #495057; font-size: 11px; font-weight: 600; padding: 2px 10px; "
+                    "background-color: #f1f3f5; border: 1px solid #dee2e6; border-radius: 4px; margin-right: 4px;"
+                )
+            else:
+                self.lbl_hw_monitor.setStyleSheet(
+                    "color: #94a3b8; font-size: 11px; font-weight: 600; padding: 2px 10px; "
+                    "background-color: #12141c; border: 1px solid #232738; border-radius: 4px; margin-right: 4px;"
+                )
 
     def _on_home_play_track(self, track: Dict[str, Any]) -> None:
         """Plays a track requested from Home Trends view or discovery dialog."""
@@ -1273,6 +1373,14 @@ class MainWindow(QMainWindow):
             self.btn_clear_log.setText(_t("btn_clear_log", "✕ Pulisci"))
         if hasattr(self, "chk_log_autoscroll"):
             self.chk_log_autoscroll.setText(_t("chk_auto_scroll", "Auto-scroll"))
+        if hasattr(self, "lbl_hw_monitor"):
+            self.lbl_hw_monitor.setToolTip(
+                _t(
+                    "status_hw_tooltip",
+                    "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\n"
+                    "Processo a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni."
+                )
+            )
 
     def cleanup(self) -> None:
         """Explicitly cleans up child components, stopping threads and audio engine."""

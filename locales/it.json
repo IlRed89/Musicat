@@ -54,6 +54,11 @@
   "col_true_peak": "True Peak",
   "col_audio_status": "Qualità Audio",
   "col_filepath": "Percorso",
+  "menu_columns_title": "Colonne Visibili",
+  "menu_columns_show_all": "Mostra Tutte le Colonne",
+  "menu_columns_reset_default": "Ripristina Colonne Predefinite",
+  "status_hw_tooltip": "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\nProcesso a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni.",
+
 
   "filter_search_placeholder": "🔍 Ricerca Rapida / {engine} (Ctrl+F)...",
   "filter_genre_placeholder": "Seleziona / Cerca Generi (Ctrl+G)...",

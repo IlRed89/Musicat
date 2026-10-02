@@ -41,19 +41,74 @@ class BreadcrumbBar(QFrame):
         super().__init__(parent)
         self.current_filepath: str = ""
         self.setFixedHeight(28)
-        self.setStyleSheet("""
-            BreadcrumbBar {
-                background-color: #12141c;
-                border-top: 1px solid #1f2330;
-                padding: 0 4px;
-            }
-            QLabel {
-                color: #64748b;
-                font-size: 11px;
-            }
-        """)
+        self._is_light: bool = True
 
         self._init_ui()
+        from src.core.settings import SettingsManager
+        theme = SettingsManager.get_instance().get("ui", "theme", "light")
+        self.update_theme(theme)
+
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Adapts breadcrumb bar colors seamlessly to current Light or Dark theme."""
+        self._is_light = "dark" not in (theme_id or "").lower()
+        if self._is_light:
+            self.setStyleSheet("""
+                BreadcrumbBar {
+                    background-color: #f8f9fa;
+                    border-top: 1px solid #dee2e6;
+                    border-bottom: 1px solid #dee2e6;
+                    padding: 0 4px;
+                }
+                QLabel {
+                    color: #495057;
+                    font-size: 11px;
+                }
+            """)
+            if hasattr(self, "btn_reveal"):
+                self.btn_reveal.setStyleSheet("""
+                    QPushButton {
+                        background-color: #e9ecef;
+                        border: 1px solid #ced4da;
+                        color: #0d6efd;
+                        font-weight: bold;
+                        font-size: 10px;
+                        padding: 1px 8px;
+                        border-radius: 3px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0d6efd;
+                        color: #ffffff;
+                    }
+                """)
+        else:
+            self.setStyleSheet("""
+                BreadcrumbBar {
+                    background-color: #12141c;
+                    border-top: 1px solid #1f2330;
+                    padding: 0 4px;
+                }
+                QLabel {
+                    color: #94a3b8;
+                    font-size: 11px;
+                }
+            """)
+            if hasattr(self, "btn_reveal"):
+                self.btn_reveal.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1a2234;
+                        border: 1px solid #0284c7;
+                        color: #38bdf8;
+                        font-weight: bold;
+                        font-size: 10px;
+                        padding: 1px 8px;
+                        border-radius: 3px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0284c7;
+                        color: #ffffff;
+                    }
+                """)
+        self.set_path(self.current_filepath)
 
     def _init_ui(self) -> None:
         self.main_layout = QHBoxLayout(self)
@@ -76,21 +131,6 @@ class BreadcrumbBar(QFrame):
         # Action: Reveal in OS File Manager
         self.btn_reveal = QPushButton("Mostra nella cartella")
         self.btn_reveal.setFixedHeight(20)
-        self.btn_reveal.setStyleSheet("""
-            QPushButton {
-                background-color: #1a2234;
-                border: 1px solid #0284c7;
-                color: #38bdf8;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 1px 8px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #0284c7;
-                color: #ffffff;
-            }
-        """)
         self.btn_reveal.setToolTip("Evidenzia il file nel file manager nativo (Windows Explorer / macOS Finder)")
         self.btn_reveal.clicked.connect(self._on_reveal_clicked)
         self.btn_reveal.setVisible(False)
@@ -110,7 +150,8 @@ class BreadcrumbBar(QFrame):
 
         if not filepath:
             lbl_empty = QLabel("Nessun brano selezionato")
-            lbl_empty.setStyleSheet("color: #64748b; font-size: 11px; font-style: italic;")
+            empty_color = "#6c757d" if self._is_light else "#64748b"
+            lbl_empty.setStyleSheet(f"color: {empty_color}; font-size: 11px; font-style: italic;")
             self.crumbs_layout.addWidget(lbl_empty)
             self.btn_reveal.setVisible(False)
             return
@@ -128,7 +169,8 @@ class BreadcrumbBar(QFrame):
             # Separator chevron
             if idx > 0:
                 sep = QLabel("❯")
-                sep.setStyleSheet("color: #475569; font-size: 9px; padding: 0 2px;")
+                sep_color = "#adb5bd" if self._is_light else "#475569"
+                sep.setStyleSheet(f"color: {sep_color}; font-size: 9px; padding: 0 2px;")
                 self.crumbs_layout.addWidget(sep)
 
             btn_crumb = QPushButton(part)
@@ -139,28 +181,31 @@ class BreadcrumbBar(QFrame):
 
             if is_last:
                 # File itself: prominent highlight
-                btn_crumb.setStyleSheet("""
-                    QPushButton {
+                highlight_col = "#0d6efd" if self._is_light else "#00d2ff"
+                btn_crumb.setStyleSheet(f"""
+                    QPushButton {{
                         background-color: transparent;
                         border: none;
-                        color: #00d2ff;
+                        color: {highlight_col};
                         font-weight: bold;
                         font-size: 11px;
                         padding: 0 2px;
-                    }
-                    QPushButton:hover { text-decoration: underline; }
+                    }}
+                    QPushButton:hover {{ text-decoration: underline; }}
                 """)
             else:
                 # Directory segment
-                btn_crumb.setStyleSheet("""
-                    QPushButton {
+                seg_col = "#495057" if self._is_light else "#94a3b8"
+                hover_col = "#0d6efd" if self._is_light else "#ffffff"
+                btn_crumb.setStyleSheet(f"""
+                    QPushButton {{
                         background-color: transparent;
                         border: none;
-                        color: #94a3b8;
+                        color: {seg_col};
                         font-size: 11px;
                         padding: 0 2px;
-                    }
-                    QPushButton:hover { color: #ffffff; text-decoration: underline; }
+                    }}
+                    QPushButton:hover {{ color: {hover_col}; text-decoration: underline; }}
                 """)
 
             btn_crumb.clicked.connect(lambda _, path_str=target_path_str: self._on_crumb_clicked(path_str))

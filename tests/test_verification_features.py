@@ -186,6 +186,53 @@ class TestFiveCoreRequirements(unittest.TestCase):
         is_port = PathResolver.is_portable()
         self.assertIsInstance(is_port, bool)
 
+    def test_req6_table_column_selection_and_persistence(self):
+        """6. Table column context menu, visibility toggling, show all, and persistence."""
+        from src.gui.table_model import TrackTableModel
+        window = MainWindow(db=self.db)
+        try:
+            header = window.table_header
+            self.assertIsNotNone(header)
+            self.assertEqual(header.count(), len(TrackTableModel.COLUMNS))
+
+            # Toggle a column (hide Remixer at index 4)
+            window._toggle_column_visibility(4, "remixer", False)
+            self.assertTrue(header.isSectionHidden(4))
+            self.assertTrue(window._custom_columns_active)
+            saved_cols = window.settings_manager.get("ui.visible_columns")
+            self.assertNotIn("remixer", saved_cols)
+
+            # Test show all columns
+            window._show_all_columns()
+            for i in range(header.count()):
+                self.assertFalse(header.isSectionHidden(i))
+
+            # Test reset default columns
+            window._reset_default_columns()
+            self.assertFalse(window._custom_columns_active)
+        finally:
+            window.close()
+            window.deleteLater()
+            self.app.processEvents()
+
+    def test_req7_hardware_monitor_total_ram_and_breadcrumb_theme(self):
+        """7. Hardware monitor reports total physical RAM and breadcrumb updates theme."""
+        from src.core.hardware_monitor import HardwareMonitor
+        from src.gui.views.library_view import BreadcrumbBar
+
+        total_gb = HardwareMonitor.get_total_system_memory_gb()
+        self.assertGreater(total_gb, 0)
+        status = HardwareMonitor.get_status_text()
+        self.assertIn("RAM:", status)
+        self.assertIn("GB", status)
+
+        # Breadcrumb theme update
+        bar = BreadcrumbBar()
+        bar.update_theme("light")
+        self.assertIn("#f8f9fa", bar.styleSheet())
+        bar.update_theme("dark")
+        self.assertIn("#12141c", bar.styleSheet())
+
 
 if __name__ == "__main__":
     unittest.main()
