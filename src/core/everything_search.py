@@ -41,16 +41,16 @@ class SearchResultItem:
 class EverythingSearchEngine:
     """Interfaces with Voidtools Everything SDK via ctypes with automatic FTS fallback."""
 
-    _dll: Optional[ctypes.WinDLL] = None
+    _dll: Optional[Any] = None
     _dll_loaded: bool = False
     _dll_searched: bool = False
 
     @classmethod
-    def _load_everything_dll(cls) -> Optional[ctypes.WinDLL]:
+    def _load_everything_dll(cls) -> Optional[Any]:
         """Locates and loads Everything64.dll or Everything32.dll dynamically.
 
         Returns:
-            Optional[ctypes.WinDLL]: Loaded DLL handle if found, else None.
+            Optional[Any]: Loaded DLL handle if found, else None.
         """
         if cls._dll_searched:
             return cls._dll
