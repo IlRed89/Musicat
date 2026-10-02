@@ -138,6 +138,7 @@ class VLCAudioPlayer:
             bool: True if loaded successfully, False otherwise.
         """
         if not filepath or not Path(filepath).exists():
+            MusicatLogger.log_audio_engine("LOAD_FAIL", f"Audio file not found: '{filepath}'", level="error")
             return False
 
         with self._lock:
@@ -151,7 +152,7 @@ class VLCAudioPlayer:
                 # Parse media info
                 media.parse_with_options(vlc.MediaParseFlag.local, -1)
 
-            MusicatLogger.get_logger().debug(f"[PLAYER] Loaded track: {Path(filepath).name}")
+            MusicatLogger.log_audio_engine("LOAD", f"Loaded track: '{Path(filepath).name}'", {"filepath": self._current_filepath})
             return True
 
     def play(self) -> None:
@@ -162,6 +163,7 @@ class VLCAudioPlayer:
         if self.is_available():
             self._player.play()
             self._start_monitor_thread()
+            MusicatLogger.log_audio_engine("PLAY", f"Started playback: '{Path(self._current_filepath).name}'")
 
         if self._state_callback:
             self._state_callback("playing")
@@ -170,6 +172,7 @@ class VLCAudioPlayer:
         """Pauses audio playback."""
         if self.is_available():
             self._player.pause()
+            MusicatLogger.log_audio_engine("PAUSE", f"Paused playback: '{Path(self._current_filepath).name}'")
 
         if self._state_callback:
             self._state_callback("paused")
@@ -178,6 +181,7 @@ class VLCAudioPlayer:
         """Stops audio playback and resets position to beginning."""
         if self.is_available():
             self._player.stop()
+            MusicatLogger.log_audio_engine("STOP", f"Stopped playback: '{Path(self._current_filepath).name}'")
 
         self._stop_monitor_thread()
 

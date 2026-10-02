@@ -185,9 +185,33 @@ class AcousticAnalyzer:
         return signal, sr, total_duration
 
     @classmethod
-    def estimate_bpm(cls, signal: np.ndarray, sr: int, min_bpm: float = 65.0, max_bpm: float = 185.0) -> float:
-        """
-        Detects BPM using onset envelope autocorrelation with dance music octave heuristics.
+    def estimate_bpm(
+        cls,
+        signal: np.ndarray,
+        sr: int,
+        min_bpm: float = 65.0,
+        max_bpm: float = 185.0,
+    ) -> float:
+        """Estimates musical tempo (BPM) using spectral flux onset envelope autocorrelation.
+
+        Algorithmic Pipeline:
+        1. STFT Spectrogram: Slices mono PCM audio into overlapping frames (Hanning windowed).
+        2. Spectral Flux: Computes half-wave rectified first-order difference across frames
+           to isolate percussive energy transients and beat onsets.
+        3. Autocorrelation: Correlates the onset envelope against shifted versions of itself.
+        4. Peak Picking & Parabolic Interpolation: Locates the dominant lag index within the
+           tempo search range [min_bpm, max_bpm] with sub-sample peak refinement.
+        5. DJ Dance Octave Disambiguation: Applies metric heuristics for electronic club tracks
+           (halving or doubling tempo to target club-standard 85-175 BPM ranges).
+
+        Args:
+            signal (np.ndarray): 1D mono audio samples in float range [-1.0, 1.0].
+            sr (int): Sampling rate in Hz (e.g. 22050).
+            min_bpm (float): Minimum allowable tempo bound. Defaults to 65.0.
+            max_bpm (float): Maximum allowable tempo bound. Defaults to 185.0.
+
+        Returns:
+            float: Estimated tempo rounded to one decimal place, or 0.0 if undetectable.
         """
         if len(signal) < sr * 2:
             return 0.0
@@ -196,12 +220,13 @@ class AcousticAnalyzer:
         hop_length = 512
         n_fft = 2048
 
-        # Short-Time Fourier Transform
+        # --- Stage 1: Windowed Short-Time Fourier Transform ---
         window = np.hanning(n_fft)
         num_frames = (len(signal) - n_fft) // hop_length
         if num_frames <= 0:
             return 0.0
 
+        # High-efficiency memory striding for contiguous FFT framing without array copying
         frames = np.lib.stride_tricks.as_strided(
             signal,
             shape=(num_frames, n_fft),
@@ -209,25 +234,26 @@ class AcousticAnalyzer:
         )
         spec = np.abs(np.fft.rfft(frames * window, axis=1))
 
-        # Half-wave rectified first difference (Onset strength)
+        # --- Stage 2: Half-Wave Rectified Spectral Flux (Onset Detection) ---
+        # Intercepts energy rises across consecutive spectral frames while discarding decreases
         diff = np.diff(spec, axis=0)
         diff = np.maximum(0, diff)
         onset_env = np.mean(diff, axis=1)
 
-        # Remove DC bias and normalize
+        # Remove DC bias and normalize variance to zero-mean unit-variance
         onset_env -= np.mean(onset_env)
         env_norm = np.std(onset_env)
         if env_norm > 1e-6:
             onset_env /= env_norm
 
-        # Autocorrelation
+        # --- Stage 3: Onset Envelope Autocorrelation ---
         corr = correlate(onset_env, onset_env, mode="full")
         corr = corr[len(corr) // 2 :]
 
-        # Frame rate of onset envelope
+        # Frame rate of the envelope signal (frames per second)
         fps = sr / hop_length
 
-        # Convert BPM limits to lags
+        # Convert BPM limits [min_bpm, max_bpm] into lag bounds (in frames)
         min_lag = int(round(fps * 60.0 / max_bpm))
         max_lag = int(round(fps * 60.0 / min_bpm))
 
@@ -238,7 +264,7 @@ class AcousticAnalyzer:
         if len(search_slice) == 0:
             return 0.0
 
-        # Find prominent peaks
+        # --- Stage 4: Peak Picking & Sub-Sample Parabolic Interpolation ---
         peaks, props = find_peaks(search_slice, height=0.05, distance=max(1, int(fps * 60.0 / 180)))
 
         if len(peaks) == 0:
@@ -249,7 +275,8 @@ class AcousticAnalyzer:
 
         best_lag = min_lag + best_lag_rel
 
-        # Parabolic interpolation for sub-sample precision
+        # Refine discrete integer lag using quadratic 3-point vertex approximation:
+        # delta = (alpha - gamma) / (2 * (2 * beta - alpha - gamma))
         if 0 < best_lag < len(corr) - 1:
             alpha = corr[best_lag - 1]
             beta = corr[best_lag]
@@ -261,7 +288,7 @@ class AcousticAnalyzer:
 
         detected_bpm = (fps * 60.0) / best_lag
 
-        # DJ Dance Music Octave Disambiguation:
+        # --- Stage 5: DJ Dance Music Octave Disambiguation ---
         # Standard club music is predominantly 115-135 BPM (House/Techno) or 140-175 BPM (DnB/Dubstep/Hardstyle).
         # If detected BPM is ~60-80, check if double tempo (120-160) is more standard.
         if detected_bpm < 85.0:
@@ -273,15 +300,33 @@ class AcousticAnalyzer:
 
     @classmethod
     def estimate_key(cls, signal: np.ndarray, sr: int) -> Tuple[str, str]:
-        """
-        Detects musical key and Camelot Wheel code using Chromagram and
-        Krumhansl-Schmuckler correlation profile.
-        Returns: (musical_key, camelot_key), e.g. ("Am", "8A")
+        """Detects musical key and Camelot Wheel code using Chromagram and Krumhansl-Schmuckler correlation.
+
+        Algorithmic Pipeline:
+        1. STFT Calculation: Uses large 4096-sample Hanning window to maximize frequency
+           resolution in the lower bass/mid registers (critical for root note detection).
+        2. Musical Frequency Bandpass: Filters bins within the musical range C2 (~65.4 Hz)
+           to C7 (~2093.0 Hz) to eliminate non-tonal sub-bass rumble and high-frequency noise.
+        3. 12-Semitone Chromagram Binning: Maps continuous FFT bin center frequencies into
+           12 pitch classes (C, C#, D, ..., B) via log-frequency pitch formula:
+           pitch_class = round(69 + 12 * log2(freq / 440)) % 12.
+        4. Energy Accumulation & Normalization: Sums spectral magnitudes into a 12-element
+           chroma energy vector and normalizes by Z-score.
+        5. Krumhansl-Schmuckler Correlation: Computes Pearson correlation coefficients against
+           the 12 rotated Major key profiles and 12 rotated Minor key profiles (24 total candidates).
+        6. Camelot Wheel Translation: Maps winning key (e.g. 'Am') to Camelot code (e.g. '8A').
+
+        Args:
+            signal (np.ndarray): 1D mono audio samples in float range [-1.0, 1.0].
+            sr (int): Sampling rate in Hz (e.g. 22050).
+
+        Returns:
+            Tuple[str, str]: (Musical Key, Camelot Code), e.g. ("Am", "8A") or ("Unknown", "").
         """
         if len(signal) < sr:
             return ("Unknown", "")
 
-        # Compute STFT
+        # Compute STFT with fine frequency resolution (N_FFT = 4096 -> bin spacing ~5.4 Hz at 22050 Hz)
         n_fft = 4096
         hop_length = 1024
         window = np.hanning(n_fft)
@@ -297,53 +342,56 @@ class AcousticAnalyzer:
         spec = np.abs(np.fft.rfft(frames * window, axis=1))
         freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
 
-        # Filter to musical range: C2 (~65 Hz) to C7 (~2093 Hz)
+        # --- Step 2: Filter to tonal musical range: C2 (~65.4 Hz) to C7 (~2093 Hz) ---
         valid_idx = (freqs >= 65.0) & (freqs <= 2100.0)
         freqs_filt = freqs[valid_idx]
         spec_filt = spec[:, valid_idx]
 
-        # Map frequencies to 12 pitch classes: MIDI note = 69 + 12 * log2(f / 440)
+        # --- Step 3: Map frequencies to 12 pitch classes via continuous MIDI note formula ---
+        # MIDI note = 69 + 12 * log2(f / 440) -> pitch_class in [0, 11] where 0=C, 9=A
         midi_notes = 69.0 + 12.0 * np.log2(freqs_filt / 440.0)
         pitch_classes = np.round(midi_notes).astype(int) % 12
 
-        # Accumulate Chroma vector (12 bins)
+        # --- Step 4: Accumulate Chroma vector (12 bins) across all frames ---
         chroma = np.zeros(12, dtype=np.float64)
         for pc in range(12):
             mask = (pitch_classes == pc)
             if np.any(mask):
                 chroma[pc] = np.sum(spec_filt[:, mask])
 
-        # Normalize chroma profile
+        # Normalize chroma profile to zero mean and unit standard deviation
         chroma_std = np.std(chroma)
         if chroma_std > 1e-6:
             chroma = (chroma - np.mean(chroma)) / chroma_std
         else:
             return ("Unknown", "")
 
-        # Standardize Krumhansl profiles
+        # Standardize Krumhansl-Kessler cognitive key profiles
         major_prof = (KRUMHANSL_MAJOR - np.mean(KRUMHANSL_MAJOR)) / np.std(KRUMHANSL_MAJOR)
         minor_prof = (KRUMHANSL_MINOR - np.mean(KRUMHANSL_MINOR)) / np.std(KRUMHANSL_MINOR)
 
         best_score = -2.0
         best_key = "C"
 
+        # --- Step 5: Pearson correlation against 24 circular shifts (12 Major + 12 Minor) ---
         for shift in range(12):
             root_note = PITCH_CLASSES[shift]
 
-            # Major correlation
+            # Major key correlation for root_note
             rot_major = np.roll(major_prof, shift)
             corr_maj = float(np.corrcoef(chroma, rot_major)[0, 1])
             if corr_maj > best_score:
                 best_score = corr_maj
                 best_key = f"{root_note}"
 
-            # Minor correlation
+            # Minor key correlation for root_note
             rot_minor = np.roll(minor_prof, shift)
             corr_min = float(np.corrcoef(chroma, rot_minor)[0, 1])
             if corr_min > best_score:
                 best_score = corr_min
                 best_key = f"{root_note}m"
 
+        # --- Step 6: Camelot Wheel conversion ---
         camelot = key_to_camelot(best_key)
         return best_key, camelot
 

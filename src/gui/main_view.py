@@ -9,7 +9,7 @@ reconciliation, and libVLC mini-player.
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from PySide6.QtCore import QPoint, Qt, QThread, Signal
+from PySide6.QtCore import QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
+    QFileSystemModel,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -34,6 +35,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QTableView,
     QToolBar,
+    QTreeView,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -46,6 +48,7 @@ from ..core.scanner import LibraryScanner
 from ..core.logger import MusicatLogger
 from ..core.settings import SettingsManager
 from ..core.file_manager import MusicFileManager
+from ..core.hardware_monitor import HardwareMonitor
 from ..core.search_factory import SearchEngine, EverythingSearchEngine
 from ..core.filter_engine import FilterCriteria, LiveFilterEngine
 from ..core.i18n import I18n, _t
@@ -61,7 +64,7 @@ from .reconciler_dialog import ReconcilerDialog
 from .analysis_dialog import AcousticAnalysisDialog
 from .settings_dialog import SettingsDialog
 from .mp3tag_workspace import Mp3tagWorkspaceWindow
-from .views import HomeTrendsView, QualityDiagnosisDialog, SimilarTracksDialog
+from .views import HomeTrendsView, QualityDiagnosisDialog, SimilarTracksDialog, SmartCratesView
 from .styles import get_theme_stylesheet
 
 
@@ -161,37 +164,59 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 1. Top View Navigation Bar (Home Trends vs DJ Library)
+        # 1. Clean Minimal Top Navigation Bar (Macro-Modules)
         self.nav_bar = QFrame(self)
-        self.nav_bar.setStyleSheet("""
-            QFrame {
-                background-color: #0d0f16;
-                border-bottom: 2px solid #1e2232;
-                padding: 4px 10px;
-            }
-        """)
+        self.nav_bar.setObjectName("topNavBar")
         nav_layout = QHBoxLayout(self.nav_bar)
         nav_layout.setContentsMargins(10, 4, 10, 4)
-        nav_layout.setSpacing(8)
+        nav_layout.setSpacing(6)
 
-        self.btn_nav_library = QPushButton(_t("nav_library", "🎵 DJ Library & Crates"))
-        self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
-
-        self.btn_nav_trends = QPushButton(_t("nav_trends", "🏠 Home Trends & Top Charts"))
+        # Main Navigation Macro-Buttons:
+        # [Analisi / Home], [Libreria], [Tag Editor (Mp3tag)], [Smart Crates], [Trova Simili], [Organizza File], [Impostazioni]
+        self.btn_nav_trends = QPushButton(_t("nav_analysis", "Analisi / Home"))
         self.btn_nav_trends.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_trends.clicked.connect(lambda: self._switch_view(1))
 
-        nav_layout.addWidget(self.btn_nav_library)
+        self.btn_nav_library = QPushButton(_t("nav_library", "Libreria"))
+        self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
+
+        self.btn_nav_mp3tag = QPushButton(_t("nav_mp3tag", "Tag Editor (Mp3tag)"))
+        self.btn_nav_mp3tag.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_mp3tag.clicked.connect(self._on_open_mp3tag_workspace)
+
+        self.btn_nav_crates = QPushButton(_t("nav_crates", "Smart Crates"))
+        self.btn_nav_crates.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_crates.clicked.connect(lambda: self._switch_view(2))
+
+        self.btn_nav_similar = QPushButton(_t("nav_similar", "Trova Simili"))
+        self.btn_nav_similar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_similar.clicked.connect(self._on_action_find_similar)
+
+        self.btn_nav_organizer = QPushButton(_t("nav_organizer", "Organizza File"))
+        self.btn_nav_organizer.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_organizer.clicked.connect(self._on_open_sorter)
+
         nav_layout.addWidget(self.btn_nav_trends)
+        nav_layout.addWidget(self.btn_nav_library)
+        nav_layout.addWidget(self.btn_nav_mp3tag)
+        nav_layout.addWidget(self.btn_nav_crates)
+        nav_layout.addWidget(self.btn_nav_similar)
+        nav_layout.addWidget(self.btn_nav_organizer)
         nav_layout.addStretch()
+
+        # Dedicated Settings button in top-right corner
+        self.btn_nav_settings = QPushButton(_t("nav_settings", "Impostazioni"))
+        self.btn_nav_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_settings.clicked.connect(self._on_open_settings)
+        nav_layout.addWidget(self.btn_nav_settings)
 
         main_layout.addWidget(self.nav_bar)
 
-        # 2. Central View Stack (0: DJ Library, 1: Home Trends)
+        # 2. Central View Stack (0: DJ Library Track Analysis, 1: Home Trends)
         self.view_stack = QStackedWidget(self)
 
-        # Page 0: DJ Library Container (Filter Bar + Sidebar + Table View)
+        # Page 0: DJ Library Container (Filter Bar + Table View + Dynamic Right Sidebar)
         self.library_container = QWidget(self)
         lib_layout = QVBoxLayout(self.library_container)
         lib_layout.setContentsMargins(0, 0, 0, 0)
@@ -203,53 +228,10 @@ class MainWindow(QMainWindow):
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
         lib_layout.addWidget(self.filter_bar)
 
-        # Horizontal Splitter for Collapsible Sidebar + Table View
+        # Horizontal Splitter: Table View on left, Dynamic Sidebar on right
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
 
-        # Collapsible Left Sidebar (Folders & Crates Tree)
-        self.sidebar_widget = QWidget(self)
-        sb_layout = QVBoxLayout(self.sidebar_widget)
-        sb_layout.setContentsMargins(6, 4, 4, 4)
-        sb_layout.setSpacing(4)
-
-        sb_header = QHBoxLayout()
-        self.sb_title = QLabel("📁 LIBRERIA & CRATES")
-        self.sb_title.setStyleSheet("font-weight: bold; color: #00d2ff; font-size: 11px;")
-        self.btn_collapse_sidebar = QPushButton("◀")
-        self.btn_collapse_sidebar.setFixedSize(22, 22)
-        self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px;")
-        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
-        sb_header.addWidget(self.sb_title)
-        sb_header.addStretch()
-        sb_header.addWidget(self.btn_collapse_sidebar)
-        sb_layout.addLayout(sb_header)
-
-        self.sidebar_tree = QTreeWidget(self)
-        self.sidebar_tree.setHeaderHidden(True)
-        self.sidebar_tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #14161f;
-                border: 1px solid #282c3c;
-                border-radius: 4px;
-            }
-            QTreeWidget::item {
-                padding: 4px 6px;
-                color: #cbd5e1;
-            }
-            QTreeWidget::item:selected {
-                background-color: #00d2ff;
-                color: #0b0c10;
-                font-weight: bold;
-            }
-        """)
-        self.sidebar_tree.itemClicked.connect(self._on_sidebar_item_clicked)
-        sb_layout.addWidget(self.sidebar_tree)
-
-        self.sidebar_widget.setMinimumWidth(160)
-        self.sidebar_widget.setMaximumWidth(320)
-        self.main_splitter.addWidget(self.sidebar_widget)
-
-        # Virtual Table View
+        # Virtual Table View (Left)
         self.table_view = QTableView(self)
         self.table_view.setModel(self.table_model)
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
@@ -262,10 +244,49 @@ class MainWindow(QMainWindow):
         self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
         self.table_view.activated.connect(self._on_row_double_clicked)  # Enter key loads/plays track!
-
         self.main_splitter.addWidget(self.table_view)
-        self.main_splitter.setStretchFactor(0, 1)
-        self.main_splitter.setStretchFactor(1, 5)
+
+        # Dynamic Collapsible Right Sidebar (Dedicated Folder Tree / Filesystem Navigator)
+        self.sidebar_widget = QWidget(self)
+        sb_layout = QVBoxLayout(self.sidebar_widget)
+        sb_layout.setContentsMargins(6, 6, 6, 6)
+        sb_layout.setSpacing(6)
+
+        sb_header = QHBoxLayout()
+        self.sb_title = QLabel(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+        self.sb_title.setStyleSheet("font-weight: bold; font-size: 11px;")
+        btn_clear_folder = QPushButton("✕ Reset")
+        btn_clear_folder.setToolTip("Rimuovi filtro cartella")
+        btn_clear_folder.clicked.connect(lambda: self.filter_bar.set_folder_filter(""))
+        self.btn_collapse_sidebar = QPushButton("▶")
+        self.btn_collapse_sidebar.setFixedSize(22, 22)
+        self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px; font-weight: bold;")
+        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
+        sb_header.addWidget(self.sb_title)
+        sb_header.addStretch()
+        sb_header.addWidget(btn_clear_folder)
+        sb_header.addWidget(self.btn_collapse_sidebar)
+        sb_layout.addLayout(sb_header)
+
+        self.folder_model = QFileSystemModel(self)
+        self.folder_model.setRootPath(QDir.rootPath())
+        self.folder_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot | QDir.Filter.Drives)
+
+        self.folder_tree = QTreeView(self.sidebar_widget)
+        self.folder_tree.setModel(self.folder_model)
+        self.folder_tree.setRootIndex(self.folder_model.index(QDir.rootPath()))
+        self.folder_tree.setHeaderHidden(True)
+        for col in range(1, 4):
+            self.folder_tree.setColumnHidden(col, True)
+        self.folder_tree.clicked.connect(self._on_folder_tree_clicked)
+        sb_layout.addWidget(self.folder_tree, 1)
+
+        self.sidebar_widget.setMinimumWidth(180)
+        self.sidebar_widget.setMaximumWidth(360)
+        self.main_splitter.addWidget(self.sidebar_widget)
+
+        self.main_splitter.setStretchFactor(0, 5)
+        self.main_splitter.setStretchFactor(1, 1)
 
         lib_layout.addWidget(self.main_splitter, 1)
         self.view_stack.addWidget(self.library_container)
@@ -274,7 +295,14 @@ class MainWindow(QMainWindow):
         self.home_view = HomeTrendsView(self.db, self)
         self.home_view.play_track_requested.connect(self._on_home_play_track)
         self.home_view.find_similar_requested.connect(self._on_home_find_similar)
+        self.home_view.navigate_to_library_requested.connect(lambda: self._switch_view(0))
         self.view_stack.addWidget(self.home_view)
+
+        # Page 2: Dedicated Smart Crates Workbench
+        self.crates_view = SmartCratesView(self.db, self)
+        self.crates_view.play_track_requested.connect(self._on_home_play_track)
+        self.crates_view.crates_updated.connect(self._refresh_library)
+        self.view_stack.addWidget(self.crates_view)
 
         main_layout.addWidget(self.view_stack, 1)
 
@@ -284,111 +312,133 @@ class MainWindow(QMainWindow):
         self.player_widget.directory_selected.connect(self._on_breadcrumb_directory_selected)
         main_layout.addWidget(self.player_widget)
 
+        # Start up strictly on View 0: Track Analysis / DJ Library
         self._switch_view(0)
 
-        # Status Bar
+        # Status Bar with Hardware Resource Monitor
         self.status_bar = self.statusBar()
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setMaximumWidth(200)
         self.status_bar.addPermanentWidget(self.progress_bar)
+
+        self.lbl_hw_monitor = QLabel()
+        self.lbl_hw_monitor.setStyleSheet(
+            "color: #94a3b8; font-size: 11px; font-weight: 600; padding: 2px 10px; "
+            "background-color: #12141c; border: 1px solid #232738; border-radius: 4px; margin-right: 4px;"
+        )
+        self.status_bar.addPermanentWidget(self.lbl_hw_monitor)
         self.status_bar.showMessage(_t("ready", "Pronto"))
 
-    def _init_menu_and_toolbar(self) -> None:
-        tb = self.addToolBar("Main Controls")
-        tb.setMovable(False)
+        self._hw_timer = QTimer(self)
+        self._hw_timer.setInterval(1800)
+        self._hw_timer.timeout.connect(self._update_hardware_monitor)
+        self._hw_timer.start()
+        self._update_hardware_monitor()
 
+    def _update_hardware_monitor(self) -> None:
+        """Refreshes hardware telemetry metrics asynchronously."""
+        cache_mb = self.settings_manager.get("performance", "ram_cache_mb", 512)
+        disp_cache = max(2048, cache_mb)
+        self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text(disp_cache))
+
+    def _on_folder_tree_clicked(self, index: QModelIndex) -> None:
+        """Filters library to filesystem folder clicked in the sidebar folder tree."""
+        if not hasattr(self, "folder_model"):
+            return
+        folder_path = self.folder_model.filePath(index)
+        if folder_path and os.path.exists(folder_path):
+            self.filter_bar.set_folder_filter(folder_path)
+
+    def _init_menu_and_toolbar(self) -> None:
+        """Initializes application actions and shortcuts without cluttered redundant toolbars."""
         # Sidebar Toggle
         self.act_toggle_sb = QAction(_t("tb_sidebar", "📁 Barra laterale"), self)
         self.act_toggle_sb.setShortcut(QKeySequence("F9"))
         self.act_toggle_sb.triggered.connect(self._toggle_sidebar)
-        tb.addAction(self.act_toggle_sb)
+        self.addAction(self.act_toggle_sb)
 
         # Scan Folder
         self.act_scan = QAction(_t("tb_scan", "📂 Scansiona cartella"), self)
         self.act_scan.setShortcut(QKeySequence("Ctrl+O"))
         self.act_scan.triggered.connect(self._on_scan_folder)
-        tb.addAction(self.act_scan)
+        self.addAction(self.act_scan)
 
         # Refresh
         self.act_refresh = QAction(_t("tb_refresh", "🔄 Aggiorna"), self)
         self.act_refresh.setShortcut(QKeySequence("F5"))
         self.act_refresh.triggered.connect(self._refresh_library)
-        tb.addAction(self.act_refresh)
-
-        tb.addSeparator()
+        self.addAction(self.act_refresh)
 
         # Dedicated Mp3tag Workspace
         self.act_mp3tag = QAction(_t("tb_mp3tag", "🏷️ Spazio Mp3tag"), self)
         self.act_mp3tag.setShortcut(QKeySequence("Ctrl+T"))
         self.act_mp3tag.triggered.connect(self._on_open_mp3tag_workspace)
-        tb.addAction(self.act_mp3tag)
+        self.addAction(self.act_mp3tag)
 
         # Quick Tag Editor Dialog
         self.act_edit = QAction(_t("tb_quick_tag", "✏️ Tag Rapidi"), self)
         self.act_edit.setShortcut(QKeySequence("Ctrl+E"))
         self.act_edit.triggered.connect(self._on_open_tag_editor)
-        tb.addAction(self.act_edit)
+        self.addAction(self.act_edit)
 
         # Pattern Converter
         self.act_patterns = QAction(_t("tb_filename_tag", "🔀 Nome File <-> Tag"), self)
         self.act_patterns.setShortcut(QKeySequence("Ctrl+K"))
         self.act_patterns.triggered.connect(self._on_open_pattern_converter)
-        tb.addAction(self.act_patterns)
+        self.addAction(self.act_patterns)
 
         # Multi-Source Reconciler
         self.act_reconcile = QAction(_t("tb_reconcile", "⚖️ Riconciliazione & Cover HD"), self)
         self.act_reconcile.setShortcut(QKeySequence("Ctrl+R"))
         self.act_reconcile.triggered.connect(self._on_open_reconciler)
-        tb.addAction(self.act_reconcile)
+        self.addAction(self.act_reconcile)
 
         # Acoustic Batch Analyzer
         self.act_acoustic = QAction(_t("tb_analyze", "🎵 Analizza BPM & Key"), self)
         self.act_acoustic.setShortcut(QKeySequence("Ctrl+A"))
         self.act_acoustic.triggered.connect(self._on_batch_acoustic_analysis)
-        tb.addAction(self.act_acoustic)
+        self.addAction(self.act_acoustic)
 
         # Audio Quality Diagnosis & Loudnorm
         self.act_quality = QAction(_t("tb_audio_quality", "🔊 Qualità Audio"), self)
         self.act_quality.setShortcut(QKeySequence("Ctrl+Q"))
         self.act_quality.triggered.connect(self._on_action_quality_diagnosis)
-        tb.addAction(self.act_quality)
+        self.addAction(self.act_quality)
 
         # Smart Recommendations (Similar Tracks)
         self.act_similar = QAction(_t("tb_find_similar", "✨ Trova Simili"), self)
         self.act_similar.setShortcut(QKeySequence("Ctrl+Shift+S"))
         self.act_similar.setToolTip("Cerca tracce simili per affinità armonica, BPM e genere online e locale")
         self.act_similar.triggered.connect(self._on_action_find_similar)
-        tb.addAction(self.act_similar)
-
-        tb.addSeparator()
+        self.addAction(self.act_similar)
 
         # Smart Organizer
         self.act_organize = QAction(_t("tb_organizer", "📦 Organizzatore Smart"), self)
         self.act_organize.setShortcut(QKeySequence("Ctrl+S"))
         self.act_organize.triggered.connect(self._on_open_sorter)
-        tb.addAction(self.act_organize)
+        self.addAction(self.act_organize)
 
         # Settings
         self.act_settings = QAction(_t("tb_settings", "⚙️ Impostazioni"), self)
         self.act_settings.setShortcut(QKeySequence("Ctrl+,"))
         self.act_settings.triggered.connect(self._on_open_settings)
-        tb.addAction(self.act_settings)
+        self.addAction(self.act_settings)
 
         # Toggle Live Log
         self.act_log = QAction(_t("tb_live_log", "📜 Log in Tempo Reale"), self)
         self.act_log.setShortcut(QKeySequence("Ctrl+L"))
         self.act_log.triggered.connect(self._toggle_log_dock)
-        tb.addAction(self.act_log)
+        self.addAction(self.act_log)
 
         # Stats
         self.act_stats = QAction(_t("tb_stats", "📊 Statistiche"), self)
         self.act_stats.triggered.connect(self._on_show_stats)
-        tb.addAction(self.act_stats)
+        self.addAction(self.act_stats)
 
     def _init_live_log_dock(self) -> None:
         """Initializes collapsible live logging dock at the bottom."""
-        self.log_dock = QDockWidget("Musicat Live System Log", self)
+        self.log_dock = QDockWidget(_t("live_log_title", "Musicat — Console di Log Live & Diagnostica"), self)
         self.log_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
 
         dock_widget = QWidget()
@@ -397,17 +447,48 @@ class MainWindow(QMainWindow):
         dock_layout.setSpacing(4)
 
         toolbar_row = QHBoxLayout()
-        btn_clear = QPushButton("Clear Log")
-        btn_clear.setFixedWidth(80)
-        btn_clear.clicked.connect(lambda: self.log_console.clear())
-        toolbar_row.addWidget(btn_clear)
+        toolbar_row.setSpacing(8)
+
+        # Level filter
+        self.cmb_log_level = QComboBox()
+        self.cmb_log_level.addItem(_t("filter_all_levels", "Tutti i Livelli (DEBUG+)"), 10)
+        self.cmb_log_level.addItem(_t("filter_info", "Solo INFO, WARNING, ERROR"), 20)
+        self.cmb_log_level.addItem(_t("filter_warning", "Solo WARNING & ERROR"), 30)
+        self.cmb_log_level.addItem(_t("filter_error", "Solo ERROR"), 40)
+        toolbar_row.addWidget(self.cmb_log_level)
+
+        # Auto-scroll checkbox
+        self.chk_log_autoscroll = QCheckBox(_t("chk_auto_scroll", "Auto-scroll"))
+        self.chk_log_autoscroll.setChecked(True)
+        toolbar_row.addWidget(self.chk_log_autoscroll)
+
         toolbar_row.addStretch()
+
+        # Export support bundle button
+        self.btn_export_logs = QPushButton(_t("btn_export_support_logs", "📦 Esporta Log per Assistenza (.zip)"))
+        self.btn_export_logs.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_export_logs.clicked.connect(self._on_export_support_bundle)
+        toolbar_row.addWidget(self.btn_export_logs)
+
+        # Clear button
+        self.btn_clear_log = QPushButton(_t("btn_clear_log", "✕ Pulisci"))
+        self.btn_clear_log.setFixedWidth(80)
+        self.btn_clear_log.clicked.connect(lambda: self.log_console.clear())
+        toolbar_row.addWidget(self.btn_clear_log)
 
         self.log_console = QPlainTextEdit()
         self.log_console.setReadOnly(True)
-        self.log_console.setMaximumHeight(150)
+        self.log_console.setMaximumHeight(160)
         self.log_console.setFont(QFont("Consolas", 10))
-        self.log_console.setStyleSheet("background-color: #0e0f12; color: #a0a5b8; border: 1px solid #232631;")
+        self.log_console.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #121316;
+                color: #cbd5e1;
+                border: 1px solid #282c3c;
+                border-radius: 4px;
+                padding: 4px;
+            }
+        """)
 
         dock_layout.addLayout(toolbar_row)
         dock_layout.addWidget(self.log_console)
@@ -424,16 +505,52 @@ class MainWindow(QMainWindow):
         self.log_dock.setVisible(not self.log_dock.isVisible())
 
     def _append_log_message(self, time_str: str, levelno: int, message: str) -> None:
-        color = "#a0a5b8"
-        if levelno >= 40:  # ERROR
-            color = "#ff4d4f"
-        elif levelno >= 30:  # WARNING
-            color = "#faad14"
-        elif levelno >= 20:  # INFO
-            color = "#00d2ff"
+        min_level = self.cmb_log_level.currentData() if hasattr(self, "cmb_log_level") else 10
+        if levelno < (min_level or 10):
+            return
 
-        html_line = f'<span style="color: #636878;">[{time_str}]</span> <span style="color: {color};">{message}</span>'
+        color = "#a0a5b8"
+        if levelno >= 40:    # ERROR
+            color = "#ef4444"
+        elif levelno >= 30:  # WARNING
+            color = "#f59e0b"
+        elif levelno >= 20:  # INFO
+            color = "#0ea5e9"
+
+        html_line = f'<span style="color: #64748b;">[{time_str}]</span> <span style="color: {color};">{message}</span>'
         self.log_console.appendHtml(html_line)
+
+        if hasattr(self, "chk_log_autoscroll") and self.chk_log_autoscroll.isChecked():
+            cursor = self.log_console.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.log_console.setTextCursor(cursor)
+
+    def _on_export_support_bundle(self) -> None:
+        """Exports diagnostic support ZIP bundle containing logs, hardware info, and system state."""
+        from datetime import datetime
+        default_name = f"musicat_support_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        dest_path, _ = QFileDialog.getSaveFileName(
+            self,
+            _t("export_logs_title", "Salva Pacchetto Log per Assistenza"),
+            default_name,
+            "ZIP Archives (*.zip)",
+        )
+        if not dest_path:
+            return
+
+        try:
+            out_file = MusicatLogger.export_support_bundle(destination_zip=dest_path, db=self.db)
+            QMessageBox.information(
+                self,
+                _t("export_logs_success_title", "Log Esportati con Successo"),
+                _t(
+                    "export_logs_success_msg",
+                    "Il pacchetto di diagnostica è stato salvato in:\n{path}\n\nPuoi allegarlo alla richiesta di supporto o issue GitHub.",
+                    path=out_file,
+                ),
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Esportazione Log", f"Impossibile creare il pacchetto log:\n{e}")
 
     def _init_shortcuts(self) -> None:
         """Configures DJ live performance keyboard shortcuts."""
@@ -448,6 +565,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(self._on_paste_tracks)
         QShortcut(QKeySequence("Alt+1"), self).activated.connect(lambda: self._switch_view(0))
         QShortcut(QKeySequence("Alt+2"), self).activated.connect(lambda: self._switch_view(1))
+        QShortcut(QKeySequence("Alt+3"), self).activated.connect(lambda: self._switch_view(2))
         QShortcut(QKeySequence("Ctrl+Shift+S"), self).activated.connect(self._on_action_find_similar)
 
     def _on_space_pressed(self) -> None:
@@ -469,7 +587,8 @@ class MainWindow(QMainWindow):
         self.filter_bar.refresh_directories()
         self.filter_bar.genre_widget._refresh_completer()
         self.filter_bar.genre_widget._build_menu()
-        self._populate_sidebar_tree()
+        if hasattr(self, "sidebar_tree"):
+            self._populate_sidebar_tree()
         if hasattr(self, "home_view"):
             self.home_view.refresh_library_status()
 
@@ -677,14 +796,15 @@ class MainWindow(QMainWindow):
                 header.setSectionHidden(col_idx, False)
 
     def _toggle_sidebar(self) -> None:
-        """Toggles visibility of the left sidebar."""
-        new_vis = not self.sidebar_widget.isVisible()
+        """Toggles visibility of the right sidebar."""
+        new_vis = self.sidebar_widget.isHidden()
         self.sidebar_widget.setVisible(new_vis)
-        self.btn_collapse_sidebar.setText("◀" if new_vis else "▶")
-        self.act_toggle_sb.setText("📁 Sidebar [Show]" if not new_vis else "📁 Sidebar [Hide]")
+        self.btn_collapse_sidebar.setText("▶" if new_vis else "◀")
 
     def _populate_sidebar_tree(self) -> None:
         """Populates hierarchical tree in the collapsible sidebar."""
+        if not hasattr(self, "sidebar_tree"):
+            return
         self.sidebar_tree.clear()
 
         # All Tracks item
@@ -724,6 +844,8 @@ class MainWindow(QMainWindow):
 
     def _on_sidebar_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         """Handles selection of sidebar items to filter the main library view."""
+        if not hasattr(self, "sidebar_tree"):
+            return
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
@@ -735,14 +857,19 @@ class MainWindow(QMainWindow):
         elif itype == "genre" and val:
             self.filter_bar.genre_widget.set_selected_genres([val])
         elif itype == "crate" and val:
-            idx = self.filter_bar.cb_crates.findText(val)
+            idx = self.filter_bar.cmb_crates.findData(val)
+            if idx < 0:
+                idx = self.filter_bar.cmb_crates.findText(val)
             if idx >= 0:
-                self.filter_bar.cb_crates.setCurrentIndex(idx)
+                self.filter_bar.cmb_crates.setCurrentIndex(idx)
         elif itype == "camelot" and val:
-            self.filter_bar.btn_camelot.setText(f"🔑 Key: {val}")
-            crit = self.filter_bar.get_current_criteria()
-            crit.camelot_key = val
-            self.filter_bar.filter_changed.emit(crit)
+            idx = self.filter_bar.cmb_camelot.findData(val)
+            if idx >= 0:
+                self.filter_bar.cmb_camelot.setCurrentIndex(idx)
+            else:
+                crit = self.filter_bar.get_current_criteria()
+                crit.camelot_key = val
+                self.filter_bar.filter_changed.emit(crit)
 
     def _on_cut_tracks(self) -> None:
         """Cuts selected tracks to clipboard for physical moving."""
@@ -799,10 +926,13 @@ class MainWindow(QMainWindow):
 
     def _on_settings_applied(self, ui_settings: Dict[str, Any]) -> None:
         """Applies updated UI configuration immediately."""
-        theme_id = ui_settings.get("theme", "dark_dj")
+        theme_id = ui_settings.get("theme", "light")
         app = QApplication.instance()
         if app:
             app.setStyleSheet(get_theme_stylesheet(theme_id))
+        self._update_nav_button_styles(self.view_stack.currentIndex())
+        if hasattr(self, "player_widget"):
+            self.player_widget.update_theme(theme_id)
         self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
 
     def _on_table_context_menu(self, pos: QPoint) -> None:
@@ -889,41 +1019,168 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _switch_view(self, index: int) -> None:
-        """Switches between DJ Library (0) and Home Trends (1)."""
+        """Switches between DJ Library (0), Home Trends (1), and Smart Crates (2)."""
         self.view_stack.setCurrentIndex(index)
-        btn_active = """
-            QPushButton {
-                background-color: #0284c7;
-                color: #ffffff;
-                font-weight: bold;
-                font-size: 11px;
-                padding: 4px 14px;
-                border: 1px solid #38bdf8;
-                border-radius: 4px;
-            }
-        """
-        btn_inactive = """
-            QPushButton {
-                background-color: #171924;
-                color: #94a3b8;
-                font-size: 11px;
-                padding: 4px 14px;
-                border: 1px solid #282d3f;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #212536;
-                color: #e2e8f0;
-            }
-        """
-        if index == 0:
-            self.btn_nav_library.setStyleSheet(btn_active)
-            self.btn_nav_trends.setStyleSheet(btn_inactive)
+        self._update_nav_button_styles(index)
+        if index == 1 and hasattr(self, "home_view"):
+            self.home_view.refresh_library_status()
+        elif index == 2 and hasattr(self, "crates_view"):
+            self.crates_view.refresh_crates()
+
+    def _update_nav_button_styles(self, active_index: int = 0) -> None:
+        """Applies adaptive styling for active/inactive navigation buttons based on current theme."""
+        theme_id = self.settings_manager.get("ui", "theme", "light")
+        is_light = (theme_id == "light")
+
+        if is_light:
+            btn_active = """
+                QPushButton {
+                    background-color: #0d6efd;
+                    color: #ffffff;
+                    font-weight: bold;
+                    font-size: 11px;
+                    padding: 5px 14px;
+                    border: 1px solid #0b5ed7;
+                    border-radius: 4px;
+                }
+            """
+            btn_inactive = """
+                QPushButton {
+                    background-color: #ffffff;
+                    color: #495057;
+                    font-size: 11px;
+                    font-weight: 500;
+                    padding: 5px 14px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #f1f3f5;
+                    color: #212529;
+                    border-color: #0d6efd;
+                }
+            """
+            nav_action_style = """
+                QPushButton {
+                    background-color: #ffffff;
+                    color: #212529;
+                    font-size: 11px;
+                    font-weight: 500;
+                    padding: 5px 12px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #f1f3f5;
+                    color: #0d6efd;
+                    border-color: #0d6efd;
+                }
+            """
+            nav_settings_style = """
+                QPushButton {
+                    background-color: #f8f9fa;
+                    color: #212529;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 5px 14px;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #e9ecef;
+                    color: #0d6efd;
+                    border-color: #0d6efd;
+                }
+            """
+            self.nav_bar.setStyleSheet("""
+                QFrame#topNavBar {
+                    background-color: #ffffff;
+                    border-bottom: 2px solid #dee2e6;
+                    padding: 4px 10px;
+                }
+            """)
         else:
-            self.btn_nav_library.setStyleSheet(btn_inactive)
-            self.btn_nav_trends.setStyleSheet(btn_active)
-            if hasattr(self, "home_view"):
-                self.home_view.refresh_library_status()
+            btn_active = """
+                QPushButton {
+                    background-color: #0284c7;
+                    color: #ffffff;
+                    font-weight: bold;
+                    font-size: 11px;
+                    padding: 5px 14px;
+                    border: 1px solid #38bdf8;
+                    border-radius: 4px;
+                }
+            """
+            btn_inactive = """
+                QPushButton {
+                    background-color: #171924;
+                    color: #94a3b8;
+                    font-size: 11px;
+                    padding: 5px 14px;
+                    border: 1px solid #282d3f;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #212536;
+                    color: #e2e8f0;
+                }
+            """
+            nav_action_style = """
+                QPushButton {
+                    background-color: #161822;
+                    color: #cbd5e1;
+                    font-size: 11px;
+                    font-weight: 500;
+                    padding: 5px 12px;
+                    border: 1px solid #282d3f;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #212536;
+                    color: #ffffff;
+                    border-color: #38bdf8;
+                }
+            """
+            nav_settings_style = """
+                QPushButton {
+                    background-color: #1e2230;
+                    color: #e2e8f0;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 5px 14px;
+                    border: 1px solid #38bdf8;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #282e42;
+                    color: #38bdf8;
+                }
+            """
+            self.nav_bar.setStyleSheet("""
+                QFrame#topNavBar {
+                    background-color: #0e1017;
+                    border-bottom: 2px solid #1e2232;
+                    padding: 4px 10px;
+                }
+            """)
+
+        # Set styles for view buttons
+        if hasattr(self, "btn_nav_library"):
+            self.btn_nav_library.setStyleSheet(btn_active if active_index == 0 else btn_inactive)
+        if hasattr(self, "btn_nav_trends"):
+            self.btn_nav_trends.setStyleSheet(btn_active if active_index == 1 else btn_inactive)
+        if hasattr(self, "btn_nav_crates"):
+            self.btn_nav_crates.setStyleSheet(btn_active if active_index == 2 else btn_inactive)
+
+        # Set styles for macro actions
+        if hasattr(self, "btn_nav_mp3tag"):
+            self.btn_nav_mp3tag.setStyleSheet(nav_action_style)
+        if hasattr(self, "btn_nav_similar"):
+            self.btn_nav_similar.setStyleSheet(nav_action_style)
+        if hasattr(self, "btn_nav_organizer"):
+            self.btn_nav_organizer.setStyleSheet(nav_action_style)
+        if hasattr(self, "btn_nav_settings"):
+            self.btn_nav_settings.setStyleSheet(nav_settings_style)
 
     def _on_home_play_track(self, track: Dict[str, Any]) -> None:
         """Plays a track requested from Home Trends view or discovery dialog."""
@@ -958,10 +1215,24 @@ class MainWindow(QMainWindow):
     def _retranslate_ui(self) -> None:
         """Dynamically retranslates all top-level main window components."""
         self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
-        self.btn_nav_library.setText(_t("nav_library", "🎵 DJ Library & Crates"))
-        self.btn_nav_trends.setText(_t("nav_trends", "🏠 Home Trends & Top Charts"))
+        if hasattr(self, "btn_nav_trends"):
+            self.btn_nav_trends.setText(_t("nav_analysis", "⚡ Analisi / Home"))
+        if hasattr(self, "btn_nav_library"):
+            self.btn_nav_library.setText(_t("nav_library", "🎵 Libreria"))
+        if hasattr(self, "btn_nav_mp3tag"):
+            self.btn_nav_mp3tag.setText(_t("nav_mp3tag", "🏷️ Tag Editor (Mp3tag)"))
+        if hasattr(self, "btn_nav_crates"):
+            self.btn_nav_crates.setText(_t("nav_crates", "🎛️ Smart Crates"))
+        if hasattr(self, "btn_nav_similar"):
+            self.btn_nav_similar.setText(_t("nav_similar", "✨ Trova Simili"))
+        if hasattr(self, "btn_nav_organizer"):
+            self.btn_nav_organizer.setText(_t("nav_organizer", "📦 Organizza File"))
+        if hasattr(self, "btn_nav_settings"):
+            self.btn_nav_settings.setText(_t("nav_settings", "⚙️ Impostazioni"))
         if hasattr(self, "sb_title"):
-            self.sb_title.setText(_t("filter_smart_crates", "📁 Libreria & Crates").upper())
+            self.sb_title.setText(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+        if hasattr(self, "crates_view"):
+            self.crates_view._retranslate_ui()
 
         if hasattr(self, "act_toggle_sb"):
             self.act_toggle_sb.setText(_t("tb_sidebar", "📁 Barra laterale"))
@@ -991,3 +1262,12 @@ class MainWindow(QMainWindow):
             self.act_log.setText(_t("tb_live_log", "📜 Log in Tempo Reale"))
         if hasattr(self, "act_stats"):
             self.act_stats.setText(_t("tb_stats", "📊 Statistiche"))
+
+        if hasattr(self, "log_dock"):
+            self.log_dock.setWindowTitle(_t("live_log_title", "Musicat — Console di Log Live & Diagnostica"))
+        if hasattr(self, "btn_export_logs"):
+            self.btn_export_logs.setText(_t("btn_export_support_logs", "📦 Esporta Log per Assistenza (.zip)"))
+        if hasattr(self, "btn_clear_log"):
+            self.btn_clear_log.setText(_t("btn_clear_log", "✕ Pulisci"))
+        if hasattr(self, "chk_log_autoscroll"):
+            self.chk_log_autoscroll.setText(_t("chk_auto_scroll", "Auto-scroll"))

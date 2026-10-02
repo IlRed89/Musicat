@@ -144,8 +144,16 @@ class SpotifyTrendsManager:
 
         token_url = "https://accounts.spotify.com/api/token"
         data = {"grant_type": "client_credentials"}
+        t0 = time.perf_counter()
         try:
             resp = requests.post(token_url, data=data, auth=(cid, sec), timeout=6.0)
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Spotify:Auth",
+                url=token_url,
+                status_code=resp.status_code,
+                latency_ms=latency_ms,
+            )
             if resp.status_code == 200:
                 body = resp.json()
                 self._access_token = body.get("access_token")
@@ -155,6 +163,14 @@ class SpotifyTrendsManager:
             else:
                 MusicatLogger.warning("SPOTIFY:AUTH", f"Token error {resp.status_code}: {resp.text}")
         except Exception as exc:
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Spotify:Auth",
+                url=token_url,
+                status_code=0,
+                latency_ms=latency_ms,
+                error=str(exc),
+            )
             MusicatLogger.warning("SPOTIFY:AUTH", f"Connection error: {exc}")
 
         return None
@@ -218,11 +234,32 @@ class SpotifyTrendsManager:
         playlist_id = CATEGORY_PLAYLIST_MAP.get(category_id, CATEGORY_PLAYLIST_MAP["global_50"])
         url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
         headers = {"Authorization": f"Bearer {token}"}
-        params = {"limit": min(50, limit), "fields": "items(track(id,name,artists,album,preview_url,external_urls,popularity))"}
+        params = {"limit": min(100, limit), "fields": "items(track(id,name,artists,album,preview_url,external_urls,popularity))"}
 
-        resp = requests.get(url, headers=headers, params=params, timeout=7.0)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Spotify API responded with status {resp.status_code}")
+        t0 = time.perf_counter()
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=7.0)
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Spotify:Tracks",
+                url=url,
+                status_code=resp.status_code,
+                latency_ms=latency_ms,
+                params={"playlist_id": playlist_id, "category": category_id},
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(f"Spotify API responded with status {resp.status_code}")
+        except Exception as exc:
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Spotify:Tracks",
+                url=url,
+                status_code=0,
+                latency_ms=latency_ms,
+                params={"playlist_id": playlist_id, "category": category_id},
+                error=str(exc),
+            )
+            raise
 
         items = resp.json().get("items", [])
         tracks: List[TrendingTrack] = []

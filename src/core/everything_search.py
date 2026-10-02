@@ -78,25 +78,43 @@ class EverythingSearchEngine:
             try:
                 cand_str = str(cand)
                 dll = ctypes.WinDLL(cand_str)
-                # Configure function prototypes
+
+                # =========================================================================
+                # Voidtools Everything IPC & Ctypes Struct/Function Prototypes:
+                #
+                # The Everything desktop daemon maintains an in-memory index of NTFS MFT
+                # (Master File Table) volumes and monitors the NTFS USN change journal.
+                # Client applications interact with it via Everything64.dll, which sends
+                # Win32 WM_COPYDATA messages and memory-mapped file requests to the hidden
+                # window class 'EVERYTHING_IPC_SEARCH_CLIENT'.
+                # =========================================================================
+
+                # Everything_SetSearchW(LPCWSTR lpSearchString): Sets UTF-16 search query
                 dll.Everything_SetSearchW.argtypes = [ctypes.c_wchar_p]
                 dll.Everything_SetSearchW.restype = None
 
+                # Everything_SetRequestFlags(DWORD dwRequestFlags): Specifies MFT fields to populate
                 dll.Everything_SetRequestFlags.argtypes = [ctypes.c_uint32]
                 dll.Everything_SetRequestFlags.restype = None
 
+                # Everything_SetMax(DWORD dwMax): Sets maximum return limit (pagination)
                 dll.Everything_SetMax.argtypes = [ctypes.c_uint32]
                 dll.Everything_SetMax.restype = None
 
+                # Everything_SetOffset(DWORD dwOffset): Sets query offset (pagination)
                 dll.Everything_SetOffset.argtypes = [ctypes.c_uint32]
                 dll.Everything_SetOffset.restype = None
 
+                # Everything_QueryW(BOOL bWait): Dispatches IPC query; bWait=True blocks until complete
                 dll.Everything_QueryW.argtypes = [ctypes.c_bool]
                 dll.Everything_QueryW.restype = ctypes.c_bool
 
+                # Everything_GetNumResults(): Returns total count of matching records in IPC buffer
                 dll.Everything_GetNumResults.argtypes = []
                 dll.Everything_GetNumResults.restype = ctypes.c_uint32
 
+                # Everything_GetResultFullPathNameW(DWORD index, LPWSTR buf, DWORD bufSize):
+                # Copies the UTF-16 absolute path from the MFT record into caller-allocated buffer
                 dll.Everything_GetResultFullPathNameW.argtypes = [
                     ctypes.c_uint32,
                     ctypes.c_wchar_p,
@@ -104,12 +122,15 @@ class EverythingSearchEngine:
                 ]
                 dll.Everything_GetResultFullPathNameW.restype = ctypes.c_uint32
 
+                # Everything_GetResultSize(DWORD index, LARGE_INTEGER *lpFileSize):
+                # Returns 64-bit file byte length directly from NTFS MFT record
                 dll.Everything_GetResultSize.argtypes = [
                     ctypes.c_uint32,
                     ctypes.POINTER(ctypes.c_uint64),
                 ]
                 dll.Everything_GetResultSize.restype = ctypes.c_bool
 
+                # Everything_IsDBLoaded(): Returns TRUE if the daemon MFT index is loaded and ready
                 dll.Everything_IsDBLoaded.argtypes = []
                 dll.Everything_IsDBLoaded.restype = ctypes.c_bool
 

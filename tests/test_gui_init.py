@@ -47,9 +47,11 @@ class TestGuiInitialization(unittest.TestCase):
             self.assertTrue(hasattr(window.player_widget.breadcrumb_bar, "directory_selected"))
             self.assertTrue(hasattr(window.db, "get_crates"))
             self.assertTrue(hasattr(window.home_view, "refresh_library_status"))
+            self.assertIsNotNone(window.crates_view)
 
-            # Test switching views
+            # Test switching views (0: Library, 1: Home/Trends, 2: Smart Crates)
             window._switch_view(1)
+            window._switch_view(2)
             window._switch_view(0)
 
             # Test dialogs
@@ -72,6 +74,7 @@ class TestGuiInitialization(unittest.TestCase):
             window.close()
             window.deleteLater()
             self.app.processEvents()
+            db.close()
 
 
 if __name__ == "__main__":

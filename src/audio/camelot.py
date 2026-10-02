@@ -69,6 +69,12 @@ class CamelotWheel:
     """Provides Camelot Wheel math, harmonic compatibility and BPM calculations for DJs."""
 
     @staticmethod
+    def get_musical_name(camelot_key: str) -> str:
+        """Returns primary musical key name for a Camelot key (e.g. '8A' -> 'Am', '8B' -> 'C')."""
+        norm = CamelotWheel.normalize_key(camelot_key)
+        return CAMELOT_TO_KEY.get(norm, "")
+
+    @staticmethod
     def normalize_key(key_str: Optional[str]) -> str:
         """Normalizes any musical or Camelot key string into canonical Camelot format (e.g. '8A').
 

@@ -37,10 +37,13 @@ hiddenimports = [
     'musicbrainzngs',
     'acoustid',
     'vlc',
+    'src.gui.views',
+    'src.gui.views.crates_view',
 ]
 
 datas = [
     (str(project_root / 'locales'), 'locales'),
+    (str(project_root / 'assets'), 'assets'),
 ]
 try:
     datas += collect_data_files('soundfile')
@@ -97,7 +100,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Musicat.app',
-    icon=None,
+    icon=str(project_root / 'assets' / 'icon.png'),
     bundle_identifier='com.ilred89.musicat',
     info_plist={
         'CFBundleName': 'Musicat',

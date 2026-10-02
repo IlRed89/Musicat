@@ -232,6 +232,7 @@ class MusicFileManager:
 
             dst = dest_dir / src.name
 
+            collision_note = ""
             # Collision handling
             if dst.exists():
                 strategy = effective_strategy
@@ -241,17 +242,23 @@ class MusicFileManager:
                 if strategy == CollisionStrategy.SKIP:
                     skipped_count += 1
                     skipped_files.append(str(src))
+                    from .logger import MusicatLogger
+                    MusicatLogger.log_file_op("SKIP", str(src), str(dst), collision_resolved="SKIP", success=True)
                     continue
                 elif strategy == CollisionStrategy.RENAME:
                     dst = self._resolve_rename_collision(dest_dir, src.name)
+                    collision_note = f"RENAME -> {dst.name}"
                 elif strategy == CollisionStrategy.OVERWRITE:
-                    pass
+                    collision_note = "OVERWRITE"
                 else:
                     skipped_count += 1
                     skipped_files.append(str(src))
+                    from .logger import MusicatLogger
+                    MusicatLogger.log_file_op("SKIP", str(src), str(dst), collision_resolved="DEFAULT_SKIP", success=True)
                     continue
 
             try:
+                from .logger import MusicatLogger
                 if is_cut:
                     # Physical Move
                     shutil.move(str(src), str(dst))
@@ -259,6 +266,7 @@ class MusicFileManager:
                     self._update_db_after_move(active_db, str(src), str(dst))
                     moved_count += 1
                     processed_files.append(str(dst))
+                    MusicatLogger.log_file_op("MOVE", str(src), str(dst), collision_resolved=collision_note, success=True)
                 else:
                     # Physical Copy
                     shutil.copy2(str(src), str(dst))
@@ -266,9 +274,12 @@ class MusicFileManager:
                     self._duplicate_db_after_copy(active_db, str(src), str(dst))
                     copied_count += 1
                     processed_files.append(str(dst))
+                    MusicatLogger.log_file_op("COPY", str(src), str(dst), collision_resolved=collision_note, success=True)
 
             except Exception as exc:
                 errors.append(f"Error transferring {src.name}: {exc}")
+                from .logger import MusicatLogger
+                MusicatLogger.log_file_op("TRANSFER_FAIL", str(src), str(dst), collision_resolved=collision_note, success=False, details=str(exc))
 
         # If it was a cut operation, clear internal clipboard
         if is_cut:

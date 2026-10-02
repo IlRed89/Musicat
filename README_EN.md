@@ -7,6 +7,7 @@
 [![Lingua: Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.md)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg)]()
+[![Test Suite](https://img.shields.io/badge/tests-130%20passing-brightgreen.svg)]()
 [![Repository](https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg)](https://github.com/IlRed89/Musicat)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 
@@ -19,7 +20,7 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 - Traditional DJ software (Rekordbox, Traktor, Serato, Engine DJ) lacks powerful bulk tag editing, studio cover retrieval, and deep metadata reconciliation.
 - Generic tag editors (like Mp3tag) lack acoustic DSP analysis, live DJ Camelot harmonic filtering, audio quality diagnostics, and Spotify trend cross-checking.
 
-**Musicat** unifies all these requirements into a lightning-fast, hardware-accelerated dark desktop workstation available natively for **Windows (10/11 x64)** and **macOS (Apple Silicon M-Series + Intel x64)**.
+**Musicat** unifies all these requirements into a modern, high-contrast light desktop workstation (with optional dark mode) available natively for **Windows (10/11 x64)** and **macOS (Apple Silicon M-Series + Intel x64)**.
 
 ---
 
@@ -29,20 +30,38 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 +----------------------------------------------------------------------------------------------------+
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
-|  [Live DJ Crates]   |  [Mp3tag Workbench]  |  [Acoustic Engine]  |  [Loudnorm Plugin]  | [Trends]  |
-|  - <15ms RAM Filter |  - Spreadsheet Grid  |  - Multiprocess DSP |  - EBU R128 LUFS    | - Spotify |
-|  - Camelot Wheel    |  - Multi-tag Batch   |  - BPM & Key FFT    |  - True Peak dBTP   | - Cosine  |
-|  - Multi-Genre (OR) |  - Patterns %tag%    |  - L1 RAM Cache     |  - Auto-Normalize   | - Similars|
+| [Analysis / Home] | [DJ Library]   | [Mp3tag Space]  | [Smart Crates] | [Find Similars] | [Organize]   |
+| - Startup Default | - RAM Filters  | - Cell Grid     | - Workbench    | - Cosine.club   | - Dry Run    |
+| - Spotify Trends  | - 1A-12B Wheel | - Multi-Tag     | - Dynamic Crate| - Web Vectors   | - Collision  |
+| - EBU Diagnostics | - Pitch +/-8%  | - Pattern %tag% | - Export M3U8  | - Hard Drive    | - Rule Tree  |
 +----------------------------------------------------------------------------------------------------+
 |           Unified Search Engine (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)         |
 +----------------------------------------------------------------------------------------------------+
 |                    libVLC Audio Engine with +/-8% Pitch Bending & Waveform Scrubbing               |
 +----------------------------------------------------------------------------------------------------+
+|       Structured Logging Suite (20MB Rotating .zip, Diagnostic Support Bundle, Domain Tracking)    |
++----------------------------------------------------------------------------------------------------+
 |               Cross-Platform Path Resolver ([VOL:XXXXXXXX] & portable.lock Drive Migration)        |
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. 🎛️ Live DJ Crates & Advanced Filter Engine (<15ms Latency)
+### 1. ⚪ Modern Light Theme Default & Clean Modular Navbar
+- **High-Contrast Light Theme:** Modern palette (`#FFFFFF` / `#F8F9FA`, text `#212529`, accents `#0D6EFD`) engineered for pristine legibility in clubs, studios, and high-glare environments. Instant switch to Dark Theme available in Settings.
+- **Minimal Top Bar with No Ambiguous Icons:** No isolated shortcut icons. The top navbar solely features explicit navigation buttons to full modules:
+  - **[Analysis / Home]** (Default initial screen on application startup)
+  - **[Library]**
+  - **[Tag Editor (Mp3tag)]**
+  - **[Smart Crates]**
+  - **[Find Similars]**
+  - **[Organize Files]**
+  - **[Settings]**
+
+### 2. 🗃️ Dedicated "Smart Crates" Workbench
+- Full-screen dedicated workbench replacing small cluttered sidebars.
+- Visual rule builder for complex multi-attribute queries (BPM ranges, Camelot Key, multi-genres, rating, energy profile).
+- 1-click dynamic export to extended `.m3u8` playlists for Pioneer CDJ, Rekordbox, Traktor, Serato, and Engine DJ.
+
+### 3. 🎛️ Live DJ Crates & Advanced Filter Engine (<15ms Latency)
 - **Multi-Genre Selector:** Auto-complete dropdown supporting multiple simultaneous genres with `OR` filtering (e.g. *Tech House* OR *Afro House* OR *Melodic Techno*).
 - **Dynamic BPM Targeting:** Target BPM input with pitch tolerance presets (`±2%`, `±4%`, `±6%`, `±8%`), as well as explicit Min/Max ranges.
 - **Harmonic Camelot Wheel Assistant:** Visual 12-column interactive Camelot Wheel (`1A`–`12B`) supporting:
@@ -50,45 +69,89 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
   - Relative Key (Major $\leftrightarrow$ Minor mood change)
   - $+2$ Energy Boost transitions
   - $+7$ Semitone Peak Energy Lift
-- **Smart Crates & Universal M3U8 Export:** Instant saving of complex filter conditions into dynamic crates; export playlists to extended `.m3u8` for immediate import into Pioneer CDJs, Rekordbox, Traktor, Serato, and Engine DJ.
 
-### 2. 🏷️ Dedicated Mp3tag Workbench
+### 4. 🏷️ Dedicated Mp3tag Workbench
 - **Spreadsheet Table View:** Inline editing and multi-row batch editing for single or grouped tracks.
 - **Tag <-> Filename Pattern Converter:** Bidirectional pattern engine supporting tokens like `%artist% - %title% (%bpm% BPM) [%camelot%]`.
 - **HD Studio Album Art Injection:** Embeds high-resolution cover artwork (up to 3000x3000px from Apple Music / Beatport HD) into ID3v2.4 `APIC`, FLAC picture blocks, and MP4 `covr` atoms.
 - **Universal Container Support:** MP3, FLAC, WAV (up to 32-bit float), AIFF, M4A/ALAC, OGG Vorbis, and OPUS.
 
-### 3. ⚡ Ultra-Fast Search Engine (`SearchEngine`)
+### 5. ⚡ Ultra-Fast Search Engine (`SearchEngine`)
 - **Windows (NTFS MFT):** Direct Ctypes IPC binding to `Everything64.dll` querying the Master File Table in microseconds.
 - **macOS (APFS/HFS+):** Native driver calling macOS Metadata Spotlight CLI (`mdfind`) with `kMDItemContentTypeTree == 'public.audio'`.
 - **Automatic Fallback:** Seamless fallback to indexed SQLite FTS5 (Full-Text Search) with zero user configuration.
 
-### 4. 🎛️ Multiprocessing Acoustic Engine & L1 RAM Cache
+### 6. 🎛️ Multiprocessing Acoustic Engine & L1 RAM Cache
 - **CPU Saturation:** Dynamically allocates logical CPU cores via `ProcessPoolExecutor` with batch scheduling.
 - **Streaming Window Reads:** Analyzes the central high-energy drop window at 22,050 Hz, skipping quiet intros/outros and cutting STFT load by ~80%.
 - **L1 In-Memory RAM Cache:** Staging buffer in RAM (`:memory:`) eliminates SSD wear during bulk library analysis; thread-safe LRU waveform cache for instant visual scrubbing.
 
-### 5. 🔊 Audio Quality Normalizer & Loudnorm Plugin
-- **EBU R128 / ITU-R BS.1770-4 Standards:** Integrated Loudness (LUFS), Loudness Range (LRA), and True Peak (dBTP) with 4x oversampling.
+### 7. 🔊 Audio Quality Normalizer & Loudnorm Plugin (EBU R128)
+- **EBU R128 / ITU-R BS.1770-4 Standards:** Integrated Loudness (LUFS), Loudness Range (LRA), and True Peak (dBTP) with 4x oversampling interpolation.
 - **Anomaly Detection:** Flags clipped tracks ($>0$ dBTP), quiet tracks ($<-18$ LUFS), and squashed brickwall masters ($\text{LRA} < 3$ LU).
 - **Dual Correction:**
   - *Non-destructive:* ReplayGain metadata tagging (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
-  - *Destructive:* Physical re-encoding with FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP).
+  - *Physical re-encode:* Physical re-encoding with FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP).
 
-### 6. 🏠 Spotify Top Trends & Smart Recommendations
-- **Live Spotify DJ Charts:** Category trends (Dance/Electro, Tech House, Techno, Global Top 50) with 24-hour local caching.
+### 8. 🏠 Spotify Top Trends & Smart Recommendations
+- **Live Spotify DJ Charts:** Category trends (Dance/Electro, Tech House, Techno, Global Top 50) with local caching.
 - **Collection Cross-Check:** Instant visual badge indicating whether a trending track is owned locally (`✓ In Library`) or missing (`+ Missing`).
 - **Cosine Similarity Engine:** Deep discovery via Cosine.club, Chosic, and Last.fm matching acoustic vectors against your local library files.
 
-### 7. 💾 Dual-Mode Installation & Drive Migration
+### 9. ⚖️ Multi-Source Scraping & Conflict Reconciliation
+- Simultaneous queries to **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz**, and social platforms (**SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**).
+- Discrepancy comparison matrix with field-by-field selective resolution checkboxes.
+
+### 10. 💾 Dual-Mode Installation & Drive Migration
 - **Standard Mode:** Installs into `Program Files`, adds Start Menu shortcuts, and stores data in `%APPDATA%\Musicat`.
-- **Portable Mode (`portable.lock`):** Extracts cleanly to any external SSD or USB drive; database and config remain entirely self-contained.
+- **Portable Mode (`portable.lock`):** Extracts cleanly to any external SSD or USB drive; database, configurations, and logs remain entirely self-contained (`./logs/`, `./musicat_data/`).
 - **Volume Serial Resolver (`[VOL:XXXXXXXX]`):** Converts physical drive paths into volume-serial-relative URIs, allowing identical SSDs to move between Windows machines and macOS mount points without database breakage.
 
-### 8. 🌐 Bilingual Localization (Italian / English)
-- **Italian (Default):** Native default localization out of the box (`it`).
-- **English (Secondary):** Complete English translation set (`en`).
-- **Dynamic Hot-Switching:** Switch language directly in Preferences with immediate UI update without restarting.
+---
+
+## 🛠️ Advanced Logging Suite & Troubleshooting
+
+Musicat includes an exhaustive logging and troubleshooting subsystem:
+
+### 1. Automatic Rotation & Compressed `.zip` Archives
+- Active logs are written to `musicat.log`.
+- When reaching **20 MB**, the file rotates and compresses into `.zip` format (`musicat.log.1.zip`, `musicat.log.2.zip`, ...).
+- Automatically preserves the last **10 compressed archives**, guarding disk space.
+
+### 2. Granular Domain Event Tracking
+All internal and external events are logged with precise domains and log levels:
+- **I/O & Scans (`[SCAN]`):** Folders scanned, total files, inserted, skipped, and duration ms.
+- **libVLC Audio Engine (`[PLAYER:VLC]`):** Initialization, playback, pause, seek, pitch adjustments, and decode failures.
+- **Mutagen Tag Editor (`[TAG]` & `[TAG:DIFF]`):** Pre/post metadata dumps, modified field diffs, ID3 corruption alerts.
+- **Scrapers & HTTP (`[HTTP:<Source>]`):** URLs queried, parameters, status codes (200, 403, 404), latency in milliseconds, and exceptions.
+- **File Manager (`[DISPATCH:<OP>]`):** Source and target paths (`SRC -> DEST`), collision handling (`RENAME`, `OVERWRITE`, `SKIP`).
+
+### 3. Support Diagnostic Bundle Export
+Both in the **Live Log Console** (`Ctrl+L`) and **Settings > Performance**, users can click:
+👉 **"Export Logs for Support (.zip)"**
+Generates an all-in-one diagnostic `.zip` archive containing:
+- All active and compressed log files.
+- Anonymized hardware specifications (CPU, RAM, GPU, OS).
+- Database health statistics (track counts, indexes, WAL size).
+- Sanitized configuration file (API tokens and credentials stripped).
+
+---
+
+## 🔍 Troubleshooting Guide
+
+### 1. Audio player fails to play or warns "libVLC not found"
+- **Windows:** Ensure 64-bit VLC Media Player is installed (`C:\Program Files\VideoLAN\VLC`) or copy `libvlc.dll` and `plugins/` into the application executable folder.
+- **macOS:** Install VLC via Homebrew (`brew install --cask vlc`) or install `VLC.app` into `/Applications`.
+
+### 2. Voidtools Everything fast search is disabled on Windows
+- Musicat connects to the **Everything desktop service** via IPC. Verify that Everything is running in the background.
+- If Everything is absent, Musicat automatically falls back to **SQLite FTS5**, ensuring full-text search remains operational without interruption.
+
+### 3. Drive letters change on external USB drives
+- Musicat stores physical volume IDs (`[VOL:XXXXXXXX]`). If Windows reassigns a drive from `E:\` to `F:\`, Musicat automatically re-links all tracks upon the next startup.
+
+### 4. Tag write permission error (File Locked)
+- If an audio file is currently loaded in another DJ player (e.g., Rekordbox or Traktor), Windows locks write permissions. Close external players before running batch tag updates.
 
 ---
 
@@ -98,90 +161,88 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 |---|---|---|
 | `Ctrl + F` | Quick Search | Focuses unified search bar (Everything MFT / Spotlight / FTS) |
 | `Ctrl + G` | Genre Filter | Focuses multi-genre autocompleter |
-| `Ctrl + B` | BPM Filter | Focuses Target BPM input box |
-| `Ctrl + K` | Camelot Wheel | Opens visual Camelot Harmonic Mixing assistant |
-| `Escape` | Reset Filters | Instantly clears all active filters and restores full library |
-| `Space` | Play / Pause | Auditions selected track or toggles mini-player deck |
-| `Enter` | Load Deck | Double-click or Enter loads track into the preview player |
-| `Ctrl + T` | Mp3tag Workbench | Opens dedicated Mp3tag workspace |
-| `Ctrl + E` | Quick Tag Editor | Opens batch tag editing modal |
-| `Ctrl + R` | Reconciler | Multi-source discrepancy reconciliation |
-| `Ctrl + Q` | Quality Diagnosis | Opens EBU R128 loudness and clipping analyzer |
-| `Ctrl + Shift + S`| Find Similar | Discovers acoustically and harmonically similar tracks |
-| `Ctrl + S` | Smart Organizer | Launches file dispatcher and dry-run mover |
-| `Ctrl + L` | Live Log | Toggles bottom real-time diagnostic log dock |
-| `Ctrl + ,` | Settings | Opens modular preferences dialog |
-| `Alt + 1` / `Alt + 2` | View Switcher | Switches between DJ Library and Home Trends views |
+| `Ctrl + B` | BPM Filter | Focuses target BPM field |
+| `Ctrl + K` | Camelot Wheel | Opens visual Camelot Wheel assistant |
+| `Esc` | Clear Filters | Instantly resets all active filters and reveals entire library |
+| `Space` | Play / Pause | Starts/stops playback of selected track |
+| `Enter` | Load Deck | Loads selected track into player deck |
+| `Ctrl + T` | Mp3tag Space | Opens dedicated Mp3tag spreadsheet workbench |
+| `Ctrl + E` | Batch Tags | Opens quick tag editor dialog |
+| `Ctrl + R` | Reconcile | Opens multi-source metadata reconciliation matrix |
+| `Ctrl + Q` | Audio Quality | Opens EBU R128 loudness and clipping diagnostics |
+| `Ctrl + Shift + S`| Find Similars | Finds acoustically matching tracks locally and online |
+| `Ctrl + S` | Smart Organizer | Opens disk reorganization and physical dispatch tool |
+| `Ctrl + L` | Live Log Console | Toggles system live log stream dock |
+| `Ctrl + ,` | Settings | Opens system preferences modal |
+| `Alt + 1` .. `Alt + 6` | View Switching | Quickly switches between top navbar modules |
 
 ---
 
-## 📦 Releases & Downloads
+## 📦 Official Releases & Downloads
 
-Pre-built binaries and standalone portable packages are generated automatically on every release via GitHub Actions:
+Ready-to-use binaries are built on every GitHub tag via automated GitHub Actions:
 
-| Platform | Format | Description |
+| Platform | Release Artifact | Description |
 |---|---|---|
-| **Windows 10/11 x64** | `Musicat-Setup-Windows-x64.exe` | Dual-mode Inno Setup installer (Standard or Portable) |
-| **Windows 10/11 x64** | `Musicat-Windows-Portable.zip` | Standalone zero-install portable folder (`portable.lock`) |
-| **macOS Universal** | `Musicat-macOS.dmg` | Native styled DMG with Drag & Drop to `/Applications` |
-| **macOS Universal** | `Musicat-macOS-Portable.zip` | Standalone portable bundle for external APFS/HFS+ SSDs |
+| **Windows 10/11 x64** | `Musicat-Setup-Windows-x64.exe` | Inno Setup Dual-Mode Installer (Standard or Portable) |
+| **Windows 10/11 x64** | `Musicat-Windows-Portable.zip` | Standalone portable archive with `portable.lock` |
+| **macOS Universal** | `Musicat-macOS.dmg` | Native Drag & Drop Applications installer DMG |
+| **macOS Universal** | `Musicat-macOS-Portable.zip` | Standalone portable archive for APFS/HFS+ external SSDs |
 
-👉 **[Download Latest Release (v1.0.0)](https://github.com/IlRed89/Musicat/releases)**
+👉 **[Download the Latest Official Release (v1.0.0)](https://github.com/IlRed89/Musicat/releases)**
 
 ---
 
-## 🛠️ Building From Source
+## 🛠️ Building from Source
 
 ### Prerequisites
 - Python 3.11, 3.12, or 3.13 (64-bit)
 - `git`
-- libVLC (or VLC Media Player installed on system)
-- (Windows only, optional) Inno Setup 6.2+ for compiling the installer
+- libVLC (or VLC Media Player installed)
+- (Optional on Windows) Inno Setup 6.2+ for installer compilation
 
-### Setup Steps
+### Instructions
 
 ```bash
 # 1. Clone repository
 git clone https://github.com/IlRed89/Musicat.git
 cd Musicat
 
-# 2. Create virtual environment
+# 2. Create and activate virtual environment
 python -m venv venv
-# On Windows:
+# Windows:
 .\venv\Scripts\activate
-# On macOS / Linux:
+# macOS / Linux:
 source venv/bin/activate
 
 # 3. Install dependencies
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
-# 4. Run full test suite (124+ unit tests)
+# 4. Run full test suite (130 tests)
 python -m unittest discover tests -v
 
 # 5. Launch application
 python main.py
 ```
 
-### Compiling Standalone Executables
+### Local Standalone Builds
 
 ```bash
 # Windows Standalone Executable
 pyinstaller --clean build_windows.spec
 
-# Windows Portable Bundle Batch Script
+# Windows Portable Package (Batch script)
 .\build\build_portable.bat
 
-# macOS Application Bundle & DMG
+# macOS App & DMG Creation
 pyinstaller --clean build_mac.spec
 ./build/build_mac_dmg.sh
 ```
 
 ---
 
-## 📄 License & Attribution
+## 📄 License
 
-Musicat is distributed under the open-source **MIT License**.  
-See [LICENSE](LICENSE) for full legal text.
-
-Developed for the global DJ and music collector community. Contributions, feature requests, and pull requests are welcomed!
+Musicat is open-source software licensed under the **MIT** License.  
+See [LICENSE](LICENSE) for full details.

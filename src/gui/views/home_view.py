@@ -33,12 +33,46 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import requests
 from src.core.db import Database
 from src.core.spotify_trends import (
     TREND_CATEGORIES,
     SpotifyTrendsManager,
     TrendingTrack,
 )
+
+
+class AsyncThumbnailLoader(QThread):
+    """Asynchronously loads cover art thumbnails with in-memory caching."""
+
+    loaded = Signal(str, QPixmap)  # url, pixmap
+    _cache: Dict[str, QPixmap] = {}
+
+    def __init__(self, url: str) -> None:
+        super().__init__()
+        self.url = url
+
+    def run(self) -> None:
+        if not self.url:
+            return
+        if self.url in self._cache:
+            self.loaded.emit(self.url, self._cache[self.url])
+            return
+
+        pix = QPixmap()
+        try:
+            if self.url.startswith("http://") or self.url.startswith("https://"):
+                resp = requests.get(self.url, timeout=3.5)
+                if resp.status_code == 200:
+                    pix.loadFromData(resp.content)
+            elif os.path.exists(self.url):
+                pix.load(self.url)
+        except Exception:
+            pass
+
+        if not pix.isNull():
+            self._cache[self.url] = pix
+            self.loaded.emit(self.url, pix)
 
 
 class TrendsFetchWorker(QThread):
@@ -64,7 +98,7 @@ class TrendsFetchWorker(QThread):
         try:
             tracks = self.trends_manager.fetch_category_trends(
                 category_id=self.category_id,
-                limit=35,
+                limit=100,
                 db=self.db,
                 force_refresh=self.force_refresh,
             )
@@ -94,8 +128,20 @@ class TrendingTrackCard(QFrame):
                 background-color: #1c1f2c;
             }
         """)
-
         self._init_ui()
+        if self.track.cover_url:
+            self._thumb_loader = AsyncThumbnailLoader(self.track.cover_url)
+            self._thumb_loader.loaded.connect(self._on_thumbnail_loaded)
+            self._thumb_loader.start()
+
+    def _on_thumbnail_loaded(self, url: str, pixmap: QPixmap) -> None:
+        if url == self.track.cover_url and not pixmap.isNull():
+            scaled = pixmap.scaled(
+                190, 140,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.lbl_cover.setPixmap(scaled)
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -453,12 +499,22 @@ class HomeTrendsView(QWidget):
             f"Fonte: {auth_note}"
         )
 
-        columns = 5  # 5 cards per row
+        viewport_w = self.scroll.viewport().width()
+        columns = max(3, min(8, viewport_w // 225)) if viewport_w > 200 else 5
+        self._last_cols = columns
         for idx, t in enumerate(tracks):
             card = TrendingTrackCard(t, self.cards_container)
             card.play_requested.connect(self.play_track_requested.emit)
             card.find_similar_requested.connect(self.find_similar_requested.emit)
             self.cards_layout.addWidget(card, idx // columns, idx % columns)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self.current_tracks:
+            viewport_w = self.scroll.viewport().width()
+            new_cols = max(3, min(8, viewport_w // 225)) if viewport_w > 200 else 5
+            if getattr(self, "_last_cols", 0) != new_cols:
+                self._render_cards(self.current_tracks)
 
     def refresh_library_status(self) -> None:
         """Re-evaluates whether displayed tracks exist in the local database library."""

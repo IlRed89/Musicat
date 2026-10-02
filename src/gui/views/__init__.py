@@ -6,6 +6,7 @@ from .quality_view import QualityDiagnosisDialog, LoudnessMeterBar, BatchQuality
 from .home_view import HomeTrendsView
 from .similar_dialog import SimilarTracksDialog, SimilarSearchWorker
 from .library_view import BreadcrumbBar
+from .crates_view import SmartCratesView
 
 __all__ = [
     "QualityDiagnosisDialog",
@@ -15,4 +16,5 @@ __all__ = [
     "SimilarTracksDialog",
     "SimilarSearchWorker",
     "BreadcrumbBar",
+    "SmartCratesView",
 ]

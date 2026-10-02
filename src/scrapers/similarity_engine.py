@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -303,8 +304,10 @@ class SimilarityScraper:
         url = "https://www.chosic.com/api/tools/search-recommendations"
         params = {"q": query_str, "type": "track"}
 
+        t0 = time.perf_counter()
         try:
             resp = requests.get(url, params=params, headers=cls.HEADERS, timeout=3.5)
+            latency_ms = (time.perf_counter() - t0) * 1000.0
             if resp.status_code == 200:
                 data = resp.json()
                 tracks = data.get("tracks") or data.get("recommendations") or []
@@ -331,8 +334,34 @@ class SimilarityScraper:
                             preview_url=preview,
                         )
                         recommendations.append(recs)
-        except Exception:
-            pass
+                MusicatLogger.log_http(
+                    source="Similarity:Chosic",
+                    url=url,
+                    status_code=resp.status_code,
+                    latency_ms=latency_ms,
+                    params=params,
+                    results_count=len(recommendations),
+                )
+            else:
+                MusicatLogger.log_http(
+                    source="Similarity:Chosic",
+                    url=url,
+                    status_code=resp.status_code,
+                    latency_ms=latency_ms,
+                    params=params,
+                    results_count=0,
+                )
+        except Exception as exc:
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Similarity:Chosic",
+                url=url,
+                status_code=0,
+                latency_ms=latency_ms,
+                params=params,
+                results_count=0,
+                error=str(exc),
+            )
 
         return recommendations
 

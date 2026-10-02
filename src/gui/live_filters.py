@@ -358,19 +358,6 @@ class LiveFilterBar(QFrame):
         self._debounce_timer.setInterval(80)  # 80ms live typing debounce
         self._debounce_timer.timeout.connect(self._emit_filter_changed)
 
-        self.setStyleSheet("""
-            LiveFilterBar {
-                background-color: #14161e;
-                border-bottom: 2px solid #232738;
-                padding: 4px;
-            }
-            QLabel {
-                color: #94a3b8;
-                font-size: 11px;
-                font-weight: 600;
-            }
-        """)
-
         self._init_ui()
         self._connect_signals()
         self._retranslate_ui()
@@ -403,17 +390,21 @@ class LiveFilterBar(QFrame):
         # 2. Multi-Genre Selector (Ctrl+G)
         self.genre_widget = GenreMultiSelectWidget(self.db, self)
 
-        # 3. BPM Range & Target Tolerance (Ctrl+B)
+        # 3. BPM Range & Target Tolerance (Ctrl+B) - Elastic, non-truncated layout
         bpm_box = QHBoxLayout()
-        bpm_box.setSpacing(4)
+        bpm_box.setSpacing(5)
         self.lbl_bpm = QLabel("BPM:")
+        self.lbl_bpm.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 11px;")
 
+        self.lbl_bpm_target = QLabel("Target:")
+        self.lbl_bpm_target.setStyleSheet("color: #94a3b8; font-size: 10px;")
         self.spin_target_bpm = QDoubleSpinBox()
         self.spin_target_bpm.setRange(0, 250)
+        self.spin_target_bpm.setDecimals(1)
         self.spin_target_bpm.setValue(0)
         self.spin_target_bpm.setSpecialValueText("Target")
-        self.spin_target_bpm.setToolTip("Target Deck BPM (e.g. 126)")
-        self.spin_target_bpm.setFixedWidth(68)
+        self.spin_target_bpm.setToolTip("Target Deck BPM (es. 126.0)")
+        self.spin_target_bpm.setMinimumWidth(75)
 
         self.cmb_bpm_tolerance = QComboBox()
         self.cmb_bpm_tolerance.addItem("±2%", 2.0)
@@ -422,26 +413,41 @@ class LiveFilterBar(QFrame):
         self.cmb_bpm_tolerance.addItem("±8%", 8.0)
         self.cmb_bpm_tolerance.setCurrentIndex(1)  # ±4% default
         self.cmb_bpm_tolerance.setToolTip("BPM Pitch Tolerance")
-        self.cmb_bpm_tolerance.setFixedWidth(64)
+        self.cmb_bpm_tolerance.setMinimumWidth(62)
 
+        self.lbl_bpm_or = QLabel("o")
+        self.lbl_bpm_or.setStyleSheet("color: #64748b; font-size: 10px;")
+
+        self.lbl_bpm_min = QLabel("Min:")
+        self.lbl_bpm_min.setStyleSheet("color: #94a3b8; font-size: 10px;")
         self.spin_bpm_min = QDoubleSpinBox()
         self.spin_bpm_min.setRange(0, 250)
+        self.spin_bpm_min.setDecimals(1)
         self.spin_bpm_min.setValue(0)
         self.spin_bpm_min.setSpecialValueText("Min")
-        self.spin_bpm_min.setFixedWidth(64)
+        self.spin_bpm_min.setMinimumWidth(68)
 
+        self.lbl_bpm_dash = QLabel("-")
+        self.lbl_bpm_dash.setStyleSheet("color: #64748b; font-size: 10px;")
+
+        self.lbl_bpm_max = QLabel("Max:")
+        self.lbl_bpm_max.setStyleSheet("color: #94a3b8; font-size: 10px;")
         self.spin_bpm_max = QDoubleSpinBox()
         self.spin_bpm_max.setRange(0, 250)
+        self.spin_bpm_max.setDecimals(1)
         self.spin_bpm_max.setValue(0)
         self.spin_bpm_max.setSpecialValueText("Max")
-        self.spin_bpm_max.setFixedWidth(64)
+        self.spin_bpm_max.setMinimumWidth(68)
 
         bpm_box.addWidget(self.lbl_bpm)
+        bpm_box.addWidget(self.lbl_bpm_target)
         bpm_box.addWidget(self.spin_target_bpm)
         bpm_box.addWidget(self.cmb_bpm_tolerance)
-        bpm_box.addWidget(QLabel("or"))
+        bpm_box.addWidget(self.lbl_bpm_or)
+        bpm_box.addWidget(self.lbl_bpm_min)
         bpm_box.addWidget(self.spin_bpm_min)
-        bpm_box.addWidget(QLabel("-"))
+        bpm_box.addWidget(self.lbl_bpm_dash)
+        bpm_box.addWidget(self.lbl_bpm_max)
         bpm_box.addWidget(self.spin_bpm_max)
 
         # 4. Harmonic Mixing Assistant (Camelot Wheel Matching) (Ctrl+K)
@@ -486,7 +492,7 @@ class LiveFilterBar(QFrame):
         main_layout.addLayout(row1)
 
         # -------------------------------------------------------------
-        # ROW 2: ADVANCED FILTERING (Decades, Energy, Ratings, Tags, Smart Crates)
+        # ROW 2: ADVANCED FILTERING (Decades, Audio Quality, Tags, Smart Crates)
         # -------------------------------------------------------------
         row2 = QHBoxLayout()
         row2.setSpacing(10)
@@ -505,32 +511,6 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.setFixedWidth(135)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
-
-        # Energy Level Selector
-        energy_box = QHBoxLayout()
-        energy_box.setSpacing(4)
-        self.lbl_energy = QLabel("Energy:")
-        self.cmb_energy = QComboBox()
-        self.cmb_energy.addItem("⚡ Any Energy", [])
-        self.cmb_energy.addItem("⚡ Low Warmup (1-2)", [1, 2])
-        self.cmb_energy.addItem("⚡ Mid Building (3)", [3])
-        self.cmb_energy.addItem("⚡ Peak Time (4-5)", [4, 5])
-        self.cmb_energy.setFixedWidth(125)
-        energy_box.addWidget(self.lbl_energy)
-        energy_box.addWidget(self.cmb_energy)
-
-        # Rating Filter
-        rating_box = QHBoxLayout()
-        rating_box.setSpacing(4)
-        self.lbl_rating = QLabel("Rating:")
-        self.cmb_rating = QComboBox()
-        self.cmb_rating.addItem("⭐ Any", None)
-        self.cmb_rating.addItem("3★ & Above", 3)
-        self.cmb_rating.addItem("4★ & Above", 4)
-        self.cmb_rating.addItem("5★ Elite", 5)
-        self.cmb_rating.setFixedWidth(90)
-        rating_box.addWidget(self.lbl_rating)
-        rating_box.addWidget(self.cmb_rating)
 
         # Audio Quality / Diagnostics Filter
         quality_box = QHBoxLayout()
@@ -614,12 +594,9 @@ class LiveFilterBar(QFrame):
         row2.addLayout(folder_box)
         row2.addLayout(cover_box)
         row2.addLayout(year_box)
-        row2.addLayout(energy_box)
-        row2.addLayout(rating_box)
         row2.addLayout(quality_box)
         row2.addLayout(tags_box)
         row2.addStretch()
-        row2.addLayout(crate_box)
         main_layout.addLayout(row2)
 
     def _retranslate_ui(self) -> None:
@@ -633,21 +610,17 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_min.setSpecialValueText(_t("filter_min_bpm", "Min"))
         self.spin_bpm_max.setSpecialValueText(_t("filter_max_bpm", "Max"))
         self.lbl_bpm.setText(_t("filter_bpm", "BPM:"))
+        self.lbl_bpm_target.setText(_t("filter_target_label", "Target:"))
+        self.lbl_bpm_min.setText(_t("filter_min_label", "Min:"))
+        self.lbl_bpm_max.setText(_t("filter_max_label", "Max:"))
         self.lbl_key.setText(_t("filter_key", "Key:"))
         self.lbl_year.setText(_t("filter_year", "Anno:"))
-        self.lbl_energy.setText(_t("filter_energy", "Energia:"))
-        self.lbl_rating.setText(_t("filter_rating", "Valutazione:"))
         self.lbl_quality.setText(_t("filter_audio", "Audio:"))
         self.lbl_folder.setText(_t("filter_folder", "📁 Cartella:"))
         self.lbl_cover.setText(_t("filter_cover", "🖼️ Cover:"))
 
         self.cmb_camelot.setItemText(0, _t("filter_all_keys", "Tutte le Chiavi"))
         self.cmb_decade.setItemText(0, _t("filter_any_year", "Qualsiasi Anno"))
-        self.cmb_energy.setItemText(0, _t("filter_any_energy", "⚡ Qualsiasi Energia"))
-        self.cmb_energy.setItemText(1, _t("filter_warmup", "⚡ Warmup Basso (1-2)"))
-        self.cmb_energy.setItemText(2, _t("filter_building", "⚡ Costruzione Media (3)"))
-        self.cmb_energy.setItemText(3, _t("filter_peak_time", "⚡ Peak Time (4-5)"))
-        self.cmb_rating.setItemText(0, _t("filter_any_rating", "⭐ Tutte"))
         self.cmb_quality.setItemText(0, _t("filter_all_audio", "🔊 Tutto l'Audio"))
         self.cmb_quality.setItemText(1, _t("filter_clipping", "⚠️ Clipping (>0 dBTP)"))
         self.cmb_quality.setItemText(2, _t("filter_low_vol", "🔈 Basso Vol (<-18 LUFS)"))
@@ -677,8 +650,6 @@ class LiveFilterBar(QFrame):
         self.cmb_folder.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_cover.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_decade.currentIndexChanged.connect(self._trigger_debounce)
-        self.cmb_energy.currentIndexChanged.connect(self._trigger_debounce)
-        self.cmb_rating.currentIndexChanged.connect(self._trigger_debounce)
         self.cmb_quality.currentIndexChanged.connect(self._trigger_debounce)
 
     def _trigger_debounce(self) -> None:
@@ -714,8 +685,8 @@ class LiveFilterBar(QFrame):
         harmonic = self.chk_harmonic_only.isChecked()
 
         year_min, year_max = self.cmb_decade.currentData() or (None, None)
-        energy_levels = self.cmb_energy.currentData() or []
-        rating_min = self.cmb_rating.currentData()
+        energy_levels: List[int] = []
+        rating_min = None
         quality_filter = self.cmb_quality.currentData() or None
         folder_path = self.cmb_folder.currentData() or None
         cover_filter = self.cmb_cover.currentData() or None
@@ -826,8 +797,6 @@ class LiveFilterBar(QFrame):
         self.cmb_folder.setCurrentIndex(0)
         self.cmb_cover.setCurrentIndex(0)
         self.cmb_decade.setCurrentIndex(0)
-        self.cmb_energy.setCurrentIndex(0)
-        self.cmb_rating.setCurrentIndex(0)
         self.cmb_quality.setCurrentIndex(0)
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setChecked(False)

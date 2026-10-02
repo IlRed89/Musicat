@@ -48,6 +48,10 @@ class WaveformCanvas(QWidget):
         self._peaks: List[float] = []
         self._position_ratio: float = 0.0  # 0.0 to 1.0
 
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Forces repaint with updated theme palette."""
+        self.update()
+
     def set_peaks(self, peaks: List[float]) -> None:
         """Sets downsampled audio peak envelope points."""
         self._peaks = peaks
@@ -80,16 +84,27 @@ class WaveformCanvas(QWidget):
         h = self.height()
         half_h = h / 2.0
 
+        from ..core.settings import SettingsManager
+        theme = SettingsManager.get_instance().get("ui", "theme", "light")
+        is_light = "light" in (theme or "").lower()
+
+        bg_col = QColor("#f1f3f5") if is_light else QColor("#14161d")
+        line_col = QColor("#dee2e6") if is_light else QColor("#252834")
+        placeholder_col = QColor("#ced4da") if is_light else QColor("#2d3243")
+        played_col = QColor("#0d6efd") if is_light else QColor("#00d2ff")
+        unplayed_col = QColor("#adb5bd") if is_light else QColor("#43495d")
+        cursor_col = QColor("#212529") if is_light else QColor("#ffffff")
+
         # Background
-        painter.fillRect(0, 0, w, h, QColor("#14161d"))
+        painter.fillRect(0, 0, w, h, bg_col)
 
         # Centerline
-        painter.setPen(QPen(QColor("#252834"), 1))
+        painter.setPen(QPen(line_col, 1))
         painter.drawLine(0, int(half_h), w, int(half_h))
 
         if not self._peaks:
             # Subtle placeholder bars
-            painter.setPen(QColor("#2d3243"))
+            painter.setPen(placeholder_col)
             for x in range(0, w, 6):
                 bar_h = 10
                 painter.drawLine(x, int(half_h - bar_h), x, int(half_h + bar_h))
@@ -103,16 +118,16 @@ class WaveformCanvas(QWidget):
             x = i * bar_width
             bar_height = max(2.0, peak * (half_h - 4))
 
-            # Color: Cyan for played portion, Muted Slate for unplayed
+            # Color: Cyan/Blue for played portion, Muted for unplayed
             if x <= played_x:
-                painter.setPen(QColor("#00d2ff"))
+                painter.setPen(played_col)
             else:
-                painter.setPen(QColor("#43495d"))
+                painter.setPen(unplayed_col)
 
             painter.drawLine(int(x), int(half_h - bar_height), int(x), int(half_h + bar_height))
 
         # Playhead cursor
-        painter.setPen(QPen(QColor("#ffffff"), 2))
+        painter.setPen(QPen(cursor_col, 2))
         painter.drawLine(int(played_x), 0, int(played_x), h)
 
 
@@ -126,7 +141,6 @@ class MiniPlayerWidget(QFrame):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setObjectName("MiniPlayer")
-        self.setStyleSheet("QFrame#MiniPlayer { background-color: #171821; border-top: 1px solid #282b3a; }")
 
         # 1. Primary VLC Audio Engine
         self.vlc_player = VLCAudioPlayer()
@@ -161,10 +175,11 @@ class MiniPlayerWidget(QFrame):
 
         self.title_label = QLabel(_t("player_no_track", "Nessuna traccia in riproduzione"))
         self.title_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self.title_label.setStyleSheet("color: #ffffff;")
+        self.title_label.setObjectName("PlayerTrackTitle")
 
         self.artist_label = QLabel(_t("player_select_prompt", "Seleziona una traccia da ascoltare"))
-        self.artist_label.setStyleSheet("color: #8c92a4; font-size: 11px;")
+        self.artist_label.setObjectName("PlayerTrackArtist")
+        self.artist_label.setStyleSheet("font-size: 11px;")
 
         badges_layout = QHBoxLayout()
         badges_layout.setSpacing(6)
@@ -341,6 +356,12 @@ class MiniPlayerWidget(QFrame):
         else:
             self.qt_player.positionChanged.connect(self._on_qt_position_changed)
             self.qt_player.durationChanged.connect(self._on_qt_duration_changed)
+
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Updates internal styling and waveform canvas upon theme change."""
+        if hasattr(self, "waveform_canvas"):
+            self.waveform_canvas.update_theme(theme_id)
+        self.update()
 
     def load_track(self, track: Dict) -> None:
         """Loads and prepares track for playback."""

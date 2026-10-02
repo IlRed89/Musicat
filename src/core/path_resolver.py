@@ -45,6 +45,33 @@ class PathResolver:
         return Path(__file__).resolve().parent.parent.parent
 
     @classmethod
+    def get_resource_path(cls, relative_path: str) -> Path:
+        """Locates bundled or local resources across dev and PyInstaller."""
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            cand = Path(sys._MEIPASS) / relative_path
+            if cand.exists():
+                return cand
+        app_res = cls.get_app_dir() / relative_path
+        if app_res.exists():
+            return app_res
+        root_res = Path(__file__).resolve().parent.parent.parent / relative_path
+        return root_res
+
+    @classmethod
+    def get_icon_path(cls) -> Optional[Path]:
+        """Returns the application icon path (PNG or ICO)."""
+        for name in ["assets/icon.png", "assets/icon.ico"]:
+            p = cls.get_resource_path(name)
+            if p.exists():
+                return p
+        return None
+
+    @classmethod
+    def is_portable(cls) -> bool:
+        """Alias for is_portable_mode."""
+        return cls.is_portable_mode()
+
+    @classmethod
     def is_portable_mode(cls) -> bool:
         """Checks whether Musicat is running in standalone portable mode.
 
@@ -107,6 +134,22 @@ class PathResolver:
 
         standard_dir.mkdir(parents=True, exist_ok=True)
         return standard_dir
+
+    @classmethod
+    def get_logs_dir(cls) -> Path:
+        """Resolves the logs directory based on application operating mode:
+        - Portable mode (portable.lock): adjacent './logs' directory.
+        - Standard mode: '%APPDATA%/Musicat/logs' (Windows) or '~/Library/Application Support/Musicat/logs' (macOS).
+
+        Returns:
+            Path: Guaranteed existing Path directory for log files.
+        """
+        if cls.is_portable_mode():
+            log_dir = cls.get_app_dir() / "logs"
+        else:
+            log_dir = cls.get_data_dir() / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
 
     @classmethod
     def get_volume_serial(cls, drive_or_path: str) -> Optional[str]:

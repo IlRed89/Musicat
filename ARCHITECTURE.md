@@ -1,7 +1,7 @@
 # 🏛️ Musicat Architecture & Technical Specification
 
-> **Technical Architecture, Data Models, Multiprocessing Pipeline & Cross-Platform Engine Documentation**  
-> *Documentazione Tecnica dell'Architettura, Modelli Dati, Pipeline Multiprocesso e Motore Multipiattaforma.*
+> **Technical Architecture, Data Models, Multiprocessing Pipeline, Logging Subsystem & Cross-Platform Engine Documentation**  
+> *Documentazione Tecnica dell'Architettura, Modelli Dati, Pipeline Multiprocesso, Sottosistema di Logging e Motore Multipiattaforma.*
 
 ---
 
@@ -9,34 +9,44 @@
 
 ```mermaid
 graph TD
-    UI[PySide6 Dark DJ Interface] --> Controller[Application Controller & Main View]
+    UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode] --> Navbar[Clean Top Navbar<br/>Analysis Home / Library / Tag Editor / Smart Crates / Similars / Organize / Settings]
     
-    Controller --> FilterBar[Live DJ Filter Bar <15ms]
-    Controller --> Mp3tag[Mp3tag Dedicated Workbench]
-    Controller --> Player[libVLC Mini-Player Deck]
-    Controller --> HomeView[Spotify Trends & Similars]
-    
+    Navbar --> AnalysisHome[Analysis / Home View<br/>Spotify Trends & Quality Diagnostics]
+    Navbar --> DJLibrary[DJ Library View<br/>RAM-Cached Table & Waveform Deck]
+    Navbar --> Mp3tag[Dedicated Mp3tag Spreadsheet Workbench]
+    Navbar --> CratesBench[Dedicated Smart Crates Workbench]
+    Navbar --> Similars[Cosine Similarity Engine & Web Discovery]
+    Navbar --> Organize[Physical File Organizer & Dispatcher]
+    Navbar --> Settings[Modular Settings Dialog]
+
+    DJLibrary --> FilterBar[Live DJ Filter Bar <15ms]
     FilterBar --> FilterEngine[LiveFilterEngine + In-Memory RAM Index]
-    FilterEngine --> SearchFactory[SearchEngine Factory]
-    
-    SearchFactory --> Everything[Win: Everything64.dll IPC]
+    FilterEngine --> SearchFactory[Unified Search Engine Factory]
+
+    SearchFactory --> Everything[Windows: Everything64.dll IPC]
     SearchFactory --> Spotlight[macOS: Spotlight mdfind]
     SearchFactory --> SQLiteFTS[Fallback: SQLite FTS5]
-    
-    Controller --> TagEditor[AudioTagEditor Mutagen]
-    Controller --> Reconciler[Metadata Reconciler]
+
+    DJLibrary --> Player[libVLC Mini-Player Deck with +/-8% Pitch]
+
+    Mp3tag --> TagEditor[AudioTagEditor Mutagen]
+    TagEditor --> Reconciler[Metadata Reconciler]
     Reconciler --> Scrapers[Beatport / Discogs / MusicBrainz / Traxsource / HD Artwork]
-    
-    Controller --> ParallelDSP[Parallel Acoustic Analyzer]
+
+    AnalysisHome --> ParallelDSP[Parallel Acoustic Analyzer]
     ParallelDSP --> WorkerPool[ProcessPoolExecutor CPU Saturation]
     WorkerPool --> AudioDSP[BPM Autocorrelation & Camelot Chromagram]
     AudioDSP --> RAMCache[L1 AnalysisMemoryCache :memory:]
     RAMCache --> DiskDB[(SQLite WAL Database)]
-    
-    Controller --> QualityPlugin[Audio Quality & Loudnorm Plugin]
-    QualityPlugin --> EBUR128[EBU R128 / True Peak 4x / FFmpeg]
-    
-    Controller --> I18nBus[I18n Localization Bus IT/EN]
+
+    AnalysisHome --> QualityPlugin[Audio Quality & Loudnorm Plugin]
+    QualityPlugin --> EBUR128[EBU R128 / True Peak 4x Sinc / FFmpeg loudnorm]
+
+    UI --> LoggerSubsys[Structured Logging Subsystem<br/>ZipRotatingFileHandler 20MB & Support Bundle]
+    LoggerSubsys --> GuiLog[Thread-Safe GuiLogHandler & Live Dock]
+    LoggerSubsys --> LogZipArchive[(Compressed .zip Logs 1..10)]
+
+    UI --> I18nBus[I18n Localization Bus IT/EN]
     I18nBus --> Locales[locales/*.json]
 ```
 
@@ -44,20 +54,68 @@ graph TD
 
 ## 2. Subsystem Breakdown / Componenti del Sistema
 
-### A. Core & Storage Layer (`src/core/`)
+### A. User Interface & Navigation Layer (`src/gui/`)
+- **Default Light Theme:**
+  - Standard enterprise styling based on high-contrast clean backgrounds (`#FFFFFF` / `#F8F9FA`), dark grey typography (`#212529`), soft borders (`#DEE2E6`), and electric blue accents (`#0D6EFD`).
+  - Dark Theme toggle available via Settings dialog without restarting.
+- **Top Bar Modular Navbar:**
+  - Minimal layout containing direct access buttons to all main functional modules:
+    `[Analisi / Home]`, `[Libreria]`, `[Tag Editor (Mp3tag)]`, `[Smart Crates]`, `[Trova Simili]`, `[Organizza File]`, `[Impostazioni]`.
+  - Elimination of fragmented shortcut icons or partial buttons.
+- **Dedicated Smart Crates Workbench (`src/gui/views/crates_view.py`):**
+  - Independent full-screen view for managing dynamic crates and generating Pioneer CDJ/Rekordbox-compatible extended `.m3u8` playlists.
+- **Startup Sequence:**
+  - Applications initializes into the **Analysis / Home** view as the default landing view.
+
+---
+
+### B. Core & Storage Layer (`src/core/`)
 - **`Database` (`src/core/db.py`):**
   - Thread-safe SQLite engine with WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and 64MB cache size.
   - Virtual full-text indexing via SQLite **FTS5** table (`tracks_fts`) synchronized with insert/update/delete triggers.
   - Tables: `tracks`, `tags`, `directories`, `smart_crates`, `audio_quality`, `analysis_cache`.
 - **`PathResolver` (`src/core/path_resolver.py`):**
   - Resolves Volume Serial Numbers (`[VOL:XXXXXXXX]`) on Windows and mount points (`/Volumes/<Name>`) on macOS.
-  - Detects `portable.lock`: in portable mode, diverts all database, configuration, and log writes to the local `./musicat_data/` directory.
+  - Detects `portable.lock`: in portable mode, diverts all database, configuration, and log writes to the local `./musicat_data/` and `./logs/` directory.
 - **`SettingsManager` (`src/core/settings.py`):**
   - Manages atomic JSON preferences (`config.json`) with modular sections (`ui`, `audio`, `performance`, `scrapers`, `plugins`).
 
 ---
 
-### B. Fast Search & Hardware Indexing (`src/core/search_factory.py`)
+### C. Structured Logging & Diagnostics Subsystem (`src/core/logger.py`)
+
+Musicat incorporates an enterprise logging suite designed specifically for external customer troubleshooting and field diagnostics:
+
+```mermaid
+flowchart LR
+    Subsystems[Scanners / DSP / Tags / Scrapers / Player] --> DomainLoggers[Granular Domain Loggers<br/>log_scan, log_audio_engine, log_tag_edit, log_http, log_file_op]
+    DomainLoggers --> CoreLogger[MusicatLogger]
+    CoreLogger --> ZipRotator[ZipRotatingFileHandler<br/>20MB File Limit -> Compress to .zip<br/>Retain last 10 archives]
+    CoreLogger --> GuiHandler[Thread-Safe GuiLogHandler]
+    GuiHandler --> LiveDock[Live Log Console Dock]
+    CoreLogger --> ExportEngine[export_support_bundle()]
+    ExportEngine --> SupportZip[Diagnostic Support Bundle .zip<br/>Logs + Hardware Metrics + DB Stats + Sanitized Config]
+```
+
+1. **`ZipRotatingFileHandler`:**
+   - Limits active log file to **20 MB**.
+   - Upon rotation, compresses previous log files using `zipfile.ZIP_DEFLATED` into `musicat.log.1.zip`, `musicat.log.2.zip`, etc.
+   - Retains the last **10 archives**, deleting older zip archives automatically.
+2. **Adaptive File Location:**
+   - In Portable Mode (`portable.lock`): `./logs/` adjacent to the executable.
+   - In Standard Mode: `%APPDATA%\Musicat\logs` on Windows or `~/Library/Application Support/Musicat/logs` on macOS.
+3. **Granular Domain Helpers:**
+   - `MusicatLogger.log_scan(...)`: Directory indexing, file counts, errors, and timing.
+   - `MusicatLogger.log_audio_engine(...)`: libVLC audio actions, pitch bends, buffer underruns.
+   - `MusicatLogger.log_tag_edit(...)`: Mutagen operations with pre/post JSON dumps, diffs, and corrupted ID3 header interception.
+   - `MusicatLogger.log_http(...)`: Scraper requests with URL, parameters, HTTP status code, and latency in milliseconds.
+   - `MusicatLogger.log_file_op(...)`: File operations with `SRC -> DEST` and collision handling (`RENAME`, `OVERWRITE`, `SKIP`).
+4. **Diagnostic Support Bundle:**
+   - One-click export generates an anonymized `.zip` archive containing hardware metrics, SQLite database integrity stats, sanitized configuration, and recent logs.
+
+---
+
+### D. Fast Search & Hardware Indexing (`src/core/search_factory.py`)
 Musicat employs a three-tier fast indexing strategy tailored per operating system:
 
 | Layer | Windows | macOS | Fallback / Linux |
@@ -68,7 +126,7 @@ Musicat employs a three-tier fast indexing strategy tailored per operating syste
 
 ---
 
-### C. Parallel Acoustic DSP Engine (`src/audio/`)
+### E. Parallel Acoustic DSP Engine (`src/audio/`)
 Audio feature extraction is heavily CPU-bound in Python:
 
 1. **`ProcessPoolExecutor` Worker Pool:** Dynamically scales to `max(1, os.cpu_count() - 1)` worker processes to bypass the GIL (Global Interpreter Lock).
@@ -82,18 +140,18 @@ Audio feature extraction is heavily CPU-bound in Python:
 
 ---
 
-### D. Audio Quality & EBU R128 Normalizer Plugin (`src/plugins/quality_analyzer/`)
+### F. Audio Quality & EBU R128 Normalizer Plugin (`src/plugins/quality_analyzer/`)
 Adheres strictly to ITU-R BS.1770-4 and EBU R128 specifications:
-- **Integrated Loudness (LUFS):** Perceived total track loudness.
-- **True Peak (dBTP):** 4x oversampled sinc interpolation to intercept inter-sample peaks that clip Digital-to-Analog Converters (DAC).
-- **Loudness Range (LRA):** Escursione dinamica in LU.
+- **Integrated Loudness (LUFS):** Perceived total track loudness using dual-stage K-weighting pre-filters (high-shelf + RLB) and relative gating.
+- **True Peak (dBTP):** 4x oversampled sinc/FIR polyphase interpolation catching inter-sample peaks that clip Digital-to-Analog Converters (DAC).
+- **Loudness Range (LRA):** Dynamic span in LU computed across 3-second overlapping windows (EBU Tech 3342).
 - **Dynamic Correction Engine:**
-  - *Tag mode:* Writes ReplayGain tags into file tags.
+  - *Tag mode:* Writes ReplayGain tags into file tags (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
   - *Physical re-encode mode:* Executes FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP ceiling).
 
 ---
 
-### E. Internationalization Engine (`src/core/i18n.py`)
+### G. Internationalization Engine (`src/core/i18n.py`)
 - Thread-safe singleton `I18n` with Qt signal `language_changed(str)`.
 - **Zero-restart hot switching:** Table column headers, filter bar text, player labels, context menus, and settings dialog re-render instantly upon receiving `language_changed`.
 - Dual-tier dictionary loading: embedded in-code dictionary guarantees zero crash if files are missing; external JSON (`locales/it.json`, `locales/en.json`) enables user extensibility.
@@ -134,6 +192,26 @@ CREATE TABLE IF NOT EXISTS tags (
     energy_level INTEGER,
     comment TEXT,
     has_cover INTEGER DEFAULT 0,
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS smart_crates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    rules_json TEXT NOT NULL,
+    created_at REAL,
+    updated_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS audio_quality (
+    track_id INTEGER PRIMARY KEY,
+    integrated_lufs REAL,
+    true_peak_dbtp REAL,
+    loudness_range_lra REAL,
+    has_clipping INTEGER,
+    is_low_volume INTEGER,
+    is_brickwall INTEGER,
+    status TEXT,
     FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 

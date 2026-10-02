@@ -44,8 +44,11 @@ class Database:
     def close(self) -> None:
         """Forces SQLite checkpoint and frees locks."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            conn = sqlite3.connect(self.db_path)
+            try:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+            finally:
+                conn.close()
         except Exception:
             pass
 
@@ -538,6 +541,24 @@ class Database:
             else:
                 cur.execute("DELETE FROM smart_crates WHERE name = ?", (str(crate_id_or_name),))
             return cur.rowcount > 0
+
+    def rename_smart_crate(self, crate_id_or_name: Union[int, str], new_name: str) -> bool:
+        """Renames an existing Smart Crate."""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            if isinstance(crate_id_or_name, int) or (isinstance(crate_id_or_name, str) and str(crate_id_or_name).isdigit()):
+                cur.execute("UPDATE smart_crates SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_name.strip(), int(crate_id_or_name)))
+            else:
+                cur.execute("UPDATE smart_crates SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE name = ?", (new_name.strip(), str(crate_id_or_name)))
+            return cur.rowcount > 0
+
+    def duplicate_smart_crate(self, crate_id_or_name: Union[int, str], new_name: Optional[str] = None) -> Optional[int]:
+        """Duplicates an existing Smart Crate with a new name."""
+        row = self.get_smart_crate(crate_id_or_name)
+        if not row:
+            return None
+        target_name = new_name.strip() if new_name else f"{row['name']} (Copia)"
+        return self.save_smart_crate(target_name, row["rules_json"], row.get("icon", "crate"))
 
     def get_distinct_genres(self) -> List[str]:
         """Returns sorted list of distinct non-empty genres for auto-completion."""

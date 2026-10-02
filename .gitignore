@@ -67,7 +67,8 @@ venv/
 build/
 dist/
 Output/
-*.spec
+!build_windows.spec
+!build_mac.spec
 
 # Database locali, log e cache
 *.db

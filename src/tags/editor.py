@@ -378,27 +378,63 @@ class AudioTagEditor:
         except Exception:
             pass
 
+        from ..core.logger import MusicatLogger
+
+        # Pre-modification dump for auditing and diff logging
+        try:
+            pre_meta = cls.read_metadata(path_obj).to_dict()
+        except Exception as e:
+            pre_meta = {}
+            MusicatLogger.warning("TAG:PRE_READ", f"Pre-read metadata failed for '{path_obj.name}' (ID3/Header issue?): {e}")
+
         ext = path_obj.suffix.lower()
+        success = False
 
         if ext == ".mp3":
-            return cls._write_mp3(path_obj, tags_to_write)
+            success = cls._write_mp3(path_obj, tags_to_write)
         elif ext == ".flac":
-            return cls._write_flac(path_obj, tags_to_write)
+            success = cls._write_flac(path_obj, tags_to_write)
         elif ext in (".m4a", ".aac"):
-            return cls._write_mp4(path_obj, tags_to_write)
+            success = cls._write_mp4(path_obj, tags_to_write)
         elif ext == ".wav":
-            return cls._write_wav(path_obj, tags_to_write)
+            success = cls._write_wav(path_obj, tags_to_write)
         elif ext in (".aif", ".aiff"):
-            return cls._write_aiff(path_obj, tags_to_write)
+            success = cls._write_aiff(path_obj, tags_to_write)
         elif ext == ".ogg":
-            return cls._write_ogg(path_obj, tags_to_write)
-        return False
+            success = cls._write_ogg(path_obj, tags_to_write)
+
+        # Post-modification dump and logging
+        if success:
+            try:
+                post_meta = cls.read_metadata(path_obj).to_dict()
+            except Exception:
+                post_meta = {}
+            MusicatLogger.log_tag_edit(
+                str(path_obj),
+                list(tags_to_write.keys()),
+                pre_dump=pre_meta,
+                post_dump=post_meta,
+                success=True,
+            )
+        else:
+            MusicatLogger.log_tag_edit(
+                str(path_obj),
+                list(tags_to_write.keys()),
+                success=False,
+                error="Unsupported format or write handler failure",
+            )
+        return success
 
     @classmethod
     def _write_mp3(cls, path_obj: Path, tags_dict: Dict[str, Any]) -> bool:
+        from ..core.logger import MusicatLogger
         try:
             tags = ID3(str(path_obj))
         except ID3NoHeaderError:
+            MusicatLogger.debug("TAG:ID3", f"File '{path_obj.name}' lacked ID3 header; created fresh ID3v2.3 structure.")
+            tags = ID3()
+        except Exception as e:
+            MusicatLogger.warning("TAG:ID3_ERR", f"ID3 header read error on '{path_obj.name}': {e}. Reinitializing.")
             tags = ID3()
 
         if "title" in tags_dict:

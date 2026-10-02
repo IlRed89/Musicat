@@ -222,7 +222,31 @@ class AcousticQualityAnalyzer:
 
     @classmethod
     def _calculate_true_peak(cls, audio_2d: np.ndarray, sample_rate: int) -> float:
-        """Computes inter-sample True Peak using 4x polyphase resampling per ITU-R BS.1770."""
+        """Computes inter-sample True Peak (dBTP) using 4x polyphase FIR resampling per ITU-R BS.1770-4.
+
+        Standard & Physical Background (ITU-R BS.1770-4 Annex 2):
+        In digital audio PCM, audio samples represent instantaneous points in time.
+        When passing through a digital-to-analog converter (DAC) reconstruction filter,
+        the continuous sinc interpolation between adjacent high-amplitude samples can
+        overshoot above 0.0 dBFS (Inter-Sample Peaks / ISP).
+        This causes analog clipping and harmonic distortion in consumer DACs and radio broadcast chains.
+        To capture these peaks, the audio must be oversampled by at least 4x.
+
+        Algorithmic Steps:
+        1. Multi-Channel Iteration: Evaluates peak amplitudes independently across each channel.
+        2. Windowed Candidate Optimization: For long tracks (> 30s), isolates local windows (256 samples)
+           around peak clusters above -3 dBFS (0.707 linear) to avoid oversampling millions of quiet samples.
+        3. Polyphase FIR Resampling: Applies `scipy.signal.resample_poly(x, up=4, down=1)` implementing
+           an anti-aliasing low-pass filter with sinc-like impulse response.
+        4. True Peak Extraction: Computes `20 * log10(max(|resampled|))` in dBTP.
+
+        Args:
+            audio_2d (np.ndarray): 2D float array of shape (samples, channels) normalized to [-1.0, 1.0].
+            sample_rate (int): Sampling rate in Hz.
+
+        Returns:
+            float: Maximum True Peak level in dBTP (decibels relative to True Peak full scale).
+        """
         if len(audio_2d) == 0:
             return -100.0
 
@@ -230,7 +254,6 @@ class AcousticQualityAnalyzer:
         num_channels = audio_2d.shape[1]
 
         # Process per channel with 4x polyphase interpolation
-        # To optimize speed on large files, calculate on windows with highest sample peaks
         for ch in range(num_channels):
             channel_data = audio_2d[:, ch]
             abs_ch = np.abs(channel_data)
@@ -238,26 +261,28 @@ class AcousticQualityAnalyzer:
             if max_sample < 1e-6:
                 continue
 
-            # If signal is large, resample candidate regions around peaks > -3 dBFS
-            if len(channel_data) > 44100 * 30:  # > 30 seconds
-                threshold = max_sample * 0.707  # -3 dB from peak
+            # Candidate region optimization:
+            # If the audio track is long (> 30s), resample only candidate regions around high peaks
+            if len(channel_data) > 44100 * 30:
+                threshold = max_sample * 0.707  # -3.0 dBFS threshold
                 peak_indices = np.where(abs_ch >= threshold)[0]
                 if len(peak_indices) > 0:
-                    # Extract windows of 256 samples around top peaks
+                    # Extract windows of 256 samples (128 samples before, 128 after each peak)
                     peak_samples = []
-                    for idx in peak_indices[:5000]:  # Cap candidate windows
+                    for idx in peak_indices[:5000]:  # Cap candidate windows for high-speed analysis
                         start = max(0, idx - 128)
                         end = min(len(channel_data), idx + 128)
                         peak_samples.append(channel_data[start:end])
 
                     if peak_samples:
                         sub_signal = np.concatenate(peak_samples)
+                        # 4x polyphase FIR interpolation over peak candidates
                         resampled = scipy.signal.resample_poly(sub_signal, 4, 1)
                         ch_tp = np.max(np.abs(resampled))
                         max_true_peak_lin = max(max_true_peak_lin, ch_tp)
                         continue
 
-            # Standard 4x oversampling for whole channel or short tracks
+            # Standard 4x oversampling for whole channel on short segments
             try:
                 resampled = scipy.signal.resample_poly(channel_data, 4, 1)
                 ch_tp = np.max(np.abs(resampled))
@@ -271,7 +296,21 @@ class AcousticQualityAnalyzer:
 
     @classmethod
     def _detect_flat_top_clipping(cls, audio_2d: np.ndarray, threshold: float = 0.999, consecutive: int = 4) -> int:
-        """Detects consecutive digital samples pinned at full scale (digital brickwall flat-topping)."""
+        """Detects consecutive digital samples pinned at full scale (digital brickwall flat-topping).
+
+        Digital Flat-Top Clipping occurs when an analog-to-digital converter (ADC) or dynamic
+        limiter hits maximum quantization boundaries, flattening the waveform crests into
+        square-like horizontal blocks. Consecutive runs of samples >= 0.999 (-0.008 dBFS)
+        generate harsh odd harmonics.
+
+        Args:
+            audio_2d (np.ndarray): 2D audio array (samples, channels).
+            threshold (float): Linear amplitude threshold for digital clipping. Defaults to 0.999.
+            consecutive (int): Minimum consecutive samples required to register a clip event. Defaults to 4.
+
+        Returns:
+            int: Total count of flat-top clipping incidents found across all audio channels.
+        """
         if len(audio_2d) == 0:
             return 0
 
@@ -282,7 +321,7 @@ class AcousticQualityAnalyzer:
             if not np.any(is_clipped):
                 continue
 
-            # Count consecutive runs of True
+            # Identify contiguous runs of clipped samples using edge detection
             diff = np.diff(np.concatenate(([0], is_clipped.astype(int), [0])))
             run_starts = np.where(diff == 1)[0]
             run_ends = np.where(diff == -1)[0]
@@ -295,7 +334,26 @@ class AcousticQualityAnalyzer:
     def _calculate_loudness_and_lra(
         cls, audio_2d: np.ndarray, sample_rate: int
     ) -> Tuple[float, float]:
-        """Calculates Integrated Loudness (LUFS) and Loudness Range (LRA) using pyloudnorm or native DSP."""
+        """Calculates Integrated Loudness (LUFS) and Loudness Range (LRA) using pyloudnorm or native DSP.
+
+        ITU-R BS.1770-4 & EBU R128 Methodology:
+        1. K-Weighting Filter: A 2-stage pre-filter modeling human ear sensitivity:
+           - Stage 1: Pre-filter (high-shelf at ~1.5 kHz, +4 dB gain) simulating head acoustic diffraction.
+           - Stage 2: Revised Low-frequency B-curve (RLB high-pass filter at ~100 Hz).
+        2. Mean-Square Energy: Channel energy summation with surround weighting.
+        3. Dual-Stage Gating:
+           - Absolute threshold at -70 LUFS (removes silence).
+           - Relative threshold at -10 LU below the absolute gated loudness (removes quiet speech/pauses).
+        4. Loudness Range (LRA, EBU Tech 3342): Difference between the 95th and 10th percentiles
+           of 3-second overlapping short-term loudness blocks.
+
+        Args:
+            audio_2d (np.ndarray): 2D audio array (samples, channels).
+            sample_rate (int): Sampling rate in Hz.
+
+        Returns:
+            Tuple[float, float]: (Integrated Loudness in LUFS, Loudness Range in LU).
+        """
         if len(audio_2d) == 0:
             return -70.0, 0.0
 
@@ -307,7 +365,7 @@ class AcousticQualityAnalyzer:
                 if math.isnan(loudness) or math.isinf(loudness):
                     loudness = -70.0
 
-                # Loudness Range estimation
+                # Loudness Range estimation per EBU Tech 3342
                 lra = cls._estimate_lra(audio_2d, sample_rate, meter)
                 return float(loudness), float(lra)
             except Exception:
@@ -318,8 +376,12 @@ class AcousticQualityAnalyzer:
 
     @classmethod
     def _estimate_lra(cls, audio_2d: np.ndarray, sample_rate: int, meter: Any) -> float:
-        """Estimates Loudness Range (LRA) according to EBU R128 Tech 3342."""
-        # Split audio into 3-second blocks with 66% overlap (1-second step)
+        """Estimates Loudness Range (LRA) according to EBU R128 Tech 3342.
+
+        Uses 3-second sliding integration windows with 66% overlap (1-second step).
+        Filters out low-level audio via relative gating (-20 LU below short-term mean)
+        and computes LRA as the dynamic span (P95 - P10).
+        """
         block_len = int(sample_rate * 3.0)
         hop_len = int(sample_rate * 1.0)
         num_samples = len(audio_2d)
@@ -358,7 +420,7 @@ class AcousticQualityAnalyzer:
         # Stage 1: High-shelf filter (simulating head acoustics)
         # Stage 2: High-pass RLB weighting filter
         try:
-            # Simplified high-pass 100 Hz 2nd order Butterworth
+            # Simplified high-pass 100 Hz 2nd order Butterworth (RLB curve)
             b_hp, a_hp = scipy.signal.butter(2, 100.0 / (sample_rate / 2.0), btype="highpass")
             filtered = scipy.signal.lfilter(b_hp, a_hp, audio_2d, axis=0)
 

@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-10-02
+
+### 🚀 Major UI/UX Polish, Logging Suite, Code Documentation & Architectural Consolidation
+
+#### ⚪ Default Light Theme & Minimalist Navigation
+- **Light Theme Default:** Modern, high-contrast light theme (`#FFFFFF` / `#F8F9FA`, text `#212529`, accents `#0D6EFD`) set as the default on fresh start. Instant hot-switching to Dark Theme preserved in Settings.
+- **Clean Modular Navbar:** Removed ambiguous single-action icons and fragmented header shortcuts. The top navbar now solely houses complete, clearly labeled navigation buttons:
+  - `[Analisi / Home]`
+  - `[Libreria]`
+  - `[Tag Editor (Mp3tag)]`
+  - `[Smart Crates]`
+  - `[Trova Simili]`
+  - `[Organizza File]`
+  - `[Impostazioni]`
+- **Startup Landing View:** Application now launches directly into the **Analysis / Home** view as the default startup screen.
+- **Dedicated Smart Crates Workbench:** Extracted smart crate configuration from compressed main view into an independent, full-screen workbench (`src/gui/views/crates_view.py`) with visual rule builder and extended `.m3u8` playlist export.
+
+#### 📜 Enterprise Logging Suite & Troubleshooting Tools
+- **Zip-Compressed Rotating Handler (`ZipRotatingFileHandler`):**
+  - Enforces a 20 MB file size limit on active log files (`musicat.log`).
+  - Automatically rotates and compresses historical logs into `.zip` archives using `zipfile.ZIP_DEFLATED` (`musicat.log.1.zip`, ..., `musicat.log.10.zip`).
+  - Retains the last 10 compressed archives, automatically purging older files.
+- **Adaptive Log Paths:**
+  - Portable mode (`portable.lock`): `./logs/` adjacent to the executable.
+  - Standard mode: `%APPDATA%\Musicat\logs` on Windows or `~/Library/Application Support/Musicat/logs` on macOS.
+- **Granular Domain Event Loggers (`src/core/logger.py`):**
+  - **`log_scan`:** Tracks folder indexing, total files found, newly inserted, skipped files, and duration in milliseconds.
+  - **`log_audio_engine`:** Records libVLC library initialization, file loads, play/pause/seek events, pitch bends, and decode errors.
+  - **`log_tag_edit`:** Logs Mutagen tag write operations with pre/post JSON dumps, modified field diff inspection, and corrupted ID3 header interception.
+  - **`log_http`:** Measures round-trip HTTP latency via `time.perf_counter()`, records request URLs, search parameters, response status codes, and exception details across Beatport, Spotify, Chosic/Cosine, Discogs, and MusicBrainz.
+  - **`log_file_op`:** Tracks physical file transfers (`SRC -> DEST`), error states, and collision strategies (`RENAME`, `OVERWRITE`, `SKIP`).
+- **Live GUI Log Console:**
+  - Integrated level filter combobox (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
+  - Auto-scroll toggle and instant log clearing.
+  - **"Esporta Log per Assistenza (.zip)"** button producing an all-in-one diagnostic bundle containing logs, anonymized hardware metrics, database health statistics, and sanitized configurations.
+
+#### 🧠 In-Line Algorithmic Documentation & Sphinx/Google Docstrings
+- **Acoustic Analyzer (`src/audio/analyzer.py`):** Comprehensive step-by-step documentation detailing STFT windowing, spectral flux onset autocorrelation, parabolic sub-sample peak interpolation, 12-semitone chromagram binning via continuous MIDI note formulas, and Pearson correlation against Krumhansl-Schmuckler tonality profiles.
+- **Audio Quality Analyzer (`src/plugins/quality_analyzer/analyzer.py`):** Mathematical and physical background on ITU-R BS.1770-4 Annex 2, 4x polyphase FIR resampling for inter-sample True Peak detection, digital flat-top clipping detection, and EBU R128 K-weighting filters with relative gating.
+- **Metadata Reconciler (`src/scrapers/reconciler.py`):** Documented priority hierarchy (Beatport/Traxsource for DJ metadata, Discogs for catalogs, MusicBrainz for ISRCs, Apple Music for HD covers), frequency-based majority voting, and heuristic tie-breakers.
+- **Everything MFT Search (`src/core/everything_search.py`):** Documented Voidtools Everything IPC mechanism via `Everything64.dll`, Win32 `WM_COPYDATA` messages, and ctypes struct/function bindings.
+
+#### 🧪 Verification & Test Suite
+- Full test suite expanded to **130 unit tests**, passing with 100% success rate (`Ran 130 tests in 8.5s OK`).
+
+---
+
 ## [1.0.0] - 2026-10-01
 
 ### 🚀 Initial Public Release
@@ -69,10 +116,6 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
 - **Dynamic Smart Crates & Universal M3U8 Export:** Save and auto-update custom filter combinations into SQLite `smart_crates` and export playlists compatible with Rekordbox, Traktor, Serato, and Engine DJ.
 - **DJ Console Keybindings:** Instant access via `Ctrl+F` (Search), `Ctrl+G` (Genre), `Ctrl+B` (BPM), `Ctrl+K` (Camelot Wheel), `Esc` (Instant Reset), and `Enter` (Deck Load).
 
-#### 📜 Structured Logging & Live Console
-- Multi-level logging (`DEBUG`, `INFO`, `WARNING`, `ERROR`) with automatic 20MB file rotation and gzip (`.gz`) archiving.
-- Live Log console dock (`Ctrl+L`) in the GUI for monitoring background scanner and scraper operations.
-
 #### 🍏 Cross-Platform macOS Support & Multi-OS CI/CD Pipeline
 - **Unified Fast Search Engine (`src/core/search_factory.py`):**
   - **macOS:** Native Spotlight Metadata Services (`mdfind`) APFS driver (`src/core/search_mac.py`) filtering `kMDItemContentTypeTree == 'public.audio'`.
@@ -86,24 +129,7 @@ Welcome to the first official release of **Musicat**, the ultimate desktop music
   - `Musicat-macOS.dmg` (macOS Drag & Drop Applications installer DMG)
   - `Musicat-macOS-Portable.zip` (standalone macOS portable bundle)
 
-#### ⚙️ Settings Architecture, File Management & Mp3tag Workspace
-- **Modular Preferences Dialog (`src/gui/settings_dialog.py`):** Sidebar navigation across 5 categories: UI/Theme, Audio/libVLC, Performance/GPU, Scrapers/Tokens, Plugins.
-- **Physical File Operations (`src/core/file_manager.py`):** OS-level Cut/Copy/Paste operations synchronized automatically with the SQLite library database.
-- **Dedicated Mp3tag Workbench (`src/gui/mp3tag_workspace.py`):** Full-screen table editor for inline cell edits, multi-track batch modification, and album art injection.
-- **Hardware Acceleration Telemetry (`src/core/gpu_detector.py`):** GPU detection badge (NVIDIA CUDA, Apple Metal, AMD ROCm, Direct3D).
-
-#### 🔊 Audio Quality Normalizer, Clipping Detector & Loudnorm Plugin
-- **Plugin Architecture (`src/plugins/quality_analyzer/`):** Extensible plugin architecture with schema discovery and dynamic activation.
-- **Acoustic Standards (ITU-R BS.1770-4 / EBU R128):** Integrated Loudness (LUFS), True Peak (dBTP with 4x oversampling), and Loudness Range (LRA).
-- **Quality Diagnostics Modal (`src/gui/views/quality_view.py`):** Visual loudness meters, clipping warnings, and non-destructive ReplayGain or physical FFmpeg two-pass normalization.
-
-#### 🏠 Smart Recommendations, Spotify Trends Home & Breadcrumb Navigation
-- **Home Dashboard (`src/gui/views/home_view.py`):** Live Spotify trending charts with local 24h caching and instant library ownership check (`✓ In Library` vs `+ Missing`).
-- **Acoustic Similarity Engine (`src/scrapers/similarity_engine.py`):** Cosine similarity lookup via Cosine.club / Chosic / Last.fm with local library matching.
-- **Breadcrumb Path Bar (`BreadcrumbBar`):** Interactive folder breadcrumbs in the mini-player for 1-click filtering of parent folders.
-
-#### 🌐 Bilingual Localization (IT/EN) & Release Pipeline
+#### 🌐 Bilingual Localization (IT/EN)
 - **Localization Engine (`src/core/i18n.py`):** Full Italian (default) and English (secondary) translations loaded from `locales/it.json` and `locales/en.json` with embedded fallback safety.
 - **Hot Language Switching:** Dynamic live retranslation across all widgets without restarting the application.
 - **Bilingual Documentation:** Dual-language comprehensive guides in `README.md` (Italian), `README_EN.md` (English), and `ARCHITECTURE.md`.
-

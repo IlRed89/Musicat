@@ -86,7 +86,9 @@ class MetadataReconciler:
                 if val is not None and str(val).strip() != "":
                     source_vals[src_name] = val
 
-            # Check for conflict: multiple distinct non-empty values
+            # --- Conflict Detection Algorithm ---
+            # Normalizes strings (case-insensitive, whitespace trimmed) and rounds floats
+            # (e.g. BPM within ±0.5 is considered concordant rather than conflicting)
             unique_normalized_vals = set()
             for v in source_vals.values():
                 if isinstance(v, (int, float)):
@@ -97,17 +99,25 @@ class MetadataReconciler:
 
             has_conflict = len(unique_normalized_vals) > 1
 
-            # Determine recommended consensus value:
-            # First check high-priority source, then most frequent value (majority vote)
+            # --- Consensus Recommendation Algorithm ---
+            # 1. Authority Hierarchy Priority:
+            #    Beatport / Traxsource: Gold standard for BPM, Camelot Key, Subgenre, Mix Name.
+            #    Discogs: Gold standard for Catalog Number, Record Label, Vinyl country.
+            #    MusicBrainz: Gold standard for canonical ISRC and release year.
+            #    Apple Music: Gold standard for high-res cover art (up to 3000x3000px).
+            # 2. Majority Vote (Frequency Consensus):
+            #    If no preferred source provided a value, selects the most frequent representation.
+            # 3. Fallback:
+            #    First non-null candidate.
             recommended: Any = None
             if source_vals:
-                # 1. Check priority sources
+                # 1. Check priority sources according to domain authority
                 for p_src in cls.DEFAULT_SOURCE_PRIORITY:
                     if p_src in source_vals:
                         recommended = source_vals[p_src]
                         break
 
-                # 2. If not found in priority sources, pick most common
+                # 2. If not found in priority sources, pick most common via frequency vote
                 if recommended is None:
                     counts = Counter([str(v).strip() for v in source_vals.values() if v])
                     most_common = counts.most_common(1)

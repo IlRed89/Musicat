@@ -546,6 +546,14 @@ class LiveFilterEngine:
         """Deletes a Smart Crate."""
         return self.db.delete_smart_crate(crate_id_or_name)
 
+    def rename_smart_crate(self, crate_id_or_name: Union[int, str], new_name: str) -> bool:
+        """Renames a Smart Crate."""
+        return self.db.rename_smart_crate(crate_id_or_name, new_name)
+
+    def duplicate_smart_crate(self, crate_id_or_name: Union[int, str], new_name: Optional[str] = None) -> Optional[int]:
+        """Duplicates a Smart Crate."""
+        return self.db.duplicate_smart_crate(crate_id_or_name, new_name)
+
     # =========================================================================
     # PLAYLIST EXPORT (M3U / M3U8)
     # =========================================================================

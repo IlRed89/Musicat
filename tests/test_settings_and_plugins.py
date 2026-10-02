@@ -58,7 +58,7 @@ class TestSettingsManager(unittest.TestCase):
         """Settings file should be created with default values."""
         self.assertTrue(self.config_path.exists())
         ui_theme = self.settings.get("ui.theme")
-        self.assertEqual(ui_theme, "dark_dj")
+        self.assertEqual(ui_theme, "light")
         audio_dev = self.settings.get("audio.output_device")
         self.assertEqual(audio_dev.lower(), "default")
         perf_gpu = self.settings.get("performance.gpu_acceleration")
@@ -66,14 +66,14 @@ class TestSettingsManager(unittest.TestCase):
 
     def test_set_and_save_value(self):
         """Updating a setting should persist to disk."""
-        self.settings.set("ui.theme", "light")
+        self.settings.set("ui.theme", "dark_dj")
         self.settings.set("audio.buffer_ms", 150)
-        self.assertEqual(self.settings.get("ui.theme"), "light")
+        self.assertEqual(self.settings.get("ui.theme"), "dark_dj")
         self.assertEqual(self.settings.get("audio.buffer_ms"), 150)
 
         # Reload from disk
         reloaded = SettingsManager(config_path=self.config_path)
-        self.assertEqual(reloaded.get("ui.theme"), "light")
+        self.assertEqual(reloaded.get("ui.theme"), "dark_dj")
         self.assertEqual(reloaded.get("audio.buffer_ms"), 150)
 
     def test_get_fallback_default(self):
@@ -85,7 +85,7 @@ class TestSettingsManager(unittest.TestCase):
         """Reset restores original defaults."""
         self.settings.set("ui.theme", "club_contrast")
         self.settings.reset_to_defaults()
-        self.assertEqual(self.settings.get("ui.theme"), "dark_dj")
+        self.assertEqual(self.settings.get("ui.theme"), "light")
 
 
 class TestPluginSystem(unittest.TestCase):

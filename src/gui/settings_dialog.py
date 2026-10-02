@@ -182,7 +182,7 @@ class SettingsDialog(QDialog):
 
         self.lbl_theme = QLabel("Tema Interfaccia:")
         self.cmb_theme = QComboBox()
-        self.cmb_theme.addItems(["Dark DJ Console (Predefinito)", "High-Contrast Club Booth", "Light Studio Mode"])
+        self.cmb_theme.addItems(["Tema Chiaro (Predefinito)", "Dark DJ Console", "High-Contrast Club Booth"])
         form_theme.addRow(self.lbl_theme, self.cmb_theme)
 
         self.lbl_dpi = QLabel("Scala Display (HiDPI Zoom):")
@@ -356,8 +356,54 @@ class SettingsDialog(QDialog):
         gpu_layout.addWidget(badge_frame)
 
         layout.addWidget(grp_gpu)
+
+        # Troubleshooting & Diagnostic Logs Section
+        grp_logs = QGroupBox("📜 Diagnostica & Log di Sistema")
+        logs_layout = QVBoxLayout(grp_logs)
+        logs_layout.setSpacing(8)
+
+        from src.core.path_resolver import PathResolver
+        lbl_log_path = QLabel(f"<b>Cartella File di Log:</b> {PathResolver.get_logs_dir()}")
+        lbl_log_path.setStyleSheet("color: #64748b; font-size: 11px;")
+        logs_layout.addWidget(lbl_log_path)
+
+        logs_btn_row = QHBoxLayout()
+        btn_open_log_folder = QPushButton("📁 Apri Cartella Log")
+        btn_open_log_folder.clicked.connect(lambda: PathResolver.show_in_file_manager(PathResolver.get_logs_dir()))
+
+        btn_export_diag = QPushButton("📦 Esporta Pacchetto Supporto (.zip)")
+        btn_export_diag.clicked.connect(self._on_export_support_bundle_clicked)
+
+        logs_btn_row.addWidget(btn_open_log_folder)
+        logs_btn_row.addWidget(btn_export_diag)
+        logs_layout.addLayout(logs_btn_row)
+
+        layout.addWidget(grp_logs)
         layout.addStretch()
         return widget
+
+    def _on_export_support_bundle_clicked(self) -> None:
+        from datetime import datetime
+        from src.core.logger import MusicatLogger
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        default_name = f"musicat_support_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        dest_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salva Pacchetto Log per Assistenza",
+            default_name,
+            "ZIP Archives (*.zip)",
+        )
+        if not dest_path:
+            return
+        try:
+            out_file = MusicatLogger.export_support_bundle(destination_zip=dest_path)
+            QMessageBox.information(
+                self,
+                "Log Esportati",
+                f"Il pacchetto di supporto è stato creato con successo:\n{out_file}",
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile creare il pacchetto log:\n{e}")
 
     # -------------------------------------------------------------
     # Category 4: Scrapers & API Keys
@@ -542,10 +588,10 @@ class SettingsDialog(QDialog):
             self.cmb_language.setCurrentIndex(idx)
             self.cmb_language.blockSignals(False)
 
-        theme = self.settings.get("ui", "theme", "dark_dj")
-        if "high" in theme or "contrast" in theme:
+        theme = self.settings.get("ui", "theme", "light")
+        if "dark" in theme:
             self.cmb_theme.setCurrentIndex(1)
-        elif "light" in theme:
+        elif "high" in theme or "contrast" in theme:
             self.cmb_theme.setCurrentIndex(2)
         else:
             self.cmb_theme.setCurrentIndex(0)
@@ -632,8 +678,14 @@ class SettingsDialog(QDialog):
         self._current_saved_lang = lang
         I18n.get_instance().set_language(lang)
 
-        theme_names = ["dark_dj", "high_contrast", "light"]
-        self.settings.set("ui", "theme", theme_names[self.cmb_theme.currentIndex()])
+        theme_names = ["light", "dark_dj", "high_contrast"]
+        chosen_theme = theme_names[self.cmb_theme.currentIndex()]
+        self.settings.set("ui", "theme", chosen_theme)
+        from .styles import get_theme_stylesheet
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(get_theme_stylesheet(chosen_theme))
 
         dpi_vals = ["auto", "100%", "125%", "150%"]
         self.settings.set("ui", "dpi_scale", dpi_vals[self.cmb_dpi.currentIndex()])

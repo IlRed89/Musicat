@@ -6,10 +6,13 @@ Mix Name, Artists, Remixer, Label, Official BPM, Key, Subgenre, Release Date, Hi
 
 import json
 import re
+import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import requests
+
+from src.core.logger import MusicatLogger
 
 
 @dataclass
@@ -75,9 +78,19 @@ class BeatportScraper:
         encoded_q = urllib.parse.quote_plus(query.strip())
         target_url = f"{cls.SEARCH_URL}?q={encoded_q}"
 
+        t0 = time.perf_counter()
         try:
             resp = requests.get(target_url, headers=cls.HEADERS, timeout=10)
+            latency_ms = (time.perf_counter() - t0) * 1000.0
             if resp.status_code != 200:
+                MusicatLogger.log_http(
+                    source="Beatport",
+                    url=target_url,
+                    status_code=resp.status_code,
+                    latency_ms=latency_ms,
+                    params={"query": query},
+                    results_count=0,
+                )
                 return results
 
             html = resp.text
@@ -104,15 +117,40 @@ class BeatportScraper:
                         if track_obj:
                             results.append(track_obj)
                     if results:
+                        MusicatLogger.log_http(
+                            source="Beatport",
+                            url=target_url,
+                            status_code=resp.status_code,
+                            latency_ms=latency_ms,
+                            params={"query": query},
+                            results_count=len(results),
+                        )
                         return results
                 except Exception:
                     pass
 
             # Fallback: HTML Scraping with Regex
             results = cls._parse_beatport_html(html, limit)
+            MusicatLogger.log_http(
+                source="Beatport",
+                url=target_url,
+                status_code=resp.status_code,
+                latency_ms=latency_ms,
+                params={"query": query},
+                results_count=len(results),
+            )
 
-        except Exception:
-            pass
+        except Exception as exc:
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            MusicatLogger.log_http(
+                source="Beatport",
+                url=target_url,
+                status_code=0,
+                latency_ms=latency_ms,
+                params={"query": query},
+                results_count=0,
+                error=str(exc),
+            )
 
         return results
 
