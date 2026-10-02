@@ -1,15 +1,21 @@
-# 🐱🎧 Musicat
+<div align="center">
+  <img src="assets/icon.png" width="128" height="128" alt="Musicat Icon" />
+  <h1>Musicat</h1>
+  <p>
+    <strong>The Universal DJ Music Catalog, Mp3tag-Grade Metadata Workbench &amp; Acoustic Smart Organizer.</strong><br>
+    <em>Engineered specifically for DJs, electronic music collectors, and sound archivists managing massive libraries (50,000+ tracks) across external SSDs and local storage.</em>
+  </p>
+</div>
 
-> **The Universal DJ Music Catalog, Mp3tag-Grade Metadata Workbench & Acoustic Smart Organizer.**  
-> *Engineered specifically for DJs, electronic music collectors, and sound archivists managing massive libraries (50,000+ tracks) across external SSDs and local storage.*
-
-[![Language: English](https://img.shields.io/badge/Language-English-blue.svg)](README_EN.md)
-[![Lingua: Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](README.md)
-[![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg)]()
-[![Test Suite](https://img.shields.io/badge/tests-130%20passing-brightgreen.svg)]()
-[![Repository](https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg)](https://github.com/IlRed89/Musicat)
-[![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
+<p align="center">
+  <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
+  <a href="README.md"><img src="https://img.shields.io/badge/Lingua-Italiano-green.svg" alt="Lingua: Italiano"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/tests-130%20passing-brightgreen.svg" alt="Test Suite">
+  <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="License"></a>
+</p>
 
 ---
 
