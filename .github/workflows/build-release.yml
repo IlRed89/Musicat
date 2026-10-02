@@ -50,7 +50,8 @@ jobs:
 
       - name: Run Unit Tests Validation
         run: |
-          python -m unittest discover tests -v
+          python run_tests.py
+
 
       # --- BUILD WINDOWS ---
       - name: Build Windows Executable & Installer

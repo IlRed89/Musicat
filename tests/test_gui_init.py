@@ -64,17 +64,24 @@ class TestGuiInitialization(unittest.TestCase):
             dlg_quality = QualityDiagnosisDialog("test.mp3", db=db, parent=window)
             self.assertIsNotNone(dlg_quality)
 
-            dlg_similar = SimilarTracksDialog({"title": "T", "artist": "A"}, db, window)
+            dlg_similar = SimilarTracksDialog({"title": "T", "artist": "A"}, db, window, auto_start=False)
             self.assertIsNotNone(dlg_similar)
+            dlg_similar.cleanup()
 
             dlg_camelot = CamelotWheelDialog("8A", window)
             self.assertIsNotNone(dlg_camelot)
 
             # Cleanup Qt widgets to prevent fast-fail on process exit
+            dlg_settings.close()
+            dlg_analysis.close()
+            dlg_quality.close()
+            dlg_similar.close()
+            dlg_camelot.close()
             window.close()
             window.deleteLater()
             self.app.processEvents()
             db.close()
+
 
 
 if __name__ == "__main__":

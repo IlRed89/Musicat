@@ -113,11 +113,13 @@ class SimilarTracksDialog(QDialog):
         reference_track: Dict[str, Any],
         db: Database,
         parent: Optional[QWidget] = None,
+        auto_start: bool = True,
     ) -> None:
         super().__init__(parent)
         self.reference_track = reference_track
         self.db = db
         self.similarity_result: Optional[SimilarityResult] = None
+        self._worker: Optional[SimilarSearchWorker] = None
 
         title = reference_track.get("title") or Path(reference_track.get("filepath", "")).stem
         artist = reference_track.get("artist") or "Unknown Artist"
@@ -171,7 +173,8 @@ class SimilarTracksDialog(QDialog):
         """)
 
         self._init_ui()
-        self._start_search()
+        if auto_start:
+            self._start_search()
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -462,3 +465,16 @@ class SimilarTracksDialog(QDialog):
             "Smart Crate Salvato",
             f"Il crate '{crate_name}' con {len(self.similarity_result.local_similar_tracks)} tracce simili è stato aggiunto alla tua libreria!",
         )
+
+    def cleanup(self) -> None:
+        """Safely stops background worker thread to prevent QThread destruction errors."""
+        if hasattr(self, "_worker") and self._worker:
+            if self._worker.isRunning():
+                self._worker.requestInterruption()
+                self._worker.wait(300)
+
+    def closeEvent(self, event: Any) -> None:
+        """Handles dialog close event, ensuring worker thread termination."""
+        self.cleanup()
+        super().closeEvent(event)
+

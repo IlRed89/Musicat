@@ -1023,6 +1023,8 @@ class MainWindow(QMainWindow):
         self.view_stack.setCurrentIndex(index)
         self._update_nav_button_styles(index)
         if index == 1 and hasattr(self, "home_view"):
+            if hasattr(self.home_view, "ensure_loaded"):
+                self.home_view.ensure_loaded()
             self.home_view.refresh_library_status()
         elif index == 2 and hasattr(self, "crates_view"):
             self.crates_view.refresh_crates()
@@ -1271,3 +1273,19 @@ class MainWindow(QMainWindow):
             self.btn_clear_log.setText(_t("btn_clear_log", "✕ Pulisci"))
         if hasattr(self, "chk_log_autoscroll"):
             self.chk_log_autoscroll.setText(_t("chk_auto_scroll", "Auto-scroll"))
+
+    def cleanup(self) -> None:
+        """Explicitly cleans up child components, stopping threads and audio engine."""
+        if hasattr(self, "home_view") and hasattr(self.home_view, "cleanup"):
+            self.home_view.cleanup()
+        if hasattr(self, "crates_view") and hasattr(self.crates_view, "cleanup"):
+            self.crates_view.cleanup()
+        if hasattr(self, "player_widget") and hasattr(self.player_widget, "cleanup"):
+            self.player_widget.cleanup()
+
+    def closeEvent(self, event: Any) -> None:
+        """Handles application window closing, safely stopping workers and player."""
+        self.cleanup()
+        super().closeEvent(event)
+
+

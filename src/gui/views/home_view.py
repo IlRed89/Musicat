@@ -330,13 +330,14 @@ class HomeTrendsView(QWidget):
     find_similar_requested = Signal(dict)
     navigate_to_library_requested = Signal()
 
-    def __init__(self, db: Database, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, db: Database, parent: Optional[QWidget] = None, auto_load: bool = False) -> None:
         super().__init__(parent)
         self.db = db
         self.trends_manager = SpotifyTrendsManager()
         self.current_category = "dance_electro"
         self.current_tracks: List[TrendingTrack] = []
         self._category_buttons: Dict[str, QPushButton] = {}
+        self._has_loaded = False
 
         self.setStyleSheet("""
             HomeTrendsView {
@@ -348,7 +349,15 @@ class HomeTrendsView(QWidget):
         """)
 
         self._init_ui()
-        self._load_category(self.current_category)
+        if auto_load:
+            self.ensure_loaded()
+
+    def ensure_loaded(self) -> None:
+        """Lazily triggers initial category loading on first view activation."""
+        if not self._has_loaded:
+            self._has_loaded = True
+            self._load_category(self.current_category)
+
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -538,3 +547,16 @@ class HomeTrendsView(QWidget):
             if q in t.title.lower() or q in t.artist.lower() or q in t.album.lower()
         ]
         self._render_cards(filtered)
+
+    def cleanup(self) -> None:
+        """Safely stops background worker thread to prevent QThread destruction errors."""
+        if hasattr(self, "_worker") and self._worker:
+            if self._worker.isRunning():
+                self._worker.requestInterruption()
+                self._worker.wait(300)
+
+    def closeEvent(self, event: Any) -> None:
+        """Handles close event, safely shutting down background workers."""
+        self.cleanup()
+        super().closeEvent(event)
+
