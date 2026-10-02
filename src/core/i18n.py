@@ -313,8 +313,8 @@ def detect_system_language() -> str:
         q_name = QLocale.system().name().lower()
         if q_name.startswith("en"):
             return "en"
-        if q_name.startswith("it"):
-            return "it"
+        if q_name:
+            return DEFAULT_LANGUAGE
     except Exception:
         pass
 
@@ -322,8 +322,8 @@ def detect_system_language() -> str:
         sys_loc = (locale.getlocale()[0] or "").lower()
         if sys_loc.startswith("en"):
             return "en"
-        if sys_loc.startswith("it"):
-            return "it"
+        if sys_loc:
+            return DEFAULT_LANGUAGE
     except Exception:
         pass
 
