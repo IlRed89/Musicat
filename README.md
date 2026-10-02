@@ -12,7 +12,7 @@
   <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Piattaforma">
-  <img src="https://img.shields.io/badge/tests-130%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-132%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository Ufficiale"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licenza-MIT-purple.svg" alt="Licenza"></a>
 </p>
@@ -67,7 +67,9 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 - Creazione, modifica visiva di regole complesse (BPM range, Camelot Key, generi multipli, rating, energia).
 - Generazione dinamica dei crate ed esportazione a 1-click in playlist `.m3u8` estese per Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
 
-### 3. 🎛️ Live DJ Crates & Barra Filtri Rapidi (<15ms di Latenza)
+### 3. 🎛️ Live DJ Crates, Gestione Colonne & Barra Filtri Rapidi (<15ms di Latenza)
+- **Selezione e Personalizzazione Colonne (Tasto Destro):** Facendo clic col tasto destro del mouse su qualsiasi intestazione della tabella libreria, si apre il menu contestuale per mostrare/nascondere le 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`). Include i comandi rapidi *"Mostra Tutte le Colonne"* e *"Ripristina Colonne Predefinite"*, con memorizzazione persistente in `config.json`.
+- **Monitoraggio Hardware di Sistema Reale (Nessun Limite RAM):** Barra di stato con telemetria CPU e memoria fisica totale del computer (es. `RAM: 283 MB / 24 GB`). Essendo un'applicazione a 64-bit, Musicat non impone alcun limite di memoria artificiale e può utilizzare tutta la RAM necessaria.
 - **Selettore Multi-Genere:** Autocomplete istantaneo con selezione multipla e logica `OR` (es. *Tech House* OR *Afro House* OR *Melodic Techno*).
 - **Target BPM & Tolleranze Pitch:** Box numerico con preset a percentuale (`±2%`, `±4%`, `±6%`, `±8%`) ed estremi Min/Max personalizzabili.
 - **Assistente Armonico Ruota Camelot:** Griglia interattiva a 12 colonne (`1A`–`12B`) con indicazione di percorsi armonici:
@@ -195,7 +197,7 @@ Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actio
 | **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
 
-👉 **[Scarica l'Ultima Release Ufficiale (v1.0.0)](https://github.com/IlRed89/Musicat/releases)**
+👉 **[Scarica l'Ultima Release Ufficiale (v1.1.0)](https://github.com/IlRed89/Musicat/releases/tag/v1.1.0)**
 
 ---
 
@@ -225,7 +227,7 @@ source venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
-# 4. Esegui la suite completa di test unitari (130 test)
+# 4. Esegui la suite completa di test unitari (132 test)
 python -m unittest discover tests -v
 
 # 5. Avvia l'applicazione

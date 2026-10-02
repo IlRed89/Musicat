@@ -51,8 +51,15 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Metadata Reconciler (`src/scrapers/reconciler.py`):** Dettagli sulla gerarchia di autorevolezza delle fonti musicali, voto di maggioranza e tie-breaker.
 - **Everything MFT Search (`src/core/everything_search.py`):** Documentazione del meccanismo IPC Windows di Voidtools Everything, messaggi `WM_COPYDATA` e binding `ctypes`.
 
+#### 🎛️ Gestione Colonne Tabella Libreria & Monitoraggio Hardware Reale
+- **Selezione Colonne con Tasto Destro:** Aggiunto menu contestuale sull'intestazione della tabella libreria (`horizontalHeader`) con elenco spuntabile delle 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`).
+- **Persistenza Configurazione Colonne:** Le colonne selezionate vengono memorizzate in `config.json` (`ui.visible_columns` e `ui.custom_columns_active`), preservando la scelta dell'utente a ogni riavvio con pulsanti rapidi "Mostra Tutte" e "Ripristina Predefinite".
+- **Monitoraggio RAM Hardware di Sistema:** Eliminato il divisore fittizio di 2 GB (relativo alla sola cache SQLite); implementata la lettura nativa della RAM complessiva del computer (`GlobalMemoryStatusEx` su Windows, `sysctl` su macOS) che mostra la memoria reale (es. `RAM: 283 MB / 24 GB`) e tooltip esplicativo sull'assenza di limiti nel processo 64-bit.
+- **Fix Tema Chiaro BreadcrumbBar & MiniPlayer:** Risolta l'anomalia della striscia scura sotto al player: la barra del percorso file si adatta istantaneamente al tema attivo (`#f8f9fa` in Light Theme).
+- **Icona Nativa macOS & Taskbar Windows:** Generato `assets/icon.icns` a 10 livelli di risoluzione per PyInstaller su macOS e configurato `AppUserModelID` (`ilred89.musicat.djcataloger.1.0`) per la corretta visualizzazione nella barra delle applicazioni di Windows.
+
 #### 🧪 Suite di Test
-- Suite di test espansa e consolidata a **130 test unitari** eseguiti con successo al 100% (`Ran 130 tests in 8.8s OK`).
+- Suite di test espansa e consolidata a **132 test unitari** eseguiti con successo al 100% (`Ran 132 tests in 9.5s OK`).
 
 ---
 

@@ -64,6 +64,13 @@ graph TD
   - Elimination of fragmented shortcut icons or partial buttons.
 - **Dedicated Smart Crates Workbench (`src/gui/views/crates_view.py`):**
   - Independent full-screen view for managing dynamic crates and generating Pioneer CDJ/Rekordbox-compatible extended `.m3u8` playlists.
+- **Dynamic Table Column Customization (`TrackTableModel` & `QTableView`):**
+  - Custom header context menu (`horizontalHeader`) providing user-configurable toggling for all 19 tracks columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`).
+  - Persistent layout storage in `config.json` (`ui.visible_columns` and `ui.custom_columns_active`), with adaptive responsive fallback when uncustomized.
+- **Real Hardware Resource Telemetry (`HardwareMonitor`):**
+  - Native OS telemetry measuring process memory alongside true installed physical memory (`GlobalMemoryStatusEx` on Windows, `sysctl` on macOS), clarifying unlimited 64-bit address space.
+- **Dynamic Theming Integration:**
+  - `BreadcrumbBar` and resource badges dynamically adapt to active Light and Dark themes, avoiding hardcoded dark backgrounds.
 - **Startup Sequence:**
   - Applications initializes into the **Analysis / Home** view as the default landing view.
 

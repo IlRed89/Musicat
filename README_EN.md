@@ -12,7 +12,7 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Lingua-Italiano-green.svg" alt="Lingua: Italiano"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/tests-130%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-132%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="License"></a>
 </p>
@@ -67,7 +67,9 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 - Visual rule builder for complex multi-attribute queries (BPM ranges, Camelot Key, multi-genres, rating, energy profile).
 - 1-click dynamic export to extended `.m3u8` playlists for Pioneer CDJ, Rekordbox, Traktor, Serato, and Engine DJ.
 
-### 3. 🎛️ Live DJ Crates & Advanced Filter Engine (<15ms Latency)
+### 3. 🎛️ Live DJ Crates, Column Customization & Filter Engine (<15ms Latency)
+- **Right-Click Column Selection:** Right-clicking any column header displays a context menu permitting users to selectively show or hide any of the 19 library columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`), with *"Show All Columns"* and *"Reset Default Columns"*, persistently stored in `config.json`.
+- **True System RAM & Hardware Telemetry:** The status bar reports actual process memory alongside total installed system memory (e.g. `RAM: 283 MB / 24 GB`). As a 64-bit architecture, Musicat operates without artificial memory restrictions.
 - **Multi-Genre Selector:** Auto-complete dropdown supporting multiple simultaneous genres with `OR` filtering (e.g. *Tech House* OR *Afro House* OR *Melodic Techno*).
 - **Dynamic BPM Targeting:** Target BPM input with pitch tolerance presets (`±2%`, `±4%`, `±6%`, `±8%`), as well as explicit Min/Max ranges.
 - **Harmonic Camelot Wheel Assistant:** Visual 12-column interactive Camelot Wheel (`1A`–`12B`) supporting:
@@ -195,7 +197,7 @@ Ready-to-use binaries are built on every GitHub tag via automated GitHub Actions
 | **macOS Universal** | `Musicat-macOS.dmg` | Native Drag & Drop Applications installer DMG |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Standalone portable archive for APFS/HFS+ external SSDs |
 
-👉 **[Download the Latest Official Release (v1.0.0)](https://github.com/IlRed89/Musicat/releases)**
+👉 **[Download the Latest Official Release (v1.1.0)](https://github.com/IlRed89/Musicat/releases/tag/v1.1.0)**
 
 ---
 
@@ -225,7 +227,7 @@ source venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
-# 4. Run full test suite (130 tests)
+# 4. Run full test suite (132 tests)
 python -m unittest discover tests -v
 
 # 5. Launch application

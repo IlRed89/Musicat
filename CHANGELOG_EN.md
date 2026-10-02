@@ -52,8 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Metadata Reconciler (`src/scrapers/reconciler.py`):** Documented priority hierarchy (Beatport/Traxsource for DJ metadata, Discogs for catalogs, MusicBrainz for ISRCs, Apple Music for HD covers), frequency-based majority voting, and heuristic tie-breakers.
 - **Everything MFT Search (`src/core/everything_search.py`):** Documented Voidtools Everything IPC mechanism via `Everything64.dll`, Win32 `WM_COPYDATA` messages, and ctypes struct/function bindings.
 
+#### 🎛️ Library Table Column Management & Real System Hardware Monitoring
+- **Right-Click Column Selection:** Added header context menu (`horizontalHeader`) enabling users to selectively toggle visibility across all 19 columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`).
+- **Persistent Column Configuration:** Column choices are permanently saved to `config.json` (`ui.visible_columns` and `ui.custom_columns_active`), preserved across reboots and window resizing with "Show All Columns" and "Reset Default Columns" quick actions.
+- **True System RAM Telemetry:** Removed artificial 2 GB divisor (which was strictly the SQLite cache ceiling); integrated native hardware querying (`GlobalMemoryStatusEx` on Windows, `sysctl` on macOS) reporting total installed system memory (e.g. `RAM: 283 MB / 24 GB`) with informative tooltip highlighting unlimited 64-bit memory capability.
+- **Light Theme BreadcrumbBar & MiniPlayer Fix:** Eliminated persistent dark strip below the player: breadcrumb filesystem trail dynamically reflects active theme (`#f8f9fa` in Light Theme).
+- **Native macOS Icon & Windows Taskbar Icon:** Generated 10-tier `assets/icon.icns` for macOS PyInstaller app bundle and configured explicit Windows `AppUserModelID` (`ilred89.musicat.djcataloger.1.0`).
+
 #### 🧪 Verification & Test Suite
-- Full test suite expanded to **130 unit tests**, passing with 100% success rate (`Ran 130 tests in 8.8s OK`).
+- Full test suite expanded to **132 unit tests**, passing with 100% success rate (`Ran 132 tests in 9.5s OK`).
 
 ---
 
