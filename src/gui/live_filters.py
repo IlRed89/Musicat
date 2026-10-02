@@ -226,7 +226,8 @@ class GenreMultiSelectWidget(QWidget):
 
         # Text input with autocomplete
         self.txt_genre = QLineEdit()
-        self.txt_genre.setPlaceholderText("Select / Search Genres (Ctrl+G)...")
+        self.txt_genre.setMinimumWidth(140)
+        self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Cerca Generi (Ctrl+G)..."))
         self.txt_genre.setClearButtonEnabled(True)
         self.txt_genre.returnPressed.connect(self._on_add_text_genre)
 
@@ -237,12 +238,10 @@ class GenreMultiSelectWidget(QWidget):
         self.btn_genre_menu = QToolButton()
         self.btn_genre_menu.setText("▾")
         self.btn_genre_menu.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.btn_genre_menu.setStyleSheet("padding: 5px 8px; font-weight: bold;")
         self._build_menu()
 
         # Count badge button
         self.btn_count = QPushButton("All")
-        self.btn_count.setStyleSheet("padding: 4px 8px; font-size: 11px; color: #00d2ff;")
         self.btn_count.clicked.connect(self._show_selected_summary)
 
         layout.addWidget(self.txt_genre, 1)
@@ -250,6 +249,7 @@ class GenreMultiSelectWidget(QWidget):
         layout.addWidget(self.btn_count)
 
         self._update_display()
+        self.update_theme("light")
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _refresh_completer(self) -> None:
@@ -310,8 +310,8 @@ class GenreMultiSelectWidget(QWidget):
 
     def _update_display(self) -> None:
         if not self.selected_genres:
-            self.btn_count.setText(_t("filter_all_genres", "Tutti i Generi"))
-            self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Seleziona / Cerca Generi (Ctrl+G)..."))
+            self.btn_count.setText(_t("filter_all_genres", "Tutti"))
+            self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Cerca Generi (Ctrl+G)..."))
         elif len(self.selected_genres) == 1:
             g = list(self.selected_genres)[0]
             self.btn_count.setText(_t("filter_one_genre", "1 Genere"))
@@ -319,6 +319,28 @@ class GenreMultiSelectWidget(QWidget):
         else:
             self.btn_count.setText(_t("filter_multi_genres", "{count} Generi (OR)", count=len(self.selected_genres)))
             self.txt_genre.setPlaceholderText(", ".join(sorted(self.selected_genres)))
+
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Adapts genre count button and menu toolbutton to active theme."""
+        is_light = (theme_id == "light")
+        if is_light:
+            self.btn_count.setStyleSheet(
+                "padding: 4px 8px; font-size: 11px; font-weight: 600; "
+                "color: #0d6efd; background-color: #e7f1ff; border: 1px solid #b6d4fe; border-radius: 4px;"
+            )
+            self.btn_genre_menu.setStyleSheet(
+                "padding: 5px 8px; font-weight: bold; background-color: #ffffff; "
+                "border: 1px solid #ced4da; border-radius: 4px; color: #212529;"
+            )
+        else:
+            self.btn_count.setStyleSheet(
+                "padding: 4px 8px; font-size: 11px; font-weight: 600; "
+                "color: #00d2ff; background-color: #172033; border: 1px solid #0284c7; border-radius: 4px;"
+            )
+            self.btn_genre_menu.setStyleSheet(
+                "padding: 5px 8px; font-weight: bold; background-color: #20232b; "
+                "border: 1px solid #2d313d; border-radius: 4px; color: #e0e2ec;"
+            )
 
     def _show_selected_summary(self) -> None:
         if not self.selected_genres:
@@ -460,7 +482,8 @@ class LiveFilterBar(QFrame):
         for k in CAMELOT_KEYS_ORDERED:
             musical = CAMELOT_TO_KEY.get(k, "")
             self.cmb_camelot.addItem(f"{k} ({musical})", k)
-        self.cmb_camelot.setFixedWidth(95)
+        self.cmb_camelot.setMinimumWidth(105)
+        self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.chk_harmonic_only = QCheckBox("Harmonic Only")
         self.chk_harmonic_only.setChecked(True)
@@ -508,7 +531,8 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.addItem("2000s (2000-2009)", (2000, 2009))
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
-        self.cmb_decade.setFixedWidth(135)
+        self.cmb_decade.setMinimumWidth(150)
+        self.cmb_decade.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
 
@@ -516,6 +540,7 @@ class LiveFilterBar(QFrame):
         quality_box = QHBoxLayout()
         quality_box.setSpacing(4)
         self.lbl_quality = QLabel("Audio:")
+        self.lbl_quality.setStyleSheet("font-weight: 600; font-size: 11px;")
         self.cmb_quality = QComboBox()
         self.cmb_quality.addItem("🔊 All Audio", "")
         self.cmb_quality.addItem("⚠️ Clipping (>0 dBTP)", "clipping")
@@ -523,7 +548,8 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
-        self.cmb_quality.setFixedWidth(135)
+        self.cmb_quality.setMinimumWidth(190)
+        self.cmb_quality.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
@@ -536,12 +562,14 @@ class LiveFilterBar(QFrame):
         self.btn_tag_acapella = QPushButton("Acapella")
         self.btn_tag_club = QPushButton("Club")
 
+        self.btn_tag_intro.setMinimumWidth(44)
+        self.btn_tag_vocal.setMinimumWidth(46)
+        self.btn_tag_inst.setMinimumWidth(80)
+        self.btn_tag_acapella.setMinimumWidth(62)
+        self.btn_tag_club.setMinimumWidth(44)
+
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setCheckable(True)
-            btn.setStyleSheet("""
-                QPushButton { background-color: #1a1d27; border: 1px solid #2e3447; border-radius: 3px; padding: 2px 6px; font-size: 11px; color: #94a3b8; }
-                QPushButton:checked { background-color: #0284c7; color: #fff; font-weight: bold; border-color: #38bdf8; }
-            """)
             btn.toggled.connect(self._trigger_debounce)
             tags_box.addWidget(btn)
 
@@ -573,7 +601,8 @@ class LiveFilterBar(QFrame):
         self.lbl_folder = QLabel("📁 Cartella:")
         self.cmb_folder = QComboBox()
         self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
-        self.cmb_folder.setFixedWidth(150)
+        self.cmb_folder.setMinimumWidth(160)
+        self.cmb_folder.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
         folder_box.addWidget(self.lbl_folder)
         folder_box.addWidget(self.cmb_folder)
@@ -586,7 +615,8 @@ class LiveFilterBar(QFrame):
         self.cmb_cover.addItem("Tutte", "")
         self.cmb_cover.addItem("Con Cover", "with_cover")
         self.cmb_cover.addItem("Senza Cover", "without_cover")
-        self.cmb_cover.setFixedWidth(110)
+        self.cmb_cover.setMinimumWidth(100)
+        self.cmb_cover.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
         cover_box.addWidget(self.lbl_cover)
         cover_box.addWidget(self.cmb_cover)
@@ -598,6 +628,8 @@ class LiveFilterBar(QFrame):
         row2.addLayout(tags_box)
         row2.addStretch()
         main_layout.addLayout(row2)
+
+        self.update_theme("light")
 
     def _retranslate_ui(self) -> None:
         """Dynamically updates filter bar text in response to language change."""
@@ -637,6 +669,128 @@ class LiveFilterBar(QFrame):
 
         self._refresh_crates_dropdown()
         self.refresh_directories()
+
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Adapts filter bar buttons, badges, and tag pills to active Light/Dark theme."""
+        is_light = (theme_id == "light")
+        if hasattr(self, "genre_widget") and hasattr(self.genre_widget, "update_theme"):
+            self.genre_widget.update_theme(theme_id)
+
+        if is_light:
+            tag_style = """
+                QPushButton {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    padding: 3px 8px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    color: #495057;
+                }
+                QPushButton:hover {
+                    background-color: #f1f3f5;
+                    border-color: #0d6efd;
+                    color: #0d6efd;
+                }
+                QPushButton:checked {
+                    background-color: #0d6efd;
+                    color: #ffffff;
+                    font-weight: bold;
+                    border-color: #0b5ed7;
+                }
+            """
+            self.btn_reset.setStyleSheet("""
+                QPushButton {
+                    background-color: #fee2e2;
+                    border: 1px solid #fca5a5;
+                    color: #b91c1c;
+                    font-weight: bold;
+                    padding: 4px 10px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #fecaca;
+                    border-color: #ef4444;
+                    color: #991b1b;
+                }
+            """)
+            self.btn_wheel_popup.setStyleSheet("""
+                QPushButton {
+                    background-color: #f3e8ff;
+                    border: 1px solid #d8b4fe;
+                    color: #7e22ce;
+                    font-weight: bold;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #e9d5ff;
+                    border-color: #a855f7;
+                    color: #6b21a8;
+                }
+            """)
+            self.lbl_search_engine.setStyleSheet(
+                "color: #0369a1; font-size: 10px; font-weight: 600; padding: 2px 6px; "
+                "background-color: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 3px;"
+            )
+        else:
+            tag_style = """
+                QPushButton {
+                    background-color: #1a1d27;
+                    border: 1px solid #2e3447;
+                    border-radius: 4px;
+                    padding: 3px 8px;
+                    font-size: 11px;
+                    color: #94a3b8;
+                }
+                QPushButton:hover {
+                    background-color: #242938;
+                    border-color: #38bdf8;
+                    color: #ffffff;
+                }
+                QPushButton:checked {
+                    background-color: #0284c7;
+                    color: #ffffff;
+                    font-weight: bold;
+                    border-color: #38bdf8;
+                }
+            """
+            self.btn_reset.setStyleSheet("""
+                QPushButton {
+                    background-color: #2c1d25;
+                    border: 1px solid #991b1b;
+                    color: #f87171;
+                    font-weight: bold;
+                    padding: 4px 10px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #3b1e28;
+                    border-color: #ef4444;
+                    color: #ffffff;
+                }
+            """)
+            self.btn_wheel_popup.setStyleSheet("""
+                QPushButton {
+                    background-color: #27203b;
+                    border: 1px solid #7c3aed;
+                    color: #c084fc;
+                    font-weight: bold;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #342950;
+                    border-color: #a855f7;
+                    color: #ffffff;
+                }
+            """)
+            self.lbl_search_engine.setStyleSheet(
+                "color: #00d2ff; font-size: 10px; padding: 2px 5px; border: 1px solid #0284c7; border-radius: 3px;"
+            )
+
+        for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
+            btn.setStyleSheet(tag_style)
 
     def _connect_signals(self) -> None:
         self.txt_search.textChanged.connect(self._trigger_debounce)

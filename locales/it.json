@@ -61,8 +61,8 @@
 
 
   "filter_search_placeholder": "🔍 Ricerca Rapida / {engine} (Ctrl+F)...",
-  "filter_genre_placeholder": "Seleziona / Cerca Generi (Ctrl+G)...",
-  "filter_all_genres": "Tutti i Generi",
+  "filter_genre_placeholder": "Cerca Generi (Ctrl+G)...",
+  "filter_all_genres": "Tutti",
   "filter_one_genre": "1 Genere",
   "filter_multi_genres": "{count} Generi (OR)",
   "filter_clear_genres": "Rimuovi Selezione Generi",

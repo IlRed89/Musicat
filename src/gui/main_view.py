@@ -952,6 +952,8 @@ class MainWindow(QMainWindow):
         self._update_nav_button_styles(self.view_stack.currentIndex())
         if hasattr(self, "player_widget"):
             self.player_widget.update_theme(theme_id)
+        if hasattr(self, "filter_bar"):
+            self.filter_bar.update_theme(theme_id)
         self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
 
     def _on_table_header_context_menu(self, pos: QPoint) -> None:

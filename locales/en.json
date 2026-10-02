@@ -61,8 +61,8 @@
 
 
   "filter_search_placeholder": "🔍 Quick Search / {engine} (Ctrl+F)...",
-  "filter_genre_placeholder": "Select / Search Genres (Ctrl+G)...",
-  "filter_all_genres": "All Genres",
+  "filter_genre_placeholder": "Search Genres (Ctrl+G)...",
+  "filter_all_genres": "All",
   "filter_one_genre": "1 Genre",
   "filter_multi_genres": "{count} Genres (OR)",
   "filter_clear_genres": "Clear Genre Selection",
