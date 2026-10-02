@@ -34,6 +34,7 @@ class BreadcrumbBar(QFrame):
     """Interactive horizontal breadcrumbs displaying clickable directory path segments."""
 
     folder_selected = Signal(str)  # Emits directory path when segment clicked
+    directory_selected = Signal(str)  # Emits directory path when segment clicked
     show_in_folder_requested = Signal(str)  # Emits full file path to reveal in OS file manager
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -170,6 +171,7 @@ class BreadcrumbBar(QFrame):
         p = Path(path_str)
         if p.is_dir():
             self.folder_selected.emit(path_str)
+            self.directory_selected.emit(path_str)
             PathResolver.show_in_file_manager(path_str)
         else:
             self.show_in_folder_requested.emit(path_str)

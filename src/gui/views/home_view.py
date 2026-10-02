@@ -460,6 +460,17 @@ class HomeTrendsView(QWidget):
             card.find_similar_requested.connect(self.find_similar_requested.emit)
             self.cards_layout.addWidget(card, idx // columns, idx % columns)
 
+    def refresh_library_status(self) -> None:
+        """Re-evaluates whether displayed tracks exist in the local database library."""
+        if not self.current_tracks:
+            return
+        for t in self.current_tracks:
+            matches = self.db.find_tracks_by_artist_title(t.artist, t.title)
+            t.in_library = bool(matches)
+            if matches:
+                t.local_path = matches[0].get("filepath", "")
+        self._render_cards(self.current_tracks)
+
     def _on_filter_text_changed(self, text: str) -> None:
         q = text.strip().lower()
         if not q:

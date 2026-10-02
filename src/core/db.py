@@ -514,6 +514,10 @@ class Database:
             cur.execute(sql)
             return [dict(row) for row in cur.fetchall()]
 
+    def get_crates(self) -> List[Dict[str, Any]]:
+        """Convenience alias for get_smart_crates."""
+        return self.get_smart_crates()
+
     def get_smart_crate(self, crate_id_or_name: Union[int, str]) -> Optional[Dict[str, Any]]:
         """Retrieves a single Smart Crate by ID or Name."""
         with self.get_connection() as conn:

@@ -232,7 +232,7 @@ class SettingsDialog(QDialog):
             self.col_checkboxes[col_id] = cb
             cols_grid.addWidget(cb, idx // 3, idx % 3)
 
-        layout.addWidget(grp_cols)
+        layout.addWidget(self.grp_cols)
         layout.addStretch()
         return widget
 
