@@ -56,3 +56,34 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# File temporanei Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Build & Compilati
+build/
+dist/
+Output/
+*.spec
+
+# Database locali, log e cache
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.zip
+portable.lock
+
+# File audio di test
+*.mp3
+*.wav
+*.flac
+*.aiff
+*.m4a
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
