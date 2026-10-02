@@ -120,28 +120,45 @@ class MusicatLogger:
                 "[%(levelname)-7s] %(message)s"
             )
 
-            # 1. Console Stream Handler
-            console_h = logging.StreamHandler(sys.stdout)
-            console_h.setLevel(logging.INFO)
-            console_h.setFormatter(console_fmt)
-            logger.addHandler(console_h)
+            # 1. Console Stream Handler (guarded for frozen/noconsole apps where stdout may be None)
+            if sys.stdout is not None and hasattr(sys.stdout, "write"):
+                try:
+                    console_h = logging.StreamHandler(sys.stdout)
+                    console_h.setLevel(logging.INFO)
+                    console_h.setFormatter(console_fmt)
+                    logger.addHandler(console_h)
+                except Exception:
+                    pass
 
             # 2. Compressed Rotating File Handler (Max 20MB, 5 backup archives)
-            log_dir = PathResolver.get_data_dir() / "logs"
-            try:
-                log_dir.mkdir(parents=True, exist_ok=True)
-                log_file = log_dir / "musicat.log"
-                file_h = CompressedRotatingFileHandler(
-                    filename=str(log_file),
-                    maxBytes=20 * 1024 * 1024,  # 20 Megabytes
-                    backupCount=5,
-                    encoding="utf-8",
-                )
-                file_h.setLevel(logging.DEBUG)
-                file_h.setFormatter(detailed_fmt)
-                logger.addHandler(file_h)
-            except Exception as e:
-                print(f"[WARNING] Could not initialize file logging: {e}")
+            log_dirs = []
+            primary_data_dir = PathResolver.get_data_dir()
+            log_dirs.append(primary_data_dir / "logs")
+
+            # In portable mode, also log to root app_dir/logs for immediate user discovery
+            if PathResolver.is_portable_mode():
+                app_logs = PathResolver.get_app_dir() / "logs"
+                try:
+                    if app_logs.resolve() != (primary_data_dir / "logs").resolve():
+                        log_dirs.append(app_logs)
+                except Exception:
+                    log_dirs.append(app_logs)
+
+            for ldir in log_dirs:
+                try:
+                    ldir.mkdir(parents=True, exist_ok=True)
+                    log_file = ldir / "musicat.log"
+                    file_h = CompressedRotatingFileHandler(
+                        filename=str(log_file),
+                        maxBytes=20 * 1024 * 1024,  # 20 Megabytes
+                        backupCount=5,
+                        encoding="utf-8",
+                    )
+                    file_h.setLevel(logging.DEBUG)
+                    file_h.setFormatter(detailed_fmt)
+                    logger.addHandler(file_h)
+                except Exception:
+                    pass
 
             # 3. GUI Handler
             cls._gui_handler = GuiLogHandler()
@@ -233,4 +250,21 @@ class MusicatLogger:
     def error(cls, domain: str, message: str) -> None:
         """Logs an error message with domain prefix."""
         cls.get_logger().error(f"[{domain}] {message}")
+
+    @classmethod
+    def critical(cls, domain: str, message: str) -> None:
+        """Logs a critical error message with domain prefix and flushes handlers."""
+        cls.get_logger().critical(f"[{domain}] {message}")
+        cls.flush()
+
+    @classmethod
+    def flush(cls) -> None:
+        """Flushes all attached log handlers to disk immediately."""
+        with cls._lock:
+            if cls._logger:
+                for h in cls._logger.handlers:
+                    try:
+                        h.flush()
+                    except Exception:
+                        pass
 

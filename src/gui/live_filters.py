@@ -615,6 +615,12 @@ class LiveFilterBar(QFrame):
         row2.addLayout(cover_box)
         row2.addLayout(year_box)
         row2.addLayout(energy_box)
+        row2.addLayout(rating_box)
+        row2.addLayout(quality_box)
+        row2.addLayout(tags_box)
+        row2.addStretch()
+        row2.addLayout(crate_box)
+        main_layout.addLayout(row2)
 
     def _retranslate_ui(self) -> None:
         """Dynamically updates filter bar text in response to language change."""
@@ -655,12 +661,6 @@ class LiveFilterBar(QFrame):
         self.cmb_cover.setItemText(0, _t("filter_all_covers", "Tutte"))
         self.cmb_cover.setItemText(1, _t("filter_with_cover", "Con Cover"))
         self.cmb_cover.setItemText(2, _t("filter_without_cover", "Senza Cover"))
-        row2.addLayout(rating_box)
-        row2.addLayout(quality_box)
-        row2.addLayout(tags_box)
-        row2.addStretch()
-        row2.addLayout(crate_box)
-        main_layout.addLayout(row2)
 
         self._refresh_crates_dropdown()
         self.refresh_directories()
