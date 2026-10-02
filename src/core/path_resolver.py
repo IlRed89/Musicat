@@ -59,8 +59,8 @@ class PathResolver:
 
     @classmethod
     def get_icon_path(cls) -> Optional[Path]:
-        """Returns the application icon path (PNG or ICO)."""
-        for name in ["assets/icon.png", "assets/icon.ico"]:
+        """Returns the application icon path (PNG, ICO or ICNS)."""
+        for name in ["assets/icon.icns", "assets/icon.png", "assets/icon.ico"]:
             p = cls.get_resource_path(name)
             if p.exists():
                 return p

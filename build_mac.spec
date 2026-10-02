@@ -100,14 +100,14 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Musicat.app',
-    icon=str(project_root / 'assets' / 'icon.png'),
+    icon=str(project_root / 'assets' / 'icon.icns') if (project_root / 'assets' / 'icon.icns').exists() else str(project_root / 'assets' / 'icon.png'),
     bundle_identifier='com.ilred89.musicat',
     info_plist={
         'CFBundleName': 'Musicat',
         'CFBundleDisplayName': 'Musicat',
         'CFBundleIdentifier': 'com.ilred89.musicat',
-        'CFBundleVersion': '1.0.0',
-        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleVersion': '1.1.0',
+        'CFBundleShortVersionString': '1.1.0',
         'CFBundleExecutable': 'Musicat',
         'CFBundlePackageType': 'APPL',
         'LSMinimumSystemVersion': '11.0',
