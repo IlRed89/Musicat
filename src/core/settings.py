@@ -18,6 +18,7 @@ from src.core.path_resolver import PathResolver
 
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
+    "version": "1.1.0",
     "ui": {
         "language": "it",  # "it" (Italiano, default) or "en" (English)
         "theme": "light",  # "light" (Default), "dark_dj", "high_contrast"
@@ -101,6 +102,11 @@ class SettingsManager:
                     with open(self._config_path, "r", encoding="utf-8") as f:
                         disk_data = json.load(f)
                     if isinstance(disk_data, dict):
+                        # Migration: If upgrading from legacy version (where dark_dj was default), migrate to light
+                        if "version" not in disk_data:
+                            if disk_data.get("ui", {}).get("theme") == "dark_dj":
+                                disk_data["ui"]["theme"] = "light"
+                            disk_data["version"] = "1.1.0"
                         # Merge top-level sections
                         for section, values in disk_data.items():
                             if isinstance(values, dict) and section in self._settings:
