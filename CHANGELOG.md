@@ -1,19 +1,22 @@
-# 📋 Changelog
+# 📋 Registro Modifiche (Changelog)
 
-All notable changes to **Musicat** will be documented in this file.
+Tutte le modifiche e le novità di **Musicat** sono documentate in questo file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
+e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+[![Lingua: Italiano](https://img.shields.io/badge/Lingua-Italiano-green.svg)](CHANGELOG.md)
+[![Language: English](https://img.shields.io/badge/Language-English-blue.svg)](CHANGELOG_EN.md)
 
 ---
 
 ## [1.1.0] - 2026-10-02
 
-### 🚀 Major UI/UX Polish, Logging Suite, Code Documentation & Architectural Consolidation
+### 🚀 Revisione UI/UX, Tema Chiaro Default, Suite di Logging Avanzato & Workbench Smart Crates
 
-#### ⚪ Default Light Theme & Minimalist Navigation
-- **Light Theme Default:** Modern, high-contrast light theme (`#FFFFFF` / `#F8F9FA`, text `#212529`, accents `#0D6EFD`) set as the default on fresh start. Instant hot-switching to Dark Theme preserved in Settings.
-- **Clean Modular Navbar:** Removed ambiguous single-action icons and fragmented header shortcuts. The top navbar now solely houses complete, clearly labeled navigation buttons:
+#### ⚪ Tema Chiaro Predefinito & Nuova Navbar Modulare
+- **Tema Chiaro come Default:** Impostato il tema bianco / chiaro moderno ad alto contrasto (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) come stile predefinito al primo avvio. Opzione Dark Mode sempre selezionabile a caldo dalle Impostazioni.
+- **Navbar Minimale Pulita:** Rimozione completa di icone rapide isolate o pulsanti scorciatoia frammentari. La barra superiore contiene esclusivamente i 7 pulsanti di navigazione verso i macro-moduli completi:
   - `[Analisi / Home]`
   - `[Libreria]`
   - `[Tag Editor (Mp3tag)]`
@@ -21,115 +24,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `[Trova Simili]`
   - `[Organizza File]`
   - `[Impostazioni]`
-- **Startup Landing View:** Application now launches directly into the **Analysis / Home** view as the default startup screen.
-- **Dedicated Smart Crates Workbench:** Extracted smart crate configuration from compressed main view into an independent, full-screen workbench (`src/gui/views/crates_view.py`) with visual rule builder and extended `.m3u8` playlist export.
+- **Schermata Iniziale Predefinita:** L'applicazione si avvia direttamente nella vista **Analisi / Home** (anziché nella libreria tabellare grezza).
+- **Workbench Dedicato Smart Crates:** Rimozione del pannello compresso dalla vista principale in favore di una schermata/workbench indipendente a tutto schermo (`src/gui/views/crates_view.py`) per la creazione visuale di regole complesse ed esportazione in playlist `.m3u8` compatibili con Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
 
-#### 📜 Enterprise Logging Suite & Troubleshooting Tools
-- **Zip-Compressed Rotating Handler (`ZipRotatingFileHandler`):**
-  - Enforces a 20 MB file size limit on active log files (`musicat.log`).
-  - Automatically rotates and compresses historical logs into `.zip` archives using `zipfile.ZIP_DEFLATED` (`musicat.log.1.zip`, ..., `musicat.log.10.zip`).
-  - Retains the last 10 compressed archives, automatically purging older files.
-- **Adaptive Log Paths:**
-  - Portable mode (`portable.lock`): `./logs/` adjacent to the executable.
-  - Standard mode: `%APPDATA%\Musicat\logs` on Windows or `~/Library/Application Support/Musicat/logs` on macOS.
-- **Granular Domain Event Loggers (`src/core/logger.py`):**
-  - **`log_scan`:** Tracks folder indexing, total files found, newly inserted, skipped files, and duration in milliseconds.
-  - **`log_audio_engine`:** Records libVLC library initialization, file loads, play/pause/seek events, pitch bends, and decode errors.
-  - **`log_tag_edit`:** Logs Mutagen tag write operations with pre/post JSON dumps, modified field diff inspection, and corrupted ID3 header interception.
-  - **`log_http`:** Measures round-trip HTTP latency via `time.perf_counter()`, records request URLs, search parameters, response status codes, and exception details across Beatport, Spotify, Chosic/Cosine, Discogs, and MusicBrainz.
-  - **`log_file_op`:** Tracks physical file transfers (`SRC -> DEST`), error states, and collision strategies (`RENAME`, `OVERWRITE`, `SKIP`).
-- **Live GUI Log Console:**
-  - Integrated level filter combobox (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
-  - Auto-scroll toggle and instant log clearing.
-  - **"Esporta Log per Assistenza (.zip)"** button producing an all-in-one diagnostic bundle containing logs, anonymized hardware metrics, database health statistics, and sanitized configurations.
+#### 📜 Suite di Logging Strutturato per Troubleshooting
+- **Rotazione File con Compressione `.zip` (`ZipRotatingFileHandler`):**
+  - Limite di dimensione file attivo a **20 MB** (`musicat.log`).
+  - Rotazione automatica con compressione in archivio `.zip` (`musicat.log.1.zip`, ..., `musicat.log.10.zip`) con algoritmo `zipfile.ZIP_DEFLATED`.
+  - Mantenimento degli ultimi **10 file compressi** con rimozione automatica delle copie storiche più vecchie.
+- **Percorsi Adattivi:**
+  - Modalità Portabile (`portable.lock`): salvataggio nella cartella locale `./logs/`.
+  - Modalità Standard: salvataggio in `%APPDATA%\Musicat\logs` (Windows) o `~/Library/Application Support/Musicat/logs` (macOS).
+- **Tracciamento Granulare di Ogni Evento:**
+  - **`log_scan` (`[SCAN]`):** Directory scansionate, file trovati, inseriti, scartati ed errori di accesso filesystem.
+  - **`log_audio_engine` (`[PLAYER:VLC]`):** Inizializzazione `libvlc`, caricamento stream, play/pause/seek, pitch bending ed errori di decodifica.
+  - **`log_tag_edit` (`[TAG]` & `[TAG:DIFF]`):** Dump metadati pre/post modifica in JSON, diff dei campi modificati e rilevamento header ID3 corrotti.
+  - **`log_http` (`[HTTP:<Fonte>]`):** Misurazione latenza in millisecondi, logging di URL, parametri, codici di risposta (200, 403, 404) e gestione eccezioni per Beatport, Spotify, Chosic/Cosine, Discogs e MusicBrainz.
+  - **`log_file_op` (`[DISPATCH:<OP>]`):** Percorsi fisici sorgente/destinazione (`SRC -> DEST`), strategie di collisione (`RENAME`, `OVERWRITE`, `SKIP`).
+- **Live Log Console & Bundle Diagnostico:**
+  - Dock live dei log (`Ctrl + L`) con filtro di livello (`DEBUG`, `INFO`, `WARNING`, `ERROR`), toggle di auto-scroll e pulizia istantanea.
+  - Pulsante **"Esporta Log per Assistenza (.zip)"** sia nella Live Console che nelle Impostazioni, per generare un pacchetto diagnostico con log, statistiche hardware anonime, stato database e configurazione sanificata.
 
-#### 🧠 In-Line Algorithmic Documentation & Sphinx/Google Docstrings
-- **Acoustic Analyzer (`src/audio/analyzer.py`):** Comprehensive step-by-step documentation detailing STFT windowing, spectral flux onset autocorrelation, parabolic sub-sample peak interpolation, 12-semitone chromagram binning via continuous MIDI note formulas, and Pearson correlation against Krumhansl-Schmuckler tonality profiles.
-- **Audio Quality Analyzer (`src/plugins/quality_analyzer/analyzer.py`):** Mathematical and physical background on ITU-R BS.1770-4 Annex 2, 4x polyphase FIR resampling for inter-sample True Peak detection, digital flat-top clipping detection, and EBU R128 K-weighting filters with relative gating.
-- **Metadata Reconciler (`src/scrapers/reconciler.py`):** Documented priority hierarchy (Beatport/Traxsource for DJ metadata, Discogs for catalogs, MusicBrainz for ISRCs, Apple Music for HD covers), frequency-based majority voting, and heuristic tie-breakers.
-- **Everything MFT Search (`src/core/everything_search.py`):** Documented Voidtools Everything IPC mechanism via `Everything64.dll`, Win32 `WM_COPYDATA` messages, and ctypes struct/function bindings.
+#### 🧠 Commenti Algoritmici & Documentazione Tecnica (Sphinx/Google Style)
+- **Acoustic Analyzer (`src/audio/analyzer.py`):** Spiegazione dell'algoritmo STFT, filtraggio banda musicale C2-C7, mappatura continua semitoni MIDI, accumulo vettore cromatico a 12 bin, correlazione di Pearson circolare con i profili Krumhansl-Schmuckler e stima BPM tramite autocorrelazione del flusso spettrale.
+- **Audio Quality Analyzer (`src/plugins/quality_analyzer/analyzer.py`):** Documentazione ITU-R BS.1770-4 Annex 2 con sovracampionamento polifase sinc/FIR 4x per intercettare i picchi inter-sample (True Peak in dBTP), rilevamento flat-top clipping e filtri K-weighting EBU R128 con doppio gating.
+- **Metadata Reconciler (`src/scrapers/reconciler.py`):** Dettagli sulla gerarchia di autorevolezza delle fonti musicali, voto di maggioranza e tie-breaker.
+- **Everything MFT Search (`src/core/everything_search.py`):** Documentazione del meccanismo IPC Windows di Voidtools Everything, messaggi `WM_COPYDATA` e binding `ctypes`.
 
-#### 🧪 Verification & Test Suite
-- Full test suite expanded to **130 unit tests**, passing with 100% success rate (`Ran 130 tests in 8.5s OK`).
+#### 🧪 Suite di Test
+- Suite di test espansa e consolidata a **130 test unitari** eseguiti con successo al 100% (`Ran 130 tests in 8.8s OK`).
 
 ---
 
 ## [1.0.0] - 2026-10-01
 
-### 🚀 Initial Public Release
+### 🚀 Primo Rilascio Ufficiale
 
-Welcome to the first official release of **Musicat**, the ultimate desktop music cataloger, DJ tag editor, and acoustic smart organizer built for massive digital libraries (50,000+ tracks).
+Benvenuti al primo rilascio ufficiale di **Musicat**, il catalogatore musicale per DJ, editor di metadati in stile Mp3tag e smart organizer acustico progettato per librerie di grandi dimensioni (oltre 50.000 tracce).
 
-### ✨ Core Features & Enhancements
+### ✨ Caratteristiche Principali
 
-#### 🎛️ Dual-Mode Installer & Zero-Installation Portability
-- **Inno Setup Script (`installer/setup.iss`):** Single unified `Musicat-Setup.exe` with interactive mode selection:
-  - **Standard Mode:** Installs into `Program Files`, adds Start Menu/Desktop shortcuts, and isolates data in `%APPDATA%\Musicat`.
-  - **Portable Mode:** Extracts into any folder/USB drive, creates `portable.lock`, and stores all databases, configurations, and logs locally in `./musicat_data/`.
-- **Volume Serial Number (VSN) Resolver:** Windows drive-letter independent path translation (`[VOL:XXXXXXXX]`) ensuring external USB SSD libraries never break when letters change.
+#### 🎛️ Installer Dual-Mode & Portabilità Senza Installazione
+- **Script Inno Setup (`installer/setup.iss`):** Installer unico `Musicat-Setup-Windows-x64.exe` con selezione guidata della modalità:
+  - **Modalità Standard:** Installazione in `Program Files`, collegamenti Desktop/Start Menu e isolamento dati in `%APPDATA%\Musicat`.
+  - **Modalità Portabile:** Estrazione pulita su qualsiasi pendrive o SSD esterno con creazione automatica del file `portable.lock` e salvataggio di impostazioni, database e log esclusivamente nella cartella locale `./musicat_data/`.
+- **Risolutore Volume Serial Number (VSN):** Mappatura dei percorsi indipendente dalle lettere di unità Windows (`[VOL:XXXXXXXX]`) che impedisce la rottura dei collegamenti del database quando si cambia porta USB o computer.
 
-#### ⚡ Voidtools Everything SDK & SQLite FTS5 Fallback
-- Direct IPC queries via `Everything64.dll` into the NTFS Master File Table (MFT) for sub-millisecond search across drives with 100,000+ files.
-- Transparent, automatic fallback to local SQLite FTS5 (Full-Text Search) with insert/update/delete triggers.
+#### ⚡ Ricerca Ultra-Rapida Voidtools Everything SDK & Fallback SQLite FTS5
+- Query IPC dirette tramite `Everything64.dll` sulla Master File Table (MFT) di volumi NTFS per ricerche in meno di 1 millisecondo su collezioni da oltre 100.000 brani.
+- Fallback automatico trasparente su tabella virtuale **SQLite FTS5** (Full-Text Search) con trigger sincronizzati su inserimento, modifica ed eliminazione.
 
-#### 🎵 Universal libVLC Player & DJ Pitch Control
-- Native libVLC audio engine supporting universal codecs without external filters: **MP3, WAV, FLAC, AIFF, M4A, OGG, ALAC, OPUS**.
-- **DJ Pitch / Tempo Slider:** Real-time speed and pitch bending ($\pm 8.0\%$) with zero-reset detent.
-- Interactive waveform peak scrubbing canvas with click-to-seek and continuous looping.
+#### 🎵 Player Audio Universale libVLC & Pitch Control per DJ
+- Motore audio nativo basato su `libvlc` con supporto di riproduzione per tutti i formati senza codec esterni: **MP3, WAV (fino a 32-bit float), FLAC, AIFF, M4A, OGG, ALAC, OPUS**.
+- **Cursore Pitch / Tempo DJ:** Variazione del tempo e pitch in tempo reale ($\pm 8.0\%$) con detent di ripristino istantaneo a zero.
+- Forma d'onda interattiva con scrubbing dei picchi, seek con click diretto e looping continuo.
 
-#### 🏷️ Mp3tag-Grade Metadata Engine & Pattern Translations
-- Unified tagging across ID3v2.3/2.4, Vorbis Comments, and MP4 atoms with DJ-specific tags (`BPM`, `INITIALKEY`/Camelot, `GENRE`, `LABEL`, `REMIXER`, `ENERGYLEVEL`, `COMMENT`).
-- Multi-selection batch editing with `<keep existing>` protection.
-- Bidirectional pattern conversions:
-  - *Filename ➔ Tag:* `%artist% - %title% (%bpm% BPM)`
-  - *Tag ➔ Filename:* Mass physical renaming based on database tags.
-  - *Tag ➔ Tag:* Copy, swap, or merge fields.
+#### 🏷️ Editor Metadati Professionale in Stile Mp3tag & Conversione Pattern
+- Tagging unificato su ID3v2.3/2.4, Vorbis Comments e atomi MP4 con campi dedicati ai DJ (`BPM`, `INITIALKEY`/Camelot, `GENRE`, `LABEL`, `REMIXER`, `ENERGYLEVEL`, `COMMENT`).
+- Editing batch simultaneo su selezioni multiple con protezione `<mantieni esistente>`.
+- Convertitore bidirezionale di pattern:
+  - *Nome file ➔ Tag:* `%artist% - %title% (%bpm% BPM)`
+  - *Tag ➔ Nome file:* Ridenominazione fisica di massa basata sui metadati.
+  - *Tag ➔ Tag:* Copia, inversione o fusione tra campi.
 
-#### 🌐 Multi-Source Scraping & Discrepancy Reconciliation
-- Dedicated club/electronic scrapers: **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz**.
-- Social/remix web discovery: **SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**.
-- **Metadata Reconciler Engine:** Side-by-side discrepancy matrix comparing all discovered candidates, detecting conflicting fields, and offering field-by-field selective checkboxes for precision auto-tagging.
+#### 🌐 Scraping Multi-Fonte & Riconciliazione Conflitti
+- Scraper dedicati per la musica elettronica e da club: **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz**.
+- Discovery su piattaforme social e remix: **SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**.
+- **Motore di Riconciliazione:** Matrice visiva "Prima / Dopo" per confrontare i risultati da tutte le fonti, individuare i campi discordanti e selezionare con precisione chirurgica quali metadati applicare al file.
 
-#### 🖼️ Studio HD Cover Art Discovery (up to 3000x3000px)
-- Lossless studio artwork extraction via Apple Music / iTunes CDN upscaling (`1400x1400` to `3000x3000px`), Beatport GeoMedia, and Traxsource.
-- Tag injection (`APIC` for ID3, Picture block for FLAC, `covr` for MP4/M4A) with optional local `cover.jpg` saving.
+#### 🖼️ Download Copertine Studio HD (Fino a 3000x3000px)
+- Estrazione di copertine lossless ad altissima risoluzione tramite Apple Music / iTunes CDN (con upscaling da `1400x1400` a `3000x3000px`), Beatport GeoMedia e Traxsource.
+- Iniezione diretta nei metadati del file (`APIC` per ID3, blocco Picture per FLAC, atomo `covr` per MP4/M4A) e salvataggio opzionale di `cover.jpg` nella cartella.
 
-#### 📊 High-Performance Parallel Acoustic Engine & L1 RAM Cache
-- **Hardware-Aware Multiprocessing Pool (`src/audio/parallel_analyzer.py`):** Dynamic worker allocation saturated across logical CPU cores (`os.cpu_count() - 1`), with batch scheduling (20-50 tracks) to minimize inter-process communication overhead.
-- **Accelerated Streaming Audio Worker (`src/audio/worker.py`):**
-  - Fast partial-window streaming read (central 60s drop window at 22,050 Hz mono) skipping quiet intro/outro sections.
-  - High-energy segment extraction for Camelot Key detection, cutting STFT CPU consumption by ~80%.
-  - Downsampled peak envelope generation for instant waveform rendering.
-- **In-Memory RAM Cache System (`src/core/memory_cache.py`):**
-  - **`AnalysisMemoryCache`:** SQLite RAM buffer (`:memory:`) staging raw DSP results with periodic/threshold-based background flush to disk, eliminating physical SSD/USB drive wear.
-  - **`WaveformMemoryCache`:** Thread-safe LRU cache with configurable size limit (e.g. 512MB / 1GB / 2GB) providing instant (<0.1ms) waveform loading during DJ track audition without reading physical files.
-- **Interactive Telemetry Dialog (`src/gui/analysis_dialog.py`):** Dedicated non-blocking GUI dialog with `QThread` bridge, reactive progress bar, real-time throughput meter (`tracce/sec`), CPU cores allocation slider, RAM cache size slider, ETA counter, and Start/Pause/Cancel controls.
+#### 📊 Motore Acustico Parallelo Multiprocesso & Cache L1 in RAM
+- **Pool di Processi Saturante la CPU (`src/audio/parallel_analyzer.py`):** Assegnazione dinamica dei processi worker su tutti i core logici disponibili (`os.cpu_count() - 1`) con elaborazione a batch per ridurre l'overhead IPC.
+- **Streaming Audio Worker ad Alta Efficienza (`src/audio/worker.py`):**
+  - Lettura rapida solo della finestra centrale a 22.050 Hz mono (drop di 60 secondi), riducendo l'uso della CPU dell'80%.
+  - Estrazione dei segmenti ad alta energia per il rilevamento di BPM e Camelot Key.
+  - Generazione di forme d'onda con picchi sottocampionati per visualizzazione istantanea.
+- **Cache L1 in RAM (`src/core/memory_cache.py`):**
+  - **`AnalysisMemoryCache`:** Buffer SQLite in memoria RAM (`:memory:`) per evitare scritture premature su disco e preservare la vita utile degli SSD.
+  - **`WaveformMemoryCache`:** Cache LRU thread-safe in memoria con dimensione configurabile (es. 512MB / 1GB / 2GB) per il caricamento istantaneo (<0.1ms) delle forme d'onda.
 
-#### 📁 Smart Organizer & Inbound File Dispatcher
-- Dynamic folder tree generation based on customizable rules: `{Genre}/BPM {bpm_range}/{Camelot} - {Artist} - {Title}.ext`.
-- Mandatory **Dry Run Mode** simulating destination paths, collision detection (`Auto-Rename (1)`, `Overwrite`, `Skip`), and error checking before physical disk operations.
+#### 📁 Smart Organizer & Smistamento Fisico su Disco
+- Generazione dinamica della struttura di cartelle in base a maschere personalizzabili: `{Genre}/BPM {bpm_range}/{Camelot} - {Artist} - {Title}.ext`.
+- Modalità obbligatoria **Dry Run (Simulazione)** con anteprima dei percorsi, collision detection (`Auto-Rinomina (1)`, `Sovrascrivi`, `Salta`) e verifica integrità prima di qualsiasi spostamento fisico.
 
-#### 🎛️ Live DJ Crate & Advanced Filtering Engine (<15ms Latency)
-- **Live Multi-Criteria Filter Bar:** Keyboard-controllable console bar integrating Multi-Genre autocomplete (OR), Target BPM with `± %` tolerance presets (`±2%`, `±4%`, `±6%`, `±8%`), decade selector, and energy level filters.
-- **Harmonic Mixing Assistant (`src/audio/camelot.py`):** Visual Camelot Wheel dialog (`1A`–`12B`) with harmonic matching (`±1`, relative major/minor, `+2` energy boost, `+7` semitone lift).
-- **In-Memory RAM Query Acceleration (`src/core/filter_engine.py`):** Microsecond in-memory evaluation cache for instantaneous responses during live performance with active audio playback.
-- **Dynamic Smart Crates & Universal M3U8 Export:** Save and auto-update custom filter combinations into SQLite `smart_crates` and export playlists compatible with Rekordbox, Traktor, Serato, and Engine DJ.
-- **DJ Console Keybindings:** Instant access via `Ctrl+F` (Search), `Ctrl+G` (Genre), `Ctrl+B` (BPM), `Ctrl+K` (Camelot Wheel), `Esc` (Instant Reset), and `Enter` (Deck Load).
+#### 🎛️ Live DJ Crates & Barra Filtri Rapidi (<15ms di Latenza)
+- Barra filtri reattiva con autocomplete multi-genere (OR), selezione Target BPM con preset percentuali (`±2%`, `±4%`, `±6%`, `±8%`), filtro per decennio e livello di energia.
+- Assistente Armonico Ruota Camelot (`1A`–`12B`) con evidenziazione dei percorsi di mixaggio compatibili (`±1`, scala relativa, boost `+2`, salto `+7`).
+- Esportazione istantanea in playlist estese `.m3u8` compatibili con Rekordbox, Traktor, Serato ed Engine DJ.
 
-#### 🍏 Cross-Platform macOS Support & Multi-OS CI/CD Pipeline
-- **Unified Fast Search Engine (`src/core/search_factory.py`):**
-  - **macOS:** Native Spotlight Metadata Services (`mdfind`) APFS driver (`src/core/search_mac.py`) filtering `kMDItemContentTypeTree == 'public.audio'`.
-  - **Windows:** Voidtools Everything SDK IPC querying NTFS Master File Table.
-  - **Fallback:** Automatic transparent fallback to SQLite FTS5 across both platforms with dynamic UI engine badges (`[EVERYTHING MFT]`, `[SPOTLIGHT APFS]`, `[SQLITE FTS5]`).
-- **Cross-Platform Audio Engine (`src/player/vlc_engine.py`):** Dynamic discovery of `libvlc.dylib` across `.app` bundles, `/Applications/VLC.app`, and Homebrew paths (`/opt/homebrew` and `/usr/local`). Full support for 32-bit float WAV, ALAC, AIFF, FLAC, and AAC on Apple Silicon (ARM64) and Intel Macs.
-- **Cross-Platform Path Resolver (`src/core/path_resolver.py`):** Universal support for Windows Volume Serial Numbers (`[VOL:XXXXXXXX]`) and macOS mount points (`/Volumes/<DiskName>/...`), standard application data directories (`%APPDATA%` on Windows, `~/Library/Application Support/Musicat` on macOS), and portable USB SSD drives switching between Windows and Mac.
-- **Multi-OS Release Pipeline (`.github/workflows/build-release.yml` & `release.yml`):** Automated GitHub Actions build matrix simultaneously generating:
-  - `Musicat-Setup-Windows-x64.exe` (Inno Setup dual-mode installer)
-  - `Musicat-Windows-Portable.zip` (standalone Windows portable archive)
-  - `Musicat-macOS.dmg` (macOS Drag & Drop Applications installer DMG)
-  - `Musicat-macOS-Portable.zip` (standalone macOS portable bundle)
+#### 🍏 Supporto Cross-Platform macOS & Pipeline Multi-OS
+- Ricerca nativa su macOS tramite Spotlight Metadata (`mdfind`) e volumi APFS.
+- Scoperta dinamica di `libvlc.dylib` tra Homebrew, `/Applications/VLC.app` e bundle di sistema sia su Apple Silicon (M1/M2/M3/M4) che Intel x64.
+- Risolutore cross-platform per i punti di montaggio macOS (`/Volumes/...`).
+- Pipeline GitHub Actions con compilazione automatica di `Musicat-Setup-Windows-x64.exe`, `Musicat-Windows-Portable.zip`, `Musicat-macOS.dmg` e `Musicat-macOS-Portable.zip`.
 
-#### 🌐 Bilingual Localization (IT/EN)
-- **Localization Engine (`src/core/i18n.py`):** Full Italian (default) and English (secondary) translations loaded from `locales/it.json` and `locales/en.json` with embedded fallback safety.
-- **Hot Language Switching:** Dynamic live retranslation across all widgets without restarting the application.
-- **Bilingual Documentation:** Dual-language comprehensive guides in `README.md` (Italian), `README_EN.md` (English), and `ARCHITECTURE.md`.
+#### 🌐 Localizzazione Bilingue (Italiano Lingua Predefinita)
+- Motore di traduzione nativo (`src/core/i18n.py`) con dizionari JSON in `locales/it.json` e `locales/en.json`.
+- **Italiano come lingua primaria predefinita** all'avvio.
+- Cambio lingua istantaneo "a caldo" dalle Impostazioni senza necessità di riavviare l'applicazione.
+- Documentazione completa bilingue.

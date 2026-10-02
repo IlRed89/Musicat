@@ -139,7 +139,8 @@ jobs:
           name: "Musicat ${{ github.ref_name || github.event.inputs.tag_name }} - Multi-OS (Windows & macOS)"
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: CHANGELOG.md
           files: |
             release_assets/Musicat-Setup-Windows-x64.exe
             release_assets/Musicat-Windows-Portable.zip
