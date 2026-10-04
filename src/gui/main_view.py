@@ -75,6 +75,56 @@ from .views import (
 from .styles import get_theme_stylesheet
 
 
+class HardwareProgressBar(QProgressBar):
+    """Compact horizontal progress bar with dynamic load coloring and centered text."""
+
+    def __init__(self, prefix: str = "", parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.prefix = prefix
+        self.setRange(0, 100)
+        self.setFixedHeight(18)
+        self.setFixedWidth(135)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setTextVisible(True)
+        self._current_pct = 0.0
+
+    def update_load(self, percent: float, display_text: str, is_light: bool = True) -> None:
+        self._current_pct = max(0.0, min(100.0, percent))
+        self.setValue(int(round(self._current_pct)))
+        self.setFormat(display_text)
+
+        # Dynamic color thresholds:
+        # Green (#28A745): 0% - 60%
+        # Yellow / Orange (#FD7E14): 61% - 84%
+        # Red (#DC3545): 85% - 100%
+        if self._current_pct <= 60.0:
+            chunk_color = "#28A745"
+        elif self._current_pct <= 84.0:
+            chunk_color = "#FD7E14"
+        else:
+            chunk_color = "#DC3545"
+
+        bg_color = "#e9ecef" if is_light else "#1a1d26"
+        border_color = "#ced4da" if is_light else "#2d313f"
+        text_color = "#212529" if is_light else "#f1f3f5"
+
+        self.setStyleSheet(f"""
+            QProgressBar {{
+                border: 1px solid {border_color};
+                border-radius: 4px;
+                text-align: center;
+                background-color: {bg_color};
+                color: {text_color};
+                font-size: 10px;
+                font-weight: 700;
+            }}
+            QProgressBar::chunk {{
+                background-color: {chunk_color};
+                border-radius: 3px;
+            }}
+        """)
+
+
 class BackgroundScanWorker(QThread):
     """Background worker thread for filesystem scanning and SQLite indexing."""
 
@@ -359,30 +409,39 @@ class MainWindow(QMainWindow):
         # Start up strictly on View 0: Analisi / Home
         self._switch_view(0)
 
-        # Status Bar with Hardware Resource Monitor
+        # Status Bar with Dynamic Hardware Resource Monitor
         self.status_bar = self.statusBar()
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setMaximumWidth(200)
         self.status_bar.addPermanentWidget(self.progress_bar)
 
-        self.lbl_hw_monitor = QLabel()
-        self.lbl_hw_monitor.setToolTip(
+        self.hw_container = QWidget(self)
+        hw_layout = QHBoxLayout(self.hw_container)
+        hw_layout.setContentsMargins(0, 0, 4, 0)
+        hw_layout.setSpacing(6)
+
+        self.bar_cpu = HardwareProgressBar("CPU", parent=self.hw_container)
+        self.bar_cpu.setToolTip(_t("status_cpu_tooltip", "Utilizzo complessivo CPU del sistema"))
+
+        self.bar_ram = HardwareProgressBar("RAM", parent=self.hw_container)
+        self.bar_ram.setToolTip(
             _t(
                 "status_hw_tooltip",
-                "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\n"
-                "Processo a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni."
+                "Uso memoria RAM di sistema (Musicat a 64-bit può utilizzare tutta la memoria disponibile)."
             )
         )
-        self.lbl_hw_monitor.setStyleSheet(
-            "color: #495057; font-size: 11px; font-weight: 600; padding: 2px 10px; "
-            "background-color: #f1f3f5; border: 1px solid #dee2e6; border-radius: 4px; margin-right: 4px;"
-        )
-        self.status_bar.addPermanentWidget(self.lbl_hw_monitor)
+
+        hw_layout.addWidget(self.bar_cpu)
+        hw_layout.addWidget(self.bar_ram)
+        self.status_bar.addPermanentWidget(self.hw_container)
+
+        self.lbl_hw_monitor = QLabel(self)
+        self.lbl_hw_monitor.setVisible(False)
         self.status_bar.showMessage(_t("ready", "Pronto"))
 
         self._hw_timer = QTimer(self)
-        self._hw_timer.setInterval(1800)
+        self._hw_timer.setInterval(1500)
         self._hw_timer.timeout.connect(self._update_hardware_monitor)
         self._hw_timer.start()
         self._update_hardware_monitor()
@@ -390,7 +449,21 @@ class MainWindow(QMainWindow):
 
     def _update_hardware_monitor(self) -> None:
         """Refreshes hardware telemetry metrics asynchronously."""
-        self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text())
+        is_light = True
+        if hasattr(self, "settings_manager"):
+            is_light = (self.settings_manager.get("ui", "theme", "light") != "dark")
+        cpu_pct = HardwareMonitor.get_cpu_percent()
+        ram_used = HardwareMonitor.get_system_memory_used_gb()
+        ram_total = HardwareMonitor.get_total_system_memory_gb()
+        ram_pct = HardwareMonitor.get_system_memory_percent()
+
+        if hasattr(self, "bar_cpu"):
+            self.bar_cpu.update_load(cpu_pct, f"CPU {int(round(cpu_pct))}%", is_light=is_light)
+        if hasattr(self, "bar_ram"):
+            self.bar_ram.update_load(ram_pct, f"RAM {ram_used:.1f}/{ram_total:.0f} GB", is_light=is_light)
+
+        if hasattr(self, "lbl_hw_monitor"):
+            self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text())
 
     def _on_folder_tree_clicked(self, index: QModelIndex) -> None:
         """Filters library to filesystem folder clicked in the sidebar folder tree."""
@@ -1336,6 +1409,8 @@ class MainWindow(QMainWindow):
                     "color: #94a3b8; font-size: 11px; font-weight: 600; padding: 2px 10px; "
                     "background-color: #12141c; border: 1px solid #232738; border-radius: 4px; margin-right: 4px;"
                 )
+        if hasattr(self, "_update_hardware_monitor"):
+            self._update_hardware_monitor()
 
     def _on_home_play_track(self, track: Dict[str, Any]) -> None:
         """Plays a track requested from Home Trends view or discovery dialog."""
@@ -1475,6 +1550,15 @@ class MainWindow(QMainWindow):
                     "status_hw_tooltip",
                     "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\n"
                     "Processo a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni."
+                )
+            )
+        if hasattr(self, "bar_cpu"):
+            self.bar_cpu.setToolTip(_t("status_cpu_tooltip", "Utilizzo complessivo CPU del sistema"))
+        if hasattr(self, "bar_ram"):
+            self.bar_ram.setToolTip(
+                _t(
+                    "status_hw_tooltip",
+                    "Uso memoria RAM di sistema (Musicat a 64-bit può utilizzare tutta la memoria disponibile)."
                 )
             )
 

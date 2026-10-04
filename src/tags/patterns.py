@@ -65,27 +65,16 @@ class PatternEngine:
         Converts a pattern like '%artist% - %title% (%bpm% BPM)'
         into a regular expression capturing groups.
         """
-        keys_order = []
+        # Normalize Mp3tag-style $num(%token%, digits) to %token%
+        normalized_pattern = re.sub(r"\$num\(%([a-zA-Z0-9_\s]+)%,\s*\d+\)", r"%\1%", pattern, flags=re.IGNORECASE)
 
-        def replacer(match):
-            token = match.group(0).lower()
-            key = TAG_PATTERNS.get(token)
-            if key:
-                keys_order.append(key)
-                if key in ("year", "track_num", "total_tracks", "disc_num", "energy_level"):
-                    return r"(\d+)"
-                elif key == "bpm":
-                    return r"(\d+(?:\.\d+)?)"
-                else:
-                    return r"(.+?)"
-            # Escaped unknown token
-            return re.escape(match.group(0))
+        keys_order = []
 
         # Split pattern by tokens and escape literal text
         regex_parts = []
         last_end = 0
-        for match in TOKEN_REGEX.finditer(pattern):
-            literal = pattern[last_end : match.start()]
+        for match in TOKEN_REGEX.finditer(normalized_pattern):
+            literal = normalized_pattern[last_end : match.start()]
             regex_parts.append(re.escape(literal))
             token = match.group(0).lower()
             key = TAG_PATTERNS.get(token)
@@ -101,7 +90,7 @@ class PatternEngine:
                 regex_parts.append(re.escape(match.group(0)))
             last_end = match.end()
 
-        regex_parts.append(re.escape(pattern[last_end:]))
+        regex_parts.append(re.escape(normalized_pattern[last_end:]))
         full_regex = "^" + "".join(regex_parts) + "$"
         return re.compile(full_regex, re.IGNORECASE), keys_order
 
@@ -150,6 +139,24 @@ class PatternEngine:
         Generates a filename or relative directory path from metadata tags and pattern.
         """
         has_slash = "/" in pattern or "\\" in pattern
+
+        # Expand Mp3tag $num(%token%, digits) functions first
+        def num_replacer(m: re.Match) -> str:
+            token = m.group(1).lower()
+            digits = int(m.group(2))
+            key = TAG_PATTERNS.get(f"%{token}%")
+            if not key:
+                return m.group(0)
+            val = tags.get(key)
+            if val is None or val == "":
+                return ""
+            try:
+                num_val = int(val)
+                return f"{num_val:0{digits}d}"
+            except (ValueError, TypeError):
+                return str(val)
+
+        pattern = re.sub(r"\$num\(%([a-zA-Z0-9_\s]+)%,\s*(\d+)\)", num_replacer, pattern, flags=re.IGNORECASE)
 
         def replacer(match):
             token = match.group(0).lower()

@@ -81,6 +81,8 @@ class TrackTableModel(QAbstractTableModel):
                 return f"{val}k" if val else ""
             elif col_key == "year":
                 return str(val) if val else ""
+            elif col_key == "genre":
+                return str(val).strip() if (val is not None and str(val).strip()) else "Vario"
             elif col_key == "energy_level":
                 return f"⚡ {val}" if val else ""
             elif col_key == "lufs":

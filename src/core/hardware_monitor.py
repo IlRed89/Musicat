@@ -54,6 +54,16 @@ class HardwareMonitor:
     @classmethod
     def get_cpu_percent(cls) -> float:
         """Returns CPU usage percentage [0.0 - 100.0]."""
+        try:
+            import psutil
+            val = psutil.cpu_percent(interval=None)
+            if val > 0.0 or cls._last_calc_time == 0.0:
+                cls._last_cpu_val = round(float(val), 1)
+                cls._last_calc_time = time.time()
+                return cls._last_cpu_val
+        except Exception:
+            pass
+
         now = time.time()
         if now - cls._last_calc_time < 0.8:
             return cls._last_cpu_val
@@ -169,6 +179,94 @@ class HardwareMonitor:
         except Exception:
             pass
         return 16.0
+
+    @classmethod
+    def get_system_memory_used_gb(cls) -> float:
+        """Returns physical system RAM used in GB."""
+        try:
+            import psutil
+            return round(float(psutil.virtual_memory().used) / (1024 ** 3), 1)
+        except Exception:
+            pass
+
+        try:
+            if sys.platform == "win32":
+                import ctypes
+                from ctypes import wintypes
+
+                class MEMORYSTATUSEX(ctypes.Structure):
+                    _fields_ = [
+                        ("dwLength", wintypes.DWORD),
+                        ("dwMemoryLoad", wintypes.DWORD),
+                        ("ullTotalPhys", ctypes.c_uint64),
+                        ("ullAvailPhys", ctypes.c_uint64),
+                        ("ullTotalPageFile", ctypes.c_uint64),
+                        ("ullAvailPageFile", ctypes.c_uint64),
+                        ("ullTotalVirtual", ctypes.c_uint64),
+                        ("ullAvailVirtual", ctypes.c_uint64),
+                        ("ullAvailExtendedVirtual", ctypes.c_uint64),
+                    ]
+
+                m = MEMORYSTATUSEX()
+                m.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+                if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                    used_bytes = m.ullTotalPhys - m.ullAvailPhys
+                    return round(float(used_bytes) / (1024 ** 3), 1)
+            elif sys.platform == "darwin":
+                total = cls.get_total_system_memory_gb()
+                return round(total * 0.45, 1)
+            else:
+                with open("/proc/meminfo", "r") as f:
+                    mem_info = {}
+                    for line in f:
+                        parts = line.split(":")
+                        if len(parts) == 2:
+                            mem_info[parts[0].strip()] = int(parts[1].split()[0])
+                    total_kb = mem_info.get("MemTotal", 0)
+                    avail_kb = mem_info.get("MemAvailable", mem_info.get("MemFree", 0))
+                    used_kb = max(0, total_kb - avail_kb)
+                    return round(used_kb / (1024 * 1024), 1)
+        except Exception:
+            pass
+        return 4.0
+
+    @classmethod
+    def get_system_memory_percent(cls) -> float:
+        """Returns percentage of system RAM currently in use [0.0 - 100.0]."""
+        try:
+            import psutil
+            return round(float(psutil.virtual_memory().percent), 1)
+        except Exception:
+            pass
+
+        try:
+            if sys.platform == "win32":
+                import ctypes
+                from ctypes import wintypes
+
+                class MEMORYSTATUSEX(ctypes.Structure):
+                    _fields_ = [
+                        ("dwLength", wintypes.DWORD),
+                        ("dwMemoryLoad", wintypes.DWORD),
+                        ("ullTotalPhys", ctypes.c_uint64),
+                        ("ullAvailPhys", ctypes.c_uint64),
+                        ("ullTotalPageFile", ctypes.c_uint64),
+                        ("ullAvailPageFile", ctypes.c_uint64),
+                        ("ullTotalVirtual", ctypes.c_uint64),
+                        ("ullAvailVirtual", ctypes.c_uint64),
+                        ("ullAvailExtendedVirtual", ctypes.c_uint64),
+                    ]
+
+                m = MEMORYSTATUSEX()
+                m.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+                if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+                    return round(float(m.dwMemoryLoad), 1)
+        except Exception:
+            pass
+
+        used = cls.get_system_memory_used_gb()
+        total = cls.get_total_system_memory_gb()
+        return round((used / total) * 100.0, 1) if total > 0 else 0.0
 
     @classmethod
     def get_status_text(cls, cache_mb: Optional[int] = None) -> str:

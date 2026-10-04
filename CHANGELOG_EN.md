@@ -10,6 +10,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] - 2026-10-04
+
+### 🚀 Visual Hardware Monitor (Dynamic Progress Bars), Advanced Mp3tag Toolset (Auto-Numbering & Live Patterns), Unified Dynamic Genre ComboBox & Fallback "Vario"
+
+#### 📊 Visual Hardware Monitor in Status Bar
+- **Integrated Dual Progress Bars (`HardwareProgressBar`):** Replaced plain status text with two compact horizontal progress bars for CPU and RAM.
+- **Dynamic 3-Stage Load Coloring:**
+  - **Green (`#28A745`):** Normal load (0% - 60%);
+  - **Yellow / Orange (`#FD7E14`):** Medium-high load (61% - 84%);
+  - **Red (`#DC3545`):** High stress / saturation (85% - 100%).
+- **Centered Text & Asynchronous Polling:** Clean centered telemetry (`CPU XX%`, `RAM X.X/YY GB`) updated asynchronously every 1.5 seconds (1500 ms) with seamless light/dark theme adaptation.
+
+#### 🏷️ Mp3tag Workspace: Advanced Tagging Toolset
+- **Track Numbering Wizard (`TrackNumberingWizardDialog`):**
+  - Dedicated *"🔢 Renumber Tracks..."* button;
+  - Sequential track numbering with optional leading zeros (`01, 02...`);
+  - Total track count denominator support (`01/12`);
+  - Counter reset per folder or per album;
+  - Real-time tabular preview before applying changes.
+- **Pattern Converters with Live Tabular Preview:**
+  - **Filename ➔ Tag (`FilenameToTagDialog`):** Interactive dialog with presets, quick token buttons (`%artist%`, `%title%`, `%album%`, `%track%`, `%year%`, `%bpm%`, `%genre%`), and live preview table.
+  - **Tag ➔ Filename (`TagToFilenameDialog`):** Mass disk renaming with real-time target status indicators and conflict detection.
+  - **`$num(%track%,2)` Token Support:** Advanced token parsing and padding generation in `PatternEngine`.
+- **Quick Case Conversion Actions:**
+  - One-click shortcuts on toolbar and left panel for *Title Case*, *UPPERCASE*, and *lowercase*.
+
+#### 🎛️ Unified Dynamic Genre ComboBox & Fallback "Vario"
+- **Editable Unified Control:** Merged separate text search and dropdown into a single editable `QComboBox` with autocompletion (`setEditable(True)`, `setInsertPolicy(NoInsert)`).
+- **Dynamic Alphabetical List:** Starts with `🏷️ Tutti i Generi`, followed by all unique database genres sorted alphabetically, auto-refreshed after each scan.
+- **Fallback "Vario":** Untagged tracks (empty or null ID3 genre) are grouped under `"Vario"`, displayed in the table as `"Vario"` and accurately matched by the in-memory and SQLite filter engines.
+
+---
+
 ## [1.3.0] - 2026-10-04
 
 ### 🚀 Embedded Workspaces (QStackedWidget), Left Drive Explorer, Taskbar Icon Fix & Selection Synchronization

@@ -27,11 +27,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from PySide6.QtCore import QByteArray, QMimeData, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -140,6 +142,405 @@ class CoverDropWidget(QFrame):
             event.acceptProposedAction()
 
 
+class TrackNumberingWizardDialog(QDialog):
+    """Interactive Track Numbering Wizard with live preview."""
+
+    def __init__(self, tracks: List[Dict[str, Any]], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Procedura Guidata Numerazione Tracce")
+        self.resize(750, 520)
+        self.setMinimumSize(640, 420)
+        self.tracks = tracks
+        self._new_track_numbers: List[str] = []
+        self._init_ui()
+        self._update_preview()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+
+        grp_opts = QGroupBox("Parametri di Rinumerazione")
+        grid = QGridLayout(grp_opts)
+        grid.setSpacing(8)
+
+        grid.addWidget(QLabel("Numero traccia iniziale:"), 0, 0)
+        self.spn_start = QSpinBox()
+        self.spn_start.setRange(1, 9999)
+        self.spn_start.setValue(1)
+        self.spn_start.valueChanged.connect(self._update_preview)
+        grid.addWidget(self.spn_start, 0, 1)
+
+        self.chk_leading_zero = QCheckBox("Aggiungi zero iniziale (01, 02, ...)")
+        self.chk_leading_zero.setChecked(True)
+        self.chk_leading_zero.toggled.connect(self._update_preview)
+        grid.addWidget(self.chk_leading_zero, 0, 2)
+
+        self.chk_total_denominator = QCheckBox("Includi totale tracce come denominatore (es. 01/12)")
+        self.chk_total_denominator.setChecked(False)
+        self.chk_total_denominator.toggled.connect(self._update_preview)
+        grid.addWidget(self.chk_total_denominator, 1, 0, 1, 3)
+
+        self.chk_reset_folder = QCheckBox("Azzera contatore per ciascuna sottocartella")
+        self.chk_reset_folder.setChecked(False)
+        self.chk_reset_folder.toggled.connect(self._update_preview)
+        grid.addWidget(self.chk_reset_folder, 2, 0, 1, 3)
+
+        self.chk_reset_album = QCheckBox("Azzera contatore al cambio di album")
+        self.chk_reset_album.setChecked(False)
+        self.chk_reset_album.toggled.connect(self._update_preview)
+        grid.addWidget(self.chk_reset_album, 3, 0, 1, 3)
+
+        layout.addWidget(grp_opts)
+
+        layout.addWidget(QLabel("<b>Anteprima Assegnazione Tracce:</b>"))
+
+        self.tbl_preview = QTableWidget()
+        self.tbl_preview.setColumnCount(5)
+        self.tbl_preview.setHorizontalHeaderLabels([
+            "Nome File", "Cartella", "Album", "Traccia Attuale", "Nuova Traccia"
+        ])
+        self.tbl_preview.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl_preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.tbl_preview, 1)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        self.btn_apply = QPushButton("✓ Applica Numerazione")
+        self.btn_apply.setStyleSheet("background-color: #0077b6; color: white; font-weight: bold; padding: 6px 16px; border-radius: 4px;")
+        self.btn_apply.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Annulla")
+        btn_cancel.clicked.connect(self.reject)
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(self.btn_apply)
+        layout.addLayout(btn_box)
+
+    def _update_preview(self) -> None:
+        start_num = self.spn_start.value()
+        leading_zero = self.chk_leading_zero.isChecked()
+        has_denom = self.chk_total_denominator.isChecked()
+        reset_folder = self.chk_reset_folder.isChecked()
+        reset_album = self.chk_reset_album.isChecked()
+
+        groups: List[Tuple[str, str]] = []
+        for tr in self.tracks:
+            f = str(tr.get("directory") or Path(tr.get("filepath", "")).parent or "")
+            a = str(tr.get("album") or "").lower().strip()
+            groups.append((f if reset_folder else "", a if reset_album else ""))
+
+        group_totals: Dict[Tuple[str, str], int] = {}
+        for g in groups:
+            group_totals[g] = group_totals.get(g, 0) + 1
+
+        self._new_track_numbers = []
+        group_counters: Dict[Tuple[str, str], int] = {}
+
+        for g in groups:
+            cur_idx = group_counters.get(g, start_num)
+            group_counters[g] = cur_idx + 1
+
+            pad_fmt = f"{cur_idx:02d}" if leading_zero else str(cur_idx)
+            if has_denom:
+                tot = group_totals[g]
+                tot_fmt = f"{tot:02d}" if leading_zero else str(tot)
+                val_str = f"{pad_fmt}/{tot_fmt}"
+            else:
+                val_str = pad_fmt
+
+            self._new_track_numbers.append(val_str)
+
+        self.tbl_preview.setRowCount(len(self.tracks))
+        for r, tr in enumerate(self.tracks):
+            fn = tr.get("filename") or Path(tr.get("filepath", "")).name
+            folder = Path(tr.get("filepath", "")).parent.name
+            album = str(tr.get("album") or "")
+            old_tr = str(tr.get("track_num") or "")
+            new_tr = self._new_track_numbers[r]
+
+            self.tbl_preview.setItem(r, 0, QTableWidgetItem(fn))
+            self.tbl_preview.setItem(r, 1, QTableWidgetItem(folder))
+            self.tbl_preview.setItem(r, 2, QTableWidgetItem(album))
+            self.tbl_preview.setItem(r, 3, QTableWidgetItem(old_tr))
+            item_new = QTableWidgetItem(new_tr)
+            item_new.setForeground(QColor("#00e5ff"))
+            self.tbl_preview.setItem(r, 4, item_new)
+
+    def get_track_numbers(self) -> List[str]:
+        return self._new_track_numbers
+
+
+class FilenameToTagDialog(QDialog):
+    """Filename -> Tag pattern extraction dialog with interactive live preview."""
+
+    PRESETS = [
+        "%artist% - %title%",
+        "%track% - %title%",
+        "%track% - %artist% - %title%",
+        "%artist% - %album% - %track% - %title%",
+        "%artist% - %title% (%bpm% BPM)",
+        "%artist% - %title% (%year%)",
+        "%artist% - %title% - %genre%",
+        "%album% / %track% - %title%",
+    ]
+
+    TOKENS = [
+        ("%artist%", "Artista"),
+        ("%title%", "Titolo"),
+        ("%album%", "Album"),
+        ("%track%", "Traccia"),
+        ("%year%", "Anno"),
+        ("%bpm%", "BPM"),
+        ("%genre%", "Genere"),
+        ("%remixer%", "Remixer"),
+        ("%comment%", "Commento"),
+    ]
+
+    def __init__(self, tracks: List[Dict[str, Any]], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Convertitore Nome file ➔ Tag (Mp3tag)")
+        self.resize(800, 560)
+        self.setMinimumSize(680, 440)
+        self.tracks = tracks
+
+        self._init_ui()
+        self._update_preview()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+
+        top_box = QVBoxLayout()
+        top_box.addWidget(QLabel("<b>Maschera di formato (Pattern):</b>"))
+
+        h_input = QHBoxLayout()
+        self.txt_pattern = QLineEdit()
+        self.txt_pattern.setText("%artist% - %title%")
+        self.txt_pattern.textChanged.connect(self._update_preview)
+        h_input.addWidget(self.txt_pattern, 1)
+
+        self.cmb_presets = QComboBox()
+        self.cmb_presets.addItem("Preset predefiniti...", "")
+        for p in self.PRESETS:
+            self.cmb_presets.addItem(p, p)
+        self.cmb_presets.currentIndexChanged.connect(self._on_preset_selected)
+        h_input.addWidget(self.cmb_presets)
+        top_box.addLayout(h_input)
+
+        h_tokens = QHBoxLayout()
+        h_tokens.addWidget(QLabel("Inserisci token:"))
+        for tok, tip in self.TOKENS:
+            btn = QPushButton(tok)
+            btn.setToolTip(f"Inserisci {tok} ({tip})")
+            btn.setStyleSheet("padding: 2px 6px; font-size: 11px;")
+            btn.clicked.connect(lambda _, t=tok: self._insert_token(t))
+            h_tokens.addWidget(btn)
+        h_tokens.addStretch()
+        top_box.addLayout(h_tokens)
+
+        layout.addLayout(top_box)
+
+        layout.addWidget(QLabel("<b>Anteprima Estrazione Live:</b>"))
+        self.tbl_preview = QTableWidget()
+        self.tbl_preview.setColumnCount(7)
+        self.tbl_preview.setHorizontalHeaderLabels([
+            "Nome File", "Artista", "Titolo", "Album", "Traccia", "BPM", "Anno"
+        ])
+        self.tbl_preview.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl_preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.tbl_preview, 1)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        self.btn_apply = QPushButton("✓ Applica Tag ai File")
+        self.btn_apply.setStyleSheet("background-color: #0077b6; color: white; font-weight: bold; padding: 6px 16px; border-radius: 4px;")
+        self.btn_apply.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Annulla")
+        btn_cancel.clicked.connect(self.reject)
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(self.btn_apply)
+        layout.addLayout(btn_box)
+
+    def _insert_token(self, token: str) -> None:
+        self.txt_pattern.insert(token)
+        self.txt_pattern.setFocus()
+
+    def _on_preset_selected(self, idx: int) -> None:
+        val = self.cmb_presets.itemData(idx)
+        if val:
+            self.txt_pattern.setText(val)
+
+    def get_pattern(self) -> str:
+        return self.txt_pattern.text().strip()
+
+    def _update_preview(self) -> None:
+        pattern = self.txt_pattern.text().strip()
+        self.tbl_preview.setRowCount(len(self.tracks))
+        for r, tr in enumerate(self.tracks):
+            fn = tr.get("filename") or Path(tr.get("filepath", "")).name
+            self.tbl_preview.setItem(r, 0, QTableWidgetItem(fn))
+
+            extracted = PatternEngine.parse_filename_to_tags(fn, pattern) if pattern else None
+            fields = [
+                ("artist", 1),
+                ("title", 2),
+                ("album", 3),
+                ("track_num", 4),
+                ("bpm", 5),
+                ("year", 6),
+            ]
+            for f_key, col in fields:
+                val = str(extracted.get(f_key, "")) if extracted else ""
+                item = QTableWidgetItem(val)
+                if val:
+                    item.setForeground(QColor("#00e5ff"))
+                self.tbl_preview.setItem(r, col, item)
+
+
+class TagToFilenameDialog(QDialog):
+    """Tag -> Filename physical file renaming dialog with interactive live preview."""
+
+    PRESETS = [
+        "%artist% - %title%",
+        "$num(%track%,2) - %title%",
+        "$num(%track%,2) - %artist% - %title%",
+        "%artist% - %album% - $num(%track%,2) - %title%",
+        "%artist% - %title% (%bpm% BPM)",
+        "%artist% - %title% (%year%)",
+        "%year% - %album% - $num(%track%,2) - %title%",
+    ]
+
+    TOKENS = [
+        ("%artist%", "Artista"),
+        ("%title%", "Titolo"),
+        ("%album%", "Album"),
+        ("%track%", "Traccia"),
+        ("$num(%track%,2)", "Traccia a 2 cifre"),
+        ("%year%", "Anno"),
+        ("%bpm%", "BPM"),
+        ("%genre%", "Genere"),
+    ]
+
+    def __init__(self, tracks: List[Dict[str, Any]], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Convertitore Tag ➔ Nome file (Rinomina File)")
+        self.resize(820, 560)
+        self.setMinimumSize(680, 440)
+        self.tracks = tracks
+        self._proposed_names: List[str] = []
+
+        self._init_ui()
+        self._update_preview()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+
+        top_box = QVBoxLayout()
+        top_box.addWidget(QLabel("<b>Maschera di rinomina (Pattern):</b>"))
+
+        h_input = QHBoxLayout()
+        self.txt_pattern = QLineEdit()
+        self.txt_pattern.setText("%artist% - %title%")
+        self.txt_pattern.textChanged.connect(self._update_preview)
+        h_input.addWidget(self.txt_pattern, 1)
+
+        self.cmb_presets = QComboBox()
+        self.cmb_presets.addItem("Preset predefiniti...", "")
+        for p in self.PRESETS:
+            self.cmb_presets.addItem(p, p)
+        self.cmb_presets.currentIndexChanged.connect(self._on_preset_selected)
+        h_input.addWidget(self.cmb_presets)
+        top_box.addLayout(h_input)
+
+        h_tokens = QHBoxLayout()
+        h_tokens.addWidget(QLabel("Inserisci token:"))
+        for tok, tip in self.TOKENS:
+            btn = QPushButton(tok)
+            btn.setToolTip(f"Inserisci {tok} ({tip})")
+            btn.setStyleSheet("padding: 2px 6px; font-size: 11px;")
+            btn.clicked.connect(lambda _, t=tok: self._insert_token(t))
+            h_tokens.addWidget(btn)
+        h_tokens.addStretch()
+        top_box.addLayout(h_tokens)
+
+        layout.addLayout(top_box)
+
+        layout.addWidget(QLabel("<b>Anteprima Rinomina File:</b>"))
+        self.tbl_preview = QTableWidget()
+        self.tbl_preview.setColumnCount(3)
+        self.tbl_preview.setHorizontalHeaderLabels([
+            "Nome File Attuale", "Nuovo Nome File Proposto", "Stato Rinomina"
+        ])
+        self.tbl_preview.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl_preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_preview.horizontalHeader().setStretchLastSection(True)
+        self.tbl_preview.setColumnWidth(0, 300)
+        self.tbl_preview.setColumnWidth(1, 340)
+        layout.addWidget(self.tbl_preview, 1)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        self.btn_apply = QPushButton("✓ Rinomina File su Disco")
+        self.btn_apply.setStyleSheet("background-color: #0077b6; color: white; font-weight: bold; padding: 6px 16px; border-radius: 4px;")
+        self.btn_apply.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Annulla")
+        btn_cancel.clicked.connect(self.reject)
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(self.btn_apply)
+        layout.addLayout(btn_box)
+
+    def _insert_token(self, token: str) -> None:
+        self.txt_pattern.insert(token)
+        self.txt_pattern.setFocus()
+
+    def _on_preset_selected(self, idx: int) -> None:
+        val = self.cmb_presets.itemData(idx)
+        if val:
+            self.txt_pattern.setText(val)
+
+    def get_pattern(self) -> str:
+        return self.txt_pattern.text().strip()
+
+    def get_proposed_names(self) -> List[str]:
+        return self._proposed_names
+
+    def _update_preview(self) -> None:
+        pattern = self.txt_pattern.text().strip()
+        self._proposed_names = []
+        self.tbl_preview.setRowCount(len(self.tracks))
+
+        for r, tr in enumerate(self.tracks):
+            old_fp = Path(tr.get("filepath", ""))
+            ext = old_fp.suffix
+            old_fn = tr.get("filename") or old_fp.name
+
+            if pattern:
+                new_stem = PatternEngine.format_tags_to_filename(tr, pattern)
+                clean_stem = sanitize_filename(new_stem)
+                new_fn = clean_stem + ext
+            else:
+                new_fn = old_fn
+
+            self._proposed_names.append(new_fn)
+
+            self.tbl_preview.setItem(r, 0, QTableWidgetItem(old_fn))
+
+            item_new = QTableWidgetItem(new_fn)
+            if new_fn != old_fn:
+                item_new.setForeground(QColor("#00e5ff"))
+            self.tbl_preview.setItem(r, 1, item_new)
+
+            status_str = "Invariato" if new_fn == old_fn else "Pronto a rinominare"
+            item_status = QTableWidgetItem(status_str)
+            if new_fn != old_fn:
+                item_status.setForeground(QColor("#4ade80"))
+            self.tbl_preview.setItem(r, 2, item_status)
+
+
 class Mp3tagWorkspaceWindow(QMainWindow):
     """Full-featured Mp3tag-grade Tagging Workbench for Musicat."""
 
@@ -236,6 +637,10 @@ class Mp3tagWorkspaceWindow(QMainWindow):
 
         # 3. Actions / Macros Menu
         menu_actions = menubar.addMenu("&Azioni (Macro)")
+        act_wizard = menu_actions.addAction("🔢 Procedura Guidata Numerazione Tracce...")
+        act_wizard.triggered.connect(self._on_wizard_track_numbering)
+
+        menu_actions.addSeparator()
         act_case_title = menu_actions.addAction("🔤 Normalizza Titoli: Formato Titolo (Title Case)")
         act_case_title.triggered.connect(lambda: self._apply_case_action("title"))
 
@@ -264,6 +669,12 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         toolbar.addAction(act_tag_fn)
         toolbar.addAction(act_tag_tag)
         toolbar.addAction(act_csv_tag)
+        toolbar.addSeparator()
+        toolbar.addAction(act_wizard)
+        toolbar.addSeparator()
+        toolbar.addAction(act_case_title)
+        toolbar.addAction(act_case_upper)
+        toolbar.addAction(act_case_lower)
         toolbar.addSeparator()
         toolbar.addAction(act_strip_promo)
         toolbar.addAction(act_pad_tracks)
@@ -359,6 +770,35 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         btn_apply_panel.setStyleSheet("background-color: #0077b6; font-weight: bold; padding: 8px;")
         btn_apply_panel.clicked.connect(self._on_apply_left_panel)
         left_layout.addWidget(btn_apply_panel)
+
+        grp_quick = QGroupBox("⚡ Azioni Rapide")
+        quick_layout = QVBoxLayout(grp_quick)
+        quick_layout.setSpacing(5)
+
+        btn_renum = QPushButton("🔢 Rinumera Tracce...")
+        btn_renum.setToolTip("Procedura Guidata Numerazione Tracce")
+        btn_renum.clicked.connect(self._on_wizard_track_numbering)
+        quick_layout.addWidget(btn_renum)
+
+        h_case = QHBoxLayout()
+        btn_case_title = QPushButton("🔤 Title Case")
+        btn_case_title.setToolTip("Maiuscole Iniziali (Formato Titolo)")
+        btn_case_title.clicked.connect(lambda: self._apply_case_action("title"))
+
+        btn_case_upper = QPushButton("🔠 UPPER")
+        btn_case_upper.setToolTip("TUTTO MAIUSCOLO")
+        btn_case_upper.clicked.connect(lambda: self._apply_case_action("upper"))
+
+        btn_case_lower = QPushButton("🔡 lower")
+        btn_case_lower.setToolTip("tutto minuscolo")
+        btn_case_lower.clicked.connect(lambda: self._apply_case_action("lower"))
+
+        h_case.addWidget(btn_case_title)
+        h_case.addWidget(btn_case_upper)
+        h_case.addWidget(btn_case_lower)
+        quick_layout.addLayout(h_case)
+
+        left_layout.addWidget(grp_quick)
 
         left_widget.setMinimumWidth(280)
         left_widget.setMaximumWidth(380)
@@ -589,22 +1029,60 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self.pending_cover_remove = True
 
     # -------------------------------------------------------------
-    # Mp3tag Converters (Filename->Tag, Tag->Filename, Tag->Tag, CSV->Tag)
+    # Mp3tag Converters (Filename->Tag, Tag->Filename, Tag->Tag, CSV->Tag, Numbering Wizard)
     # -------------------------------------------------------------
-    def _on_conv_filename_to_tag(self) -> None:
-        """Mp3tag Converter 1: Filename -> Tag."""
-        pattern, ok = QInputDialog.getText(
-            self,
-            "Nome file ➔ Tag",
-            "Inserisci la maschera di estrazione metadati:\n(es. '%artist% - %title%' oppure '%track% - %artist% - %title% (%bpm% BPM)')",
-            text="%artist% - %title%",
-        )
-        if not ok or not pattern:
-            return
-
+    def _on_wizard_track_numbering(self) -> None:
+        """Track Numbering Wizard with interactive live preview."""
         selected = self._get_selected_tracks_data()
         if not selected:
             selected = list(enumerate(self.tracks))
+
+        if not selected:
+            QMessageBox.information(self, "Nessuna traccia", "Nessuna traccia caricata da rinumerare.")
+            return
+
+        tracks_subset = [tr for _, tr in selected]
+        dlg = TrackNumberingWizardDialog(tracks_subset, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        new_numbers = dlg.get_track_numbers()
+        self.grid.blockSignals(True)
+        for idx, (row_idx, tr) in enumerate(selected):
+            if idx < len(new_numbers):
+                new_num = new_numbers[idx]
+                tr["track_num"] = new_num
+                self.dirty_files.add(tr["filepath"])
+                for col_idx, (col_id, _) in enumerate(self.COLUMNS):
+                    if col_id == "track_num":
+                        item = self.grid.item(row_idx, col_idx)
+                        if item:
+                            item.setText(str(new_num))
+                            item.setForeground(QColor("#00e5ff"))
+
+        self.grid.blockSignals(False)
+        self._on_grid_selection_changed()
+        QMessageBox.information(self, "Completato", f"Rinumerate {len(selected)} tracce.")
+
+    def _on_conv_filename_to_tag(self, pattern: Optional[str] = None) -> None:
+        """Mp3tag Converter 1: Filename -> Tag with interactive live preview."""
+        selected = self._get_selected_tracks_data()
+        if not selected:
+            selected = list(enumerate(self.tracks))
+
+        if not selected:
+            QMessageBox.information(self, "Nessuna traccia", "Nessuna traccia caricata nel workspace.")
+            return
+
+        if pattern is None:
+            tracks_subset = [tr for _, tr in selected]
+            dlg = FilenameToTagDialog(tracks_subset, self)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            pattern = dlg.get_pattern()
+
+        if not pattern:
+            return
 
         self.grid.blockSignals(True)
         count = 0
@@ -628,20 +1106,25 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self._on_grid_selection_changed()
         QMessageBox.information(self, "Completato", f"Metadati estratti da {count} nomi di file.")
 
-    def _on_conv_tag_to_filename(self) -> None:
-        """Mp3tag Converter 2: Tag -> Filename."""
-        pattern, ok = QInputDialog.getText(
-            self,
-            "Tag ➔ Nome file",
-            "Inserisci la maschera di rinomina file:\n(es. '%artist% - %title%' o '$num(%track%,2) - %title%')",
-            text="%artist% - %title%",
-        )
-        if not ok or not pattern:
-            return
-
+    def _on_conv_tag_to_filename(self, pattern: Optional[str] = None) -> None:
+        """Mp3tag Converter 2: Tag -> Filename with live preview and physical renaming."""
         selected = self._get_selected_tracks_data()
         if not selected:
             selected = list(enumerate(self.tracks))
+
+        if not selected:
+            QMessageBox.information(self, "Nessuna traccia", "Nessuna traccia caricata nel workspace.")
+            return
+
+        if pattern is None:
+            tracks_subset = [tr for _, tr in selected]
+            dlg = TagToFilenameDialog(tracks_subset, self)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            pattern = dlg.get_pattern()
+
+        if not pattern:
+            return
 
         renamed = 0
         for row_idx, tr in selected:

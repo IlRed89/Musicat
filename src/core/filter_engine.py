@@ -151,8 +151,12 @@ class LiveFilterQueryBuilder:
             for g in criteria.genres:
                 clean_g = g.strip()
                 if clean_g:
-                    genre_conditions.append("genre LIKE ?")
-                    params.append(f"%{clean_g}%")
+                    if clean_g.lower() == "vario":
+                        genre_conditions.append("(genre IS NULL OR TRIM(genre) = '' OR genre LIKE ?)")
+                        params.append("%vario%")
+                    else:
+                        genre_conditions.append("genre LIKE ?")
+                        params.append(f"%{clean_g}%")
             if genre_conditions:
                 where_clauses.append(f"({' OR '.join(genre_conditions)})")
 
@@ -349,8 +353,17 @@ class LiveFilterEngine:
 
             # 2. Multi-Genre (OR)
             if genres_lower:
-                tr_genre = (tr.get("genre") or "").lower()
-                if not any(g in tr_genre for g in genres_lower):
+                tr_genre = (tr.get("genre") or "").strip().lower()
+                matched = False
+                for g in genres_lower:
+                    if g == "vario":
+                        if not tr_genre or "vario" in tr_genre:
+                            matched = True
+                            break
+                    elif g in tr_genre:
+                        matched = True
+                        break
+                if not matched:
                     continue
 
             # 3. BPM Range

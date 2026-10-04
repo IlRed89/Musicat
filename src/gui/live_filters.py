@@ -210,171 +210,195 @@ class CamelotWheelDialog(QDialog):
         self.accept()
 
 
-class GenreMultiSelectWidget(QWidget):
-    """Searchable multi-genre selector supporting OR filtering across subgenres."""
+class GenreMultiSelectWidget(QComboBox):
+    """Editable dynamic genre selector with autocompletion and 'Vario' fallback."""
 
     genres_changed = Signal(list)  # List[str]
 
     def __init__(self, db: Optional[Database] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.db = db
-        self.selected_genres: Set[str] = set()
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.setMinimumWidth(160)
+        self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        self._all_genres_label = _t("filter_all_genres_combo", "🏷️ Tutti i Generi")
+        self._updating = False
 
-        # Text input with autocomplete
-        self.txt_genre = QLineEdit()
-        self.txt_genre.setMinimumWidth(140)
-        self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Cerca Generi (Ctrl+G)..."))
-        self.txt_genre.setClearButtonEnabled(True)
-        self.txt_genre.returnPressed.connect(self._on_add_text_genre)
+        line_edit = self.lineEdit()
+        if line_edit:
+            line_edit.setPlaceholderText(_t("filter_genre_placeholder", "🏷️ Cerca o Seleziona Genere..."))
+            line_edit.setClearButtonEnabled(True)
 
-        # Autocomplete from DB or common genres
-        self._refresh_completer()
+        self.populate_genres()
 
-        # Dropdown button with checkable genre list
-        self.btn_genre_menu = QToolButton()
-        self.btn_genre_menu.setText("▾")
-        self.btn_genre_menu.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._build_menu()
+        self.currentIndexChanged.connect(self._on_combo_index_changed)
+        if line_edit:
+            line_edit.textChanged.connect(self._on_combo_text_changed)
 
-        # Count badge button
-        self.btn_count = QPushButton("All")
-        self.btn_count.clicked.connect(self._show_selected_summary)
-
-        layout.addWidget(self.txt_genre, 1)
-        layout.addWidget(self.btn_genre_menu)
-        layout.addWidget(self.btn_count)
-
-        self._update_display()
         self.update_theme("light")
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
-    def _refresh_completer(self) -> None:
-        genres = list(COMMON_DJ_GENRES)
+    @property
+    def selected_genres(self) -> Set[str]:
+        """Returns the set of selected genres (or empty set if all genres selected)."""
+        text = self.currentText().strip()
+        if not text or text == self._all_genres_label or self.currentIndex() == 0:
+            return set()
+        return {text}
+
+    @property
+    def txt_genre(self) -> QLineEdit:
+        """Backward-compatibility property returning the inner QLineEdit."""
+        return self.lineEdit()
+
+    def populate_genres(self) -> None:
+        """Populates dynamic genre list from SQLite DB starting with '🏷️ Tutti i Generi', sorted alphabetically."""
+        curr_text = self.currentText().strip()
+        self._updating = True
+        self.blockSignals(True)
+        self.clear()
+
+        # Item 0: Tutti i Generi
+        self.addItem(self._all_genres_label, "")
+
+        genres_set = set(COMMON_DJ_GENRES)
         if self.db:
             try:
                 db_genres = self.db.get_distinct_genres()
-                genres = sorted(list(set(genres + db_genres)))
+                genres_set.update(db_genres)
             except Exception:
                 pass
-        completer = QCompleter(genres, self)
+
+        # Always include "Vario" for untagged tracks
+        genres_set.add("Vario")
+
+        # Sorted alphabetically (case-insensitive)
+        sorted_genres = sorted(list(genres_set), key=lambda s: s.lower())
+
+        for g in sorted_genres:
+            self.addItem(g, g)
+
+        # Autocompletion setup
+        completer = QCompleter(sorted_genres, self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.txt_genre.setCompleter(completer)
+        self.setCompleter(completer)
+
+        # Restore selection
+        if curr_text and curr_text != self._all_genres_label:
+            idx = self.findText(curr_text, Qt.MatchFlag.MatchFixedString)
+            if idx >= 0:
+                self.setCurrentIndex(idx)
+            else:
+                self.setEditText(curr_text)
+        else:
+            self.setCurrentIndex(0)
+
+        self.blockSignals(False)
+        self._updating = False
+
+    def _on_combo_index_changed(self, index: int) -> None:
+        if self._updating:
+            return
+        if index <= 0 or self.currentText().strip() == self._all_genres_label:
+            self.genres_changed.emit([])
+        else:
+            self.genres_changed.emit([self.currentText().strip()])
+
+    def _on_combo_text_changed(self, text: str) -> None:
+        if self._updating:
+            return
+        clean = text.strip()
+        if not clean or clean == self._all_genres_label:
+            self.genres_changed.emit([])
+        else:
+            self.genres_changed.emit([clean])
+
+    def _refresh_completer(self) -> None:
+        """Refreshes genres and autocompleter from database."""
+        self.populate_genres()
 
     def _build_menu(self) -> None:
-        menu = QMenu(self)
-        genres = list(COMMON_DJ_GENRES)
-        if self.db:
-            try:
-                db_genres = self.db.get_distinct_genres()
-                genres = sorted(list(set(genres + db_genres)))
-            except Exception:
-                pass
-
-        act_all = menu.addAction(_t("filter_clear_genres", "Rimuovi Selezione Generi"))
-        act_all.triggered.connect(self.clear_selection)
-        menu.addSeparator()
-
-        for g in genres[:30]:  # Top 30 genres
-            act = menu.addAction(g)
-            act.setCheckable(True)
-            act.setChecked(g in self.selected_genres)
-            act.toggled.connect(lambda chk, genre=g: self._toggle_genre(genre, chk))
-
-        self.btn_genre_menu.setMenu(menu)
+        """Backward-compatibility stub."""
+        self.populate_genres()
 
     def _retranslate_ui(self) -> None:
-        self._update_display()
-        self._build_menu()
-
-    def _toggle_genre(self, genre: str, checked: bool) -> None:
-        if checked:
-            self.selected_genres.add(genre)
-        else:
-            self.selected_genres.discard(genre)
-        self._update_display()
-        self.genres_changed.emit(list(self.selected_genres))
-
-    def _on_add_text_genre(self) -> None:
-        text = self.txt_genre.text().strip()
-        if text:
-            self.selected_genres.add(text)
-            self.txt_genre.clear()
-            self._update_display()
-            self._build_menu()
-            self.genres_changed.emit(list(self.selected_genres))
-
-    def _update_display(self) -> None:
-        if not self.selected_genres:
-            self.btn_count.setText(_t("filter_all_genres", "Tutti"))
-            self.txt_genre.setPlaceholderText(_t("filter_genre_placeholder", "Cerca Generi (Ctrl+G)..."))
-        elif len(self.selected_genres) == 1:
-            g = list(self.selected_genres)[0]
-            self.btn_count.setText(_t("filter_one_genre", "1 Genere"))
-            self.txt_genre.setPlaceholderText(g)
-        else:
-            self.btn_count.setText(_t("filter_multi_genres", "{count} Generi (OR)", count=len(self.selected_genres)))
-            self.txt_genre.setPlaceholderText(", ".join(sorted(self.selected_genres)))
-
-    def update_theme(self, theme_id: str = "light") -> None:
-        """Adapts genre count button and menu toolbutton to active theme."""
-        is_light = (theme_id == "light")
-        if is_light:
-            self.btn_count.setStyleSheet(
-                "padding: 4px 8px; font-size: 11px; font-weight: 600; "
-                "color: #0d6efd; background-color: #e7f1ff; border: 1px solid #b6d4fe; border-radius: 4px;"
-            )
-            self.btn_genre_menu.setStyleSheet(
-                "padding: 5px 8px; font-weight: bold; background-color: #ffffff; "
-                "border: 1px solid #ced4da; border-radius: 4px; color: #212529;"
-            )
-        else:
-            self.btn_count.setStyleSheet(
-                "padding: 4px 8px; font-size: 11px; font-weight: 600; "
-                "color: #00d2ff; background-color: #172033; border: 1px solid #0284c7; border-radius: 4px;"
-            )
-            self.btn_genre_menu.setStyleSheet(
-                "padding: 5px 8px; font-weight: bold; background-color: #20232b; "
-                "border: 1px solid #2d313d; border-radius: 4px; color: #e0e2ec;"
-            )
-
-    def _show_selected_summary(self) -> None:
-        if not self.selected_genres:
-            return
-        genres_str = "\n".join(f"• {g}" for g in sorted(self.selected_genres))
-        QMessageBox.information(self, "Active Genres (OR Filter)", f"Active Genre Filter:\n{genres_str}")
+        self._all_genres_label = _t("filter_all_genres_combo", "🏷️ Tutti i Generi")
+        self.populate_genres()
 
     def clear_selection(self) -> None:
-        self.selected_genres.clear()
-        self.txt_genre.clear()
-        self._update_display()
-        self._build_menu()
+        """Resets genre selection to '🏷️ Tutti i Generi'."""
+        self._updating = True
+        self.setCurrentIndex(0)
+        if self.lineEdit():
+            self.lineEdit().setText(self._all_genres_label)
+        self._updating = False
         self.genres_changed.emit([])
 
     def set_genres(self, genres: Any) -> None:
-        """Safely updates selected genres from a list, set, string, or empty/None value."""
+        """Safely updates selected genre from list, set, string, or empty/None value."""
+        self._updating = True
         try:
-            if genres is None:
-                self.selected_genres = set()
-            elif isinstance(genres, (list, set, tuple)):
-                self.selected_genres = {str(g).strip() for g in genres if g and str(g).strip()}
-            elif isinstance(genres, str):
-                self.selected_genres = {genres.strip()} if genres.strip() else set()
+            if not genres:
+                self.setCurrentIndex(0)
+                if self.lineEdit():
+                    self.lineEdit().setText(self._all_genres_label)
+                self.genres_changed.emit([])
+                return
+
+            if isinstance(genres, (list, set, tuple)):
+                g_val = list(genres)[0] if genres else ""
             else:
-                self.selected_genres = {str(genres).strip()}
-            self._update_display()
-            self._build_menu()
-            self.genres_changed.emit(list(self.selected_genres))
-        except Exception as exc:
-            MusicatLogger.get_logger().error(f"[GENRE_WIDGET] Errore in set_genres: {exc}")
+                g_val = str(genres)
+
+            g_clean = str(g_val).strip()
+            if not g_clean or g_clean == self._all_genres_label:
+                self.setCurrentIndex(0)
+                if self.lineEdit():
+                    self.lineEdit().setText(self._all_genres_label)
+                self.genres_changed.emit([])
+                return
+
+            idx = self.findText(g_clean, Qt.MatchFlag.MatchFixedString)
+            if idx >= 0:
+                self.setCurrentIndex(idx)
+            else:
+                self.setEditText(g_clean)
+
+            self.genres_changed.emit([g_clean])
+        finally:
+            self._updating = False
 
     def set_selected_genres(self, genres: Any) -> None:
-        """Alias for set_genres."""
         self.set_genres(genres)
+
+    def update_theme(self, theme_id: str = "light") -> None:
+        """Adapts styling to active theme."""
+        is_light = (theme_id == "light")
+        bg_col = "#ffffff" if is_light else "#1a1d26"
+        border_col = "#ced4da" if is_light else "#2d313d"
+        text_col = "#212529" if is_light else "#e0e2ec"
+
+        self.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {bg_col};
+                border: 1px solid {border_col};
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: {text_col};
+                font-size: 11px;
+                font-weight: 500;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {bg_col};
+                color: {text_col};
+                selection-background-color: #0d6efd;
+                selection-color: #ffffff;
+                border: 1px solid {border_col};
+            }}
+        """)
 
 
 class LiveFilterBar(QFrame):

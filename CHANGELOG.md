@@ -10,6 +10,39 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.4.0] - 2026-10-04
+
+### 🚀 Monitor Hardware Visivo (Progress Bar Dinamiche), Mp3tag Avanzato (Autonumerazione & Pattern Live), ComboBox Generi Unificata & Fallback "Vario"
+
+#### 📊 Monitor Hardware Visivo nella Status Bar
+- **Barre di Avanzamento Grafiche Integrate (`HardwareProgressBar`):** Sostituito il semplice testo nella barra di stato inferiore con due barre orizzontali compatte per CPU e RAM.
+- **Gradiente Dinamico a 3 Soglie di Carico:**
+  - **Verde (`#28A745`):** Carico normale (0% - 60%);
+  - **Giallo / Arancione (`#FD7E14`):** Carico medio-alto (61% - 84%);
+  - **Rosso (`#DC3545`):** Stress elevato / saturazione (85% - 100%).
+- **Formattazione Centrata & Telemetria Asincrona:** Testo centrato e leggibile (`CPU XX%`, `RAM X.X/YY GB`) con aggiornamento asincrono a intervallo di 1.5 secondi (1500 ms) e pieno adattamento al tema chiaro/scuro.
+
+#### 🏷️ Workspace Mp3tag: Strumenti Avanzati di Tagging
+- **Procedura Guidata Numerazione Tracce (`TrackNumberingWizardDialog`):**
+  - Pulsante dedicato *"🔢 Rinumera Tracce..."*;
+  - Numerazione sequenziale configurabile con zero iniziale opzionale (`01, 02...`);
+  - Opzione per salvare il denominatore totale tracce (`01/12`);
+  - Azzeramento automatico del contatore per cartella o per album;
+  - Tabella di anteprima in tempo reale prima dell'applicazione effettiva.
+- **Convertitori Pattern con Anteprima Live Tabellare:**
+  - **Nome File ➔ Tag (`FilenameToTagDialog`):** Dialog interattivo con selezione preset, pulsanti per inserimento rapido dei token (`%artist%`, `%title%`, `%album%`, `%track%`, `%year%`, `%bpm%`, `%genre%`) e anteprima tabellare dei tag estratti.
+  - **Tag ➔ Nome File (`TagToFilenameDialog`):** Ridenominazione fisica dei file audio su disco in base ai metadati ID3 con anteprima in tempo reale dello stato dei file prima dell'operazione.
+  - **Supporto Token `$num(%track%,2)`:** Implementato il parsing e la generazione avanzata di padding a cifre personalizzate sia nell'estrazione che nella formattazione in `PatternEngine`.
+- **Azioni Rapide per Modifica Case/Maiuscole/Minuscole:**
+  - Pulsanti diretti a 1-click nella toolbar e nel pannello sinistro per *Title Case* (Maiuscole Iniziali), *TUTTO MAIUSCOLO* e *tutto minuscolo*.
+
+#### 🎛️ ComboBox Generi Dinamica Unificata & Fallback "Vario"
+- **Controllo Unificato Editabile:** Fusione del campo di ricerca testuale e del menu a discesa in una singola `QComboBox` editabile con autocompletamento istantaneo (`setEditable(True)`, `setInsertPolicy(NoInsert)`).
+- **Elenco Dinamico Ordinato Alfabeticamente:** Inizializzazione con voce predefinita `🏷️ Tutti i Generi`, seguita dall'elenco completo dei generi presenti nel database SQLite ordinati da A a Z, con aggiornamento automatico al termine di ogni scansione o aggiornamento libreria.
+- **Raggruppamento Fallback "Vario":** Le tracce senza metadati di genere (ID3 vuoto o nullo) vengono automaticamente visualizzate come `"Vario"` nella tabella della libreria e filtrate coerentemente dal motore in-memory e SQL.
+
+---
+
 ## [1.3.0] - 2026-10-04
 
 ### 🚀 Workspace Incorporati (QStackedWidget), Explorer Cartelle a Sinistra, Fix Icona Taskbar & Sincronizzazione Selezione

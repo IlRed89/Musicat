@@ -58,6 +58,7 @@
   "menu_columns_show_all": "Mostra Tutte le Colonne",
   "menu_columns_reset_default": "Ripristina Colonne Predefinite",
   "status_hw_tooltip": "Uso CPU e memoria RAM di Musicat rispetto alla RAM totale del sistema.\nProcesso a 64-bit: Musicat può utilizzare tutta la RAM disponibile nel sistema senza limitazioni.",
+  "status_cpu_tooltip": "Utilizzo complessivo CPU del sistema.",
 
 
   "filter_search_placeholder": "🔍 Ricerca Rapida / {engine} (Ctrl+F)...",
@@ -66,6 +67,7 @@
   "filter_one_genre": "1 Genere",
   "filter_multi_genres": "{count} Generi (OR)",
   "filter_clear_genres": "Rimuovi Selezione Generi",
+  "filter_all_genres_combo": "🏷️ Tutti i Generi",
   "filter_bpm": "BPM:",
   "filter_target_bpm": "Target",
   "filter_min_bpm": "Min",
