@@ -92,19 +92,31 @@ class TestFiveCoreRequirements(unittest.TestCase):
             self.assertIsNotNone(window.btn_nav_organizer)
             self.assertIsNotNone(window.btn_nav_settings)
 
-            # Starts at View 0 (DJ Library Analysis)
+            # Starts at View 0 (Analisi / Home Trends)
             self.assertEqual(window.view_stack.currentIndex(), 0)
 
-            # Switch to Home / Trends (View 1)
-            window.btn_nav_trends.click()
+            # Switch to Library (View 1)
+            window.btn_nav_library.click()
             self.assertEqual(window.view_stack.currentIndex(), 1)
 
-            # Switch to Smart Crates (View 2)
-            window.btn_nav_crates.click()
+            # Switch to Tag Editor (Mp3tag Workspace - View 2)
+            window.btn_nav_mp3tag.click()
             self.assertEqual(window.view_stack.currentIndex(), 2)
 
-            # Switch back to Library (View 0)
-            window.btn_nav_library.click()
+            # Switch to Smart Crates (View 3)
+            window.btn_nav_crates.click()
+            self.assertEqual(window.view_stack.currentIndex(), 3)
+
+            # Switch to Similar Tracks (View 4)
+            window.btn_nav_similar.click()
+            self.assertEqual(window.view_stack.currentIndex(), 4)
+
+            # Switch to Organizza File (View 5)
+            window.btn_nav_organizer.click()
+            self.assertEqual(window.view_stack.currentIndex(), 5)
+
+            # Switch back to Home / Trends (View 0)
+            window.btn_nav_trends.click()
             self.assertEqual(window.view_stack.currentIndex(), 0)
         finally:
             window.close()

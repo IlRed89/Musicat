@@ -64,7 +64,14 @@ from .reconciler_dialog import ReconcilerDialog
 from .analysis_dialog import AcousticAnalysisDialog
 from .settings_dialog import SettingsDialog
 from .mp3tag_workspace import Mp3tagWorkspaceWindow
-from .views import HomeTrendsView, QualityDiagnosisDialog, SimilarTracksDialog, SmartCratesView
+from .views import (
+    HomeTrendsView,
+    QualityDiagnosisDialog,
+    SimilarTracksDialog,
+    SmartCratesView,
+    SimilarTracksView,
+    OrganizerView,
+)
 from .styles import get_theme_stylesheet
 
 
@@ -176,27 +183,27 @@ class MainWindow(QMainWindow):
         # [Analisi / Home], [Libreria], [Tag Editor (Mp3tag)], [Smart Crates], [Trova Simili], [Organizza File], [Impostazioni]
         self.btn_nav_trends = QPushButton(_t("nav_analysis", "🏠  Analisi / Home"))
         self.btn_nav_trends.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_trends.clicked.connect(lambda: self._switch_view(1))
+        self.btn_nav_trends.clicked.connect(lambda: self._switch_view(0))
 
         self.btn_nav_library = QPushButton(_t("nav_library", "📁  Libreria"))
         self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
+        self.btn_nav_library.clicked.connect(lambda: self._switch_view(1))
 
         self.btn_nav_mp3tag = QPushButton(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
         self.btn_nav_mp3tag.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_mp3tag.clicked.connect(self._on_open_mp3tag_workspace)
+        self.btn_nav_mp3tag.clicked.connect(lambda: self._switch_view(2))
 
         self.btn_nav_crates = QPushButton(_t("nav_crates", "📦  Smart Crates"))
         self.btn_nav_crates.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_crates.clicked.connect(lambda: self._switch_view(2))
+        self.btn_nav_crates.clicked.connect(lambda: self._switch_view(3))
 
         self.btn_nav_similar = QPushButton(_t("nav_similar", "🔍  Trova Simili"))
         self.btn_nav_similar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_similar.clicked.connect(self._on_action_find_similar)
+        self.btn_nav_similar.clicked.connect(lambda: self._switch_view(4))
 
         self.btn_nav_organizer = QPushButton(_t("nav_organizer", "📂  Organizza File"))
         self.btn_nav_organizer.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_organizer.clicked.connect(self._on_open_sorter)
+        self.btn_nav_organizer.clicked.connect(lambda: self._switch_view(5))
 
         nav_layout.addWidget(self.btn_nav_trends)
         nav_layout.addWidget(self.btn_nav_library)
@@ -214,10 +221,18 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.nav_bar)
 
-        # 2. Central View Stack (0: DJ Library Track Analysis, 1: Home Trends)
+        # 2. Central View Stack (0: Analisi/Home, 1: Libreria, 2: Tag Editor, 3: Smart Crates, 4: Trova Simili, 5: Organizza File)
         self.view_stack = QStackedWidget(self)
 
-        # Page 0: DJ Library Container (Filter Bar + Table View + Dynamic Right Sidebar)
+        # Index 0: Home Trends Dashboard
+        self.home_view = HomeTrendsView(self.db, self)
+        self.home_view.play_track_requested.connect(self._on_home_play_track)
+        self.home_view.find_similar_requested.connect(self._on_home_find_similar)
+        self.home_view.navigate_to_library_requested.connect(lambda: self._switch_view(1))
+        self.home_view.filter_genre_requested.connect(self._on_home_genre_filter_requested)
+        self.view_stack.addWidget(self.home_view)
+
+        # Index 1: DJ Library Container (Filter Bar + Left Filesystem Sidebar + Table View)
         self.library_container = QWidget(self)
         lib_layout = QVBoxLayout(self.library_container)
         lib_layout.setContentsMargins(0, 0, 0, 0)
@@ -229,10 +244,49 @@ class MainWindow(QMainWindow):
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
         lib_layout.addWidget(self.filter_bar)
 
-        # Horizontal Splitter: Table View on left, Dynamic Sidebar on right
+        # Horizontal Splitter: Left Sidebar (Tree) and Right Table
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
 
-        # Virtual Table View (Left)
+        # Dynamic Collapsible Left Sidebar (Dedicated Folder Tree / Filesystem Navigator)
+        self.sidebar_widget = QWidget(self)
+        sb_layout = QVBoxLayout(self.sidebar_widget)
+        sb_layout.setContentsMargins(6, 6, 6, 6)
+        sb_layout.setSpacing(6)
+
+        sb_header = QHBoxLayout()
+        self.sb_title = QLabel(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+        self.sb_title.setStyleSheet("font-weight: bold; font-size: 11px;")
+        btn_clear_folder = QPushButton("✕ Reset")
+        btn_clear_folder.setToolTip("Rimuovi filtro cartella")
+        btn_clear_folder.clicked.connect(lambda: self.filter_bar.set_folder_filter(""))
+        self.btn_collapse_sidebar = QPushButton("◀")
+        self.btn_collapse_sidebar.setFixedSize(22, 22)
+        self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px; font-weight: bold;")
+        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
+        sb_header.addWidget(self.sb_title)
+        sb_header.addStretch()
+        sb_header.addWidget(btn_clear_folder)
+        sb_header.addWidget(self.btn_collapse_sidebar)
+        sb_layout.addLayout(sb_header)
+
+        self.folder_model = QFileSystemModel(self)
+        self.folder_model.setRootPath(QDir.rootPath())
+        self.folder_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot | QDir.Filter.Drives)
+
+        self.folder_tree = QTreeView(self.sidebar_widget)
+        self.folder_tree.setModel(self.folder_model)
+        self.folder_tree.setRootIndex(self.folder_model.index(QDir.rootPath()))
+        self.folder_tree.setHeaderHidden(True)
+        for col in range(1, 4):
+            self.folder_tree.setColumnHidden(col, True)
+        self.folder_tree.clicked.connect(self._on_folder_tree_clicked)
+        sb_layout.addWidget(self.folder_tree, 1)
+
+        self.sidebar_widget.setMinimumWidth(180)
+        self.sidebar_widget.setMaximumWidth(360)
+        self.main_splitter.addWidget(self.sidebar_widget)
+
+        # Virtual Table View (Right)
         self.table_view = QTableView(self)
         self.table_view.setModel(self.table_model)
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
@@ -263,64 +317,36 @@ class MainWindow(QMainWindow):
             self._apply_saved_column_widths(saved_widths)
         self.table_header.sectionResized.connect(self._on_table_section_resized)
 
-        # Dynamic Collapsible Right Sidebar (Dedicated Folder Tree / Filesystem Navigator)
-        self.sidebar_widget = QWidget(self)
-        sb_layout = QVBoxLayout(self.sidebar_widget)
-        sb_layout.setContentsMargins(6, 6, 6, 6)
-        sb_layout.setSpacing(6)
-
-        sb_header = QHBoxLayout()
-        self.sb_title = QLabel(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
-        self.sb_title.setStyleSheet("font-weight: bold; font-size: 11px;")
-        btn_clear_folder = QPushButton("✕ Reset")
-        btn_clear_folder.setToolTip("Rimuovi filtro cartella")
-        btn_clear_folder.clicked.connect(lambda: self.filter_bar.set_folder_filter(""))
-        self.btn_collapse_sidebar = QPushButton("▶")
-        self.btn_collapse_sidebar.setFixedSize(22, 22)
-        self.btn_collapse_sidebar.setStyleSheet("padding: 0; font-size: 10px; font-weight: bold;")
-        self.btn_collapse_sidebar.clicked.connect(self._toggle_sidebar)
-        sb_header.addWidget(self.sb_title)
-        sb_header.addStretch()
-        sb_header.addWidget(btn_clear_folder)
-        sb_header.addWidget(self.btn_collapse_sidebar)
-        sb_layout.addLayout(sb_header)
-
-        self.folder_model = QFileSystemModel(self)
-        self.folder_model.setRootPath(QDir.rootPath())
-        self.folder_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot | QDir.Filter.Drives)
-
-        self.folder_tree = QTreeView(self.sidebar_widget)
-        self.folder_tree.setModel(self.folder_model)
-        self.folder_tree.setRootIndex(self.folder_model.index(QDir.rootPath()))
-        self.folder_tree.setHeaderHidden(True)
-        for col in range(1, 4):
-            self.folder_tree.setColumnHidden(col, True)
-        self.folder_tree.clicked.connect(self._on_folder_tree_clicked)
-        sb_layout.addWidget(self.folder_tree, 1)
-
-        self.sidebar_widget.setMinimumWidth(180)
-        self.sidebar_widget.setMaximumWidth(360)
-        self.main_splitter.addWidget(self.sidebar_widget)
-
-        self.main_splitter.setStretchFactor(0, 5)
-        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setStretchFactor(0, 1)  # Left Sidebar
+        self.main_splitter.setStretchFactor(1, 5)  # Right Table View
 
         lib_layout.addWidget(self.main_splitter, 1)
         self.view_stack.addWidget(self.library_container)
 
-        # Page 1: Home Trends Dashboard
-        self.home_view = HomeTrendsView(self.db, self)
-        self.home_view.play_track_requested.connect(self._on_home_play_track)
-        self.home_view.find_similar_requested.connect(self._on_home_find_similar)
-        self.home_view.navigate_to_library_requested.connect(lambda: self._switch_view(0))
-        self.home_view.filter_genre_requested.connect(self._on_home_genre_filter_requested)
-        self.view_stack.addWidget(self.home_view)
+        # Index 2: Tag Editor (Embedded Mp3tag Workspace)
+        self.mp3tag_view = Mp3tagWorkspaceWindow(self.db, [], parent=self)
+        self.mp3tag_view.workspace_saved.connect(self._refresh_library)
+        self.mp3tag_view.close_requested.connect(lambda: self._switch_view(1))
+        self.view_stack.addWidget(self.mp3tag_view)
 
-        # Page 2: Dedicated Smart Crates Workbench
+        # Index 3: Dedicated Smart Crates Workbench
         self.crates_view = SmartCratesView(self.db, self)
         self.crates_view.play_track_requested.connect(self._on_home_play_track)
         self.crates_view.crates_updated.connect(self._refresh_library)
         self.view_stack.addWidget(self.crates_view)
+
+        # Index 4: Trova Simili (Embedded Similar Tracks Workspace)
+        self.similar_view = SimilarTracksView(self.db, self)
+        self.similar_view.play_track_requested.connect(self._on_home_play_track)
+        self.similar_view.navigate_to_library_requested.connect(lambda: self._switch_view(1))
+        self.similar_view.crates_updated.connect(self._refresh_library)
+        self.view_stack.addWidget(self.similar_view)
+
+        # Index 5: Organizza File (Embedded Organizer Workspace)
+        self.organizer_view = OrganizerView(parent=self)
+        self.organizer_view.operation_completed.connect(self._refresh_library)
+        self.organizer_view.back_requested.connect(lambda: self._switch_view(1))
+        self.view_stack.addWidget(self.organizer_view)
 
         main_layout.addWidget(self.view_stack, 1)
 
@@ -330,7 +356,7 @@ class MainWindow(QMainWindow):
         self.player_widget.directory_selected.connect(self._on_breadcrumb_directory_selected)
         main_layout.addWidget(self.player_widget)
 
-        # Start up strictly on View 0: Track Analysis / DJ Library
+        # Start up strictly on View 0: Analisi / Home
         self._switch_view(0)
 
         # Status Bar with Hardware Resource Monitor
@@ -590,6 +616,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Alt+1"), self).activated.connect(lambda: self._switch_view(0))
         QShortcut(QKeySequence("Alt+2"), self).activated.connect(lambda: self._switch_view(1))
         QShortcut(QKeySequence("Alt+3"), self).activated.connect(lambda: self._switch_view(2))
+        QShortcut(QKeySequence("Alt+4"), self).activated.connect(lambda: self._switch_view(3))
+        QShortcut(QKeySequence("Alt+5"), self).activated.connect(lambda: self._switch_view(4))
+        QShortcut(QKeySequence("Alt+6"), self).activated.connect(lambda: self._switch_view(5))
         QShortcut(QKeySequence("Ctrl+Shift+S"), self).activated.connect(self._on_action_find_similar)
 
     def _on_space_pressed(self) -> None:
@@ -758,10 +787,8 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_open_sorter(self) -> None:
-        selected = self._get_selected_tracks()
-        dlg = SorterDialog(selected, self)
-        dlg.operation_completed.connect(self._refresh_library)
-        dlg.exec()
+        """Switches to integrated File Organizer workspace."""
+        self._switch_view(5)
 
     def _on_batch_acoustic_analysis(self) -> None:
         selected = self._get_selected_tracks()
@@ -822,10 +849,10 @@ class MainWindow(QMainWindow):
                 header.setSectionHidden(col_idx, False)
 
     def _toggle_sidebar(self) -> None:
-        """Toggles visibility of the right sidebar."""
+        """Toggles visibility of the left filesystem sidebar."""
         new_vis = self.sidebar_widget.isHidden()
         self.sidebar_widget.setVisible(new_vis)
-        self.btn_collapse_sidebar.setText("▶" if new_vis else "◀")
+        self.btn_collapse_sidebar.setText("◀" if new_vis else "▶")
 
     def _populate_sidebar_tree(self) -> None:
         """Populates hierarchical tree in the collapsible sidebar."""
@@ -944,12 +971,8 @@ class MainWindow(QMainWindow):
         self._refresh_library()
 
     def _on_open_mp3tag_workspace(self) -> None:
-        """Launches dedicated Mp3tag Workbench workspace window."""
-        selected = self._get_selected_tracks()
-        tracks_to_edit = selected if selected else self.all_tracks
-        self._mp3tag_window = Mp3tagWorkspaceWindow(self.db, tracks_to_edit, parent=self)
-        self._mp3tag_window.workspace_saved.connect(self._refresh_library)
-        self._mp3tag_window.show()
+        """Switches to integrated Mp3tag Workbench workspace."""
+        self._switch_view(2)
 
     def _on_open_settings(self) -> None:
         """Opens modular Preferences and Settings dialog."""
@@ -972,6 +995,8 @@ class MainWindow(QMainWindow):
             self.home_view.update_theme(theme_id)
         if hasattr(self, "crates_view") and hasattr(self.crates_view, "update_theme"):
             self.crates_view.update_theme(theme_id)
+        if hasattr(self, "similar_view") and hasattr(self.similar_view, "update_theme"):
+            self.similar_view.update_theme(theme_id)
         self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
 
     def _on_table_header_context_menu(self, pos: QPoint) -> None:
@@ -1149,14 +1174,35 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _switch_view(self, index: int) -> None:
-        """Switches between DJ Library (0), Home Trends (1), and Smart Crates (2)."""
+        """Switches between 6 workspaces in the main view stack:
+        0: Analisi / Home
+        1: Libreria
+        2: Tag Editor (Mp3tag)
+        3: Smart Crates
+        4: Trova Simili
+        5: Organizza File
+        """
+        selected = self._get_selected_tracks()
+
+        # State synchronization before displaying workspace
+        if index == 2 and hasattr(self, "mp3tag_view"):
+            tracks = selected if selected else self.all_tracks
+            self.mp3tag_view.load_tracks(tracks)
+        elif index == 4 and hasattr(self, "similar_view"):
+            ref = selected[0] if selected else (self.player_widget.current_track or None)
+            if ref:
+                self.similar_view.set_reference_track(ref)
+        elif index == 5 and hasattr(self, "organizer_view"):
+            self.organizer_view.set_selected_tracks(selected)
+
         self.view_stack.setCurrentIndex(index)
         self._update_nav_button_styles(index)
-        if index == 1 and hasattr(self, "home_view"):
+
+        if index == 0 and hasattr(self, "home_view"):
             if hasattr(self.home_view, "ensure_loaded"):
                 self.home_view.ensure_loaded()
             self.home_view.refresh_library_status()
-        elif index == 2 and hasattr(self, "crates_view"):
+        elif index == 3 and hasattr(self, "crates_view"):
             self.crates_view.refresh_crates()
 
     def _update_nav_button_styles(self, active_index: int = 0) -> None:
@@ -1189,22 +1235,6 @@ class MainWindow(QMainWindow):
                 QPushButton:hover {
                     background-color: #f1f3f5;
                     color: #212529;
-                    border-color: #0d6efd;
-                }
-            """
-            nav_action_style = """
-                QPushButton {
-                    background-color: #ffffff;
-                    color: #212529;
-                    font-size: 11px;
-                    font-weight: 500;
-                    padding: 5px 12px;
-                    border: 1px solid #dee2e6;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #f1f3f5;
-                    color: #0d6efd;
                     border-color: #0d6efd;
                 }
             """
@@ -1257,22 +1287,6 @@ class MainWindow(QMainWindow):
                     color: #e2e8f0;
                 }
             """
-            nav_action_style = """
-                QPushButton {
-                    background-color: #161822;
-                    color: #cbd5e1;
-                    font-size: 11px;
-                    font-weight: 500;
-                    padding: 5px 12px;
-                    border: 1px solid #282d3f;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #212536;
-                    color: #ffffff;
-                    border-color: #38bdf8;
-                }
-            """
             nav_settings_style = """
                 QPushButton {
                     background-color: #1e2230;
@@ -1296,21 +1310,19 @@ class MainWindow(QMainWindow):
                 }
             """)
 
-        # Set styles for view buttons
-        if hasattr(self, "btn_nav_library"):
-            self.btn_nav_library.setStyleSheet(btn_active if active_index == 0 else btn_inactive)
-        if hasattr(self, "btn_nav_trends"):
-            self.btn_nav_trends.setStyleSheet(btn_active if active_index == 1 else btn_inactive)
-        if hasattr(self, "btn_nav_crates"):
-            self.btn_nav_crates.setStyleSheet(btn_active if active_index == 2 else btn_inactive)
+        # Set styles for all 6 workspace buttons
+        nav_buttons = [
+            getattr(self, "btn_nav_trends", None),      # 0: Analisi / Home
+            getattr(self, "btn_nav_library", None),     # 1: Libreria
+            getattr(self, "btn_nav_mp3tag", None),      # 2: Tag Editor (Mp3tag)
+            getattr(self, "btn_nav_crates", None),      # 3: Smart Crates
+            getattr(self, "btn_nav_similar", None),     # 4: Trova Simili
+            getattr(self, "btn_nav_organizer", None),   # 5: Organizza File
+        ]
+        for idx, btn in enumerate(nav_buttons):
+            if btn:
+                btn.setStyleSheet(btn_active if active_index == idx else btn_inactive)
 
-        # Set styles for macro actions
-        if hasattr(self, "btn_nav_mp3tag"):
-            self.btn_nav_mp3tag.setStyleSheet(nav_action_style)
-        if hasattr(self, "btn_nav_similar"):
-            self.btn_nav_similar.setStyleSheet(nav_action_style)
-        if hasattr(self, "btn_nav_organizer"):
-            self.btn_nav_organizer.setStyleSheet(nav_action_style)
         if hasattr(self, "btn_nav_settings"):
             self.btn_nav_settings.setStyleSheet(nav_settings_style)
         if hasattr(self, "lbl_hw_monitor"):
@@ -1331,24 +1343,18 @@ class MainWindow(QMainWindow):
         self.player_widget.play()
 
     def _on_home_find_similar(self, track: Dict[str, Any]) -> None:
-        """Opens Similar Tracks recommendation dialog for track."""
-        dlg = SimilarTracksDialog(track, db=self.db, parent=self)
-        dlg.play_requested.connect(self._on_home_play_track)
-        dlg.exec()
+        """Sets reference track and switches to integrated Similar Tracks workspace."""
+        if hasattr(self, "similar_view"):
+            self.similar_view.set_reference_track(track)
+        self._switch_view(4)
 
     def _on_action_find_similar(self) -> None:
         """Finds similar tracks for selected library track or currently playing deck."""
         selected = self._get_selected_tracks()
-        if selected:
-            self._on_home_find_similar(selected[0])
-        elif self.player_widget.current_track:
-            self._on_home_find_similar(self.player_widget.current_track)
-        else:
-            QMessageBox.information(
-                self,
-                "Trova Tracce Simili",
-                "Seleziona una traccia dalla tabella o carica un brano nel player per cercare tracce simili.",
-            )
+        ref = selected[0] if selected else (self.player_widget.current_track or None)
+        if ref and hasattr(self, "similar_view"):
+            self.similar_view.set_reference_track(ref)
+        self._switch_view(4)
 
     def _on_home_genre_filter_requested(self, genre: str) -> None:
         """Handles genre filter requests originating from Home view or cards."""
@@ -1383,7 +1389,7 @@ class MainWindow(QMainWindow):
                             )
                         return
 
-                    self._switch_view(0)
+                    self._switch_view(1)
                     if hasattr(self, "filter_bar") and hasattr(self.filter_bar, "genre_widget"):
                         self.filter_bar.genre_widget.set_genres([genre])
                     self.status_bar.showMessage(
@@ -1401,7 +1407,7 @@ class MainWindow(QMainWindow):
 
     def _on_breadcrumb_directory_selected(self, directory_path: str) -> None:
         """Filters library table to directory clicked in MiniPlayer breadcrumbs."""
-        self._switch_view(0)
+        self._switch_view(1)
         self.filter_bar.set_folder_filter(directory_path)
 
     def _retranslate_ui(self) -> None:
@@ -1478,6 +1484,8 @@ class MainWindow(QMainWindow):
             self.home_view.cleanup()
         if hasattr(self, "crates_view") and hasattr(self.crates_view, "cleanup"):
             self.crates_view.cleanup()
+        if hasattr(self, "similar_view") and hasattr(self.similar_view, "cleanup"):
+            self.similar_view.cleanup()
         if hasattr(self, "player_widget") and hasattr(self.player_widget, "cleanup"):
             self.player_widget.cleanup()
 

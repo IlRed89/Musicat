@@ -59,8 +59,15 @@ class PathResolver:
 
     @classmethod
     def get_icon_path(cls) -> Optional[Path]:
-        """Returns the application icon path (PNG, ICO or ICNS)."""
-        for name in ["assets/icon.icns", "assets/icon.png", "assets/icon.ico"]:
+        """Returns the application icon path (PNG, ICO or ICNS) prioritizing OS-native formats."""
+        if sys.platform == "win32":
+            names = ["assets/icon.ico", "assets/icon.png", "assets/icon.icns"]
+        elif sys.platform == "darwin":
+            names = ["assets/icon.icns", "assets/icon.png", "assets/icon.ico"]
+        else:
+            names = ["assets/icon.png", "assets/icon.ico", "assets/icon.icns"]
+
+        for name in names:
             p = cls.get_resource_path(name)
             if p.exists():
                 return p

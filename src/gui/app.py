@@ -17,7 +17,7 @@ def run_app() -> int:
         try:
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "ilred89.musicat.djcataloger.1.0"
+                "ilred89.musicat.djcataloger.app.1.0"
             )
         except Exception:
             pass

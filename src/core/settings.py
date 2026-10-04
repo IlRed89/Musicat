@@ -18,7 +18,7 @@ from src.core.path_resolver import PathResolver
 
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "ui": {
         "language": "it",  # "it" (Italiano, default) or "en" (English)
         "theme": "light",  # "light" (Default), "dark_dj", "high_contrast"

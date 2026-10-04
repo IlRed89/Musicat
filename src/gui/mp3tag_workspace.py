@@ -145,6 +145,7 @@ class Mp3tagWorkspaceWindow(QMainWindow):
 
     tags_updated = Signal()
     workspace_saved = tags_updated
+    close_requested = Signal()
 
     KEEP_VALUE = "< keep >"
 
@@ -213,7 +214,7 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         menu_file.addSeparator()
         act_close = menu_file.addAction("Chiudi Workspace")
         act_close.setShortcut(QKeySequence("Ctrl+W"))
-        act_close.triggered.connect(self.close)
+        act_close.triggered.connect(self._on_close_workspace)
 
         # 2. Convert Menu (Mp3tag Core)
         menu_conv = menubar.addMenu("&Convertitore")
@@ -267,6 +268,21 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         toolbar.addAction(act_strip_promo)
         toolbar.addAction(act_pad_tracks)
         self.addToolBar(toolbar)
+
+    def _on_close_workspace(self) -> None:
+        """Emits close_requested and closes window if displayed standalone."""
+        self.close_requested.emit()
+        if self.isWindow():
+            self.close()
+
+    def load_tracks(self, tracks: Optional[List[Dict[str, Any]]] = None) -> None:
+        """Updates workspace with tracks and refreshes grid display."""
+        if tracks is not None:
+            self.tracks = [dict(t) for t in tracks]
+        self.dirty_files.clear()
+        self.pending_cover_bytes = None
+        self.pending_cover_remove = False
+        self._populate_grid()
 
     def _init_ui(self) -> None:
         """Builds Split-View interface: Left Tag Panel, Right Track Grid."""

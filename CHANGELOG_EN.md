@@ -10,6 +10,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-10-04
+
+### 🚀 Embedded Workspaces (QStackedWidget), Left Drive Explorer, Taskbar Icon Fix & Selection Synchronization
+
+#### 🖥️ Embedded Workspaces in Main Window (Zero Modal Popups)
+- **6 Integrated Views (`QStackedWidget`):** Core application tools are now directly embedded in the central window area without flying popup dialogs:
+  - **Index 0:** Analysis / Home (`HomeTrendsView`)
+  - **Index 1:** DJ Library (`library_container` with table, live filter bar, and left drive tree)
+  - **Index 2:** Tag Editor (`Mp3tagWorkspaceWindow` embedded in-app)
+  - **Index 3:** Smart Crates (`SmartCratesView`)
+  - **Index 4:** Find Similar (`SimilarTracksView` with integrated harmonic affinity and web discovery)
+  - **Index 5:** File Organizer (`OrganizerView` embedded in-app)
+- **Seamless Navigation:** Switch instantly across workspaces via top navbar buttons without breaking user flow.
+
+#### 🔄 Intelligent Cross-Workspace State Synchronization
+- **Selection Forwarding:** Selecting tracks in the library table automatically populates *Tag Editor (Mp3tag)*, *Find Similar*, or *File Organizer* upon switching.
+- **Guided Library Return:** Embedded workspaces feature clean back navigation buttons (`◀ Torna alla Libreria`) to return to the library while persisting database updates.
+
+#### 🗂️ Filesystem Explorer / Drive Tree Moved to Left
+- **Standard DJ/DAW Two-Pane Layout:** The folder and drive tree navigator has been moved to the **left** of the track table, featuring a collapsible header (`◀` / `▶`) and smooth splitter resizing.
+
+#### 🖼️ Windows Taskbar Icon Fix (Cross-PC & Portable)
+- **Explicit AppUserModelID:** Process registered with `ilred89.musicat.djcataloger.app.1.0` in `main.py` before `QApplication` instantiation.
+- **Windows Icon Format Priority:** Fixed `PathResolver.get_icon_path()` on Windows to prioritize native `assets/icon.ico` and `assets/icon.png` over Apple `.icns` files, ensuring clean taskbar icons on portable devices and other PCs.
+
+#### 🎨 Clean Navbar & Unified Button States
+- **Active Workspace Highlighting:** All 6 module buttons now feature uniform active state highlighting (`btn_active` blue with white text) vs inactive state (`btn_inactive`).
+- **Keyboard Shortcuts:** Direct navigation shortcuts `Alt+1` through `Alt+6` for all 6 workspaces.
+
+#### 🛠️ SQLite Deadlock Resolution in File Manager
+- **Cursor & Transaction Cleanup:** All SQLite cursor operations in `MusicFileManager` are wrapped in strict `try...finally` blocks, preventing hangs and resource locks during file copy/paste.
+
+---
+
 ## [1.2.0] - 2026-10-04
 
 ### 🚀 Column Header Context Menu, 2-Row Filter Bar, Multi-Platform Trends, Discogs Priority & 80% RAM Allocation

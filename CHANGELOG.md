@@ -10,6 +10,40 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.0] - 2026-10-04
+
+### 🚀 Workspace Incorporati (QStackedWidget), Explorer Cartelle a Sinistra, Fix Icona Taskbar & Sincronizzazione Selezione
+
+#### 🖥️ Workspaces Incorporati nella Finestra Principale (Nessuna Finestra Popup Separata)
+- **Architettura a 6 Viste Centrali (`QStackedWidget`):** I moduli primari non si aprono più come finestre di dialogo volanti o esterne, ma sono integrati direttamente nell'area centrale dell'applicazione:
+  - **Indice 0:** Analisi / Home (`HomeTrendsView`)
+  - **Indice 1:** Libreria DJ (`library_container` con tabella, filtri e albero cartelle)
+  - **Indice 2:** Tag Editor (`Mp3tagWorkspaceWindow` incorporato in-app)
+  - **Indice 3:** Smart Crates (`SmartCratesView`)
+  - **Indice 4:** Trova Simili (`SimilarTracksView` con affinità armonica e web discovery integrati)
+  - **Indice 5:** Organizza File (`OrganizerView` integrato in-app)
+- **Fluidità di Navigazione:** Passaggio istantaneo tra le funzionalità tramite i macro-pulsanti della barra superiore senza interruzione del flusso di lavoro e senza finestre modali bloccanti.
+
+#### 🔄 Sincronizzazione Intelligente dello Stato tra Workspace
+- **Passaggio Tracce Selezionate:** Selezionando brani nella tabella della libreria e passando a *Tag Editor (Mp3tag)*, *Trova Simili* o *Organizza File*, le tracce selezionate vengono pre-caricate automaticamente.
+- **Ritorno Guidato alla Libreria:** Tutti i workspace secondari incorporano pulsanti e segnali di chiusura/ritorno (`◀ Torna alla Libreria`) per ripristinare immediatamente la visualizzazione principale sincronizzando le modifiche al database.
+
+#### 🗂️ Explorer Cartelle / Drive Spostato a Sinistra
+- **Nuovo Layout Splitter:** L'albero di navigazione del filesystem e dei dischi è stato riposizionato sul **lato sinistro** della tabella musicale (layout a due pannelli standard DJ/DAW), con splitter ridimensionabile e pulsante di collasso `◀` / `▶`.
+
+#### 🖼️ Risoluzione Definitiva Icona Barra delle Applicazioni Windows
+- **AppUserModelID Esplicito:** Registrazione di un identificativo applicazione univoco di processo (`ilred89.musicat.djcataloger.app.1.0`) all'avvio in `main.py` prima dell'inizializzazione di `QApplication`.
+- **Priorità Formati Icona Windows:** Corretta la risoluzione in `PathResolver.get_icon_path()`: su Windows viene data precedenza assoluta al formato nativo `assets/icon.ico` e `assets/icon.png`, impedendo che Windows tenti di caricare il file Apple `.icns` mostrando l'icona bianca generica.
+
+#### 🎨 Navbar Pulita & Stato Pulsanti Uniforme
+- **Evidenziazione Tab Attivo:** Tutti i 6 pulsanti dei moduli centrali utilizzano ora uno stile uniforme con evidenziazione chiara del workspace correntemente attivo (`btn_active` blu con testo bianco) rispetto a quelli inattivi (`btn_inactive`).
+- **Scorciatoie Tastiera Dirette:** Aggiunte le scorciatoie `Alt+1` .. `Alt+6` per navigare direttamente da tastiera tra tutti i 6 workspace.
+
+#### 🛠️ Risoluzione Deadlock SQLite & Chiusura Cursori nel File Manager
+- **Fix Transazioni e Cursori:** Tutti i cursori e le transazioni SQLite in `MusicFileManager` sono ora protetti da blocchi `try...finally`, prevenendo blocchi su file temporanei o durante le operazioni di copia/incolla.
+
+---
+
 ## [1.2.0] - 2026-10-04
 
 ### 🚀 Menu Colonne Tasto Destro, Barra Filtri 2-Righe, Trend Multi-Piattaforma, Discogs Priority & Allocazione RAM 80%

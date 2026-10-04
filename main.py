@@ -53,6 +53,15 @@ def setup_exception_logging():
 
 
 def main():
+    # 0. Windows Taskbar AppUserModelID registration
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            myappid = "ilred89.musicat.djcataloger.app.1.0"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+
     # 1. Initialize logging system immediately
     setup_exception_logging()
     logger = MusicatLogger.get_logger()
@@ -62,7 +71,7 @@ def main():
     app_dir = PathResolver.get_app_dir()
 
     logger.info("==================================================")
-    logger.info("Musicat v1.2.0 starting...")
+    logger.info("Musicat v1.3.0 starting...")
     logger.info(f"Python: {sys.version.split()[0]} | Platform: {sys.platform} | Frozen: {getattr(sys, 'frozen', False)}")
     logger.info(f"Execution Mode: {'PORTABLE' if is_portable else 'STANDARD'}")
     logger.info(f"Application Directory: {app_dir}")
@@ -74,7 +83,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Musicat - DJ Catalog & Smart Organizer")
     parser.add_argument("--scan", type=str, help="Scan a directory in headless mode")
-    parser.add_argument("--version", action="version", version="Musicat 1.2.0")
+    parser.add_argument("--version", action="version", version="Musicat 1.3.0")
 
     args, unknown = parser.parse_known_args()
 

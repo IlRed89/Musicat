@@ -49,9 +49,10 @@ class TestGuiInitialization(unittest.TestCase):
             self.assertTrue(hasattr(window.home_view, "refresh_library_status"))
             self.assertIsNotNone(window.crates_view)
 
-            # Test switching views (0: Library, 1: Home/Trends, 2: Smart Crates)
-            window._switch_view(1)
-            window._switch_view(2)
+            # Test switching views across all 6 workspaces
+            for view_idx in range(6):
+                window._switch_view(view_idx)
+                self.assertEqual(window.view_stack.currentIndex(), view_idx)
             window._switch_view(0)
 
             # Test dialogs
