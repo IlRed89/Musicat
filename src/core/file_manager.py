@@ -313,11 +313,14 @@ class MusicFileManager:
         try:
             with db.get_connection() as conn:
                 cur = conn.cursor()
-                cur.execute(
-                    sql,
-                    (norm_new_path, str(p_new.parent), p_new.name, portable_path, old_path, resolved_old),
-                )
-                return cur.rowcount > 0
+                try:
+                    cur.execute(
+                        sql,
+                        (norm_new_path, str(p_new.parent), p_new.name, portable_path, old_path, resolved_old),
+                    )
+                    return cur.rowcount > 0
+                finally:
+                    cur.close()
         except Exception:
             return False
 
@@ -328,10 +331,13 @@ class MusicFileManager:
         if not track:
             with db.get_connection() as conn:
                 cur = conn.cursor()
-                cur.execute("SELECT * FROM tracks WHERE filepath LIKE ? LIMIT 1", (f"%{Path(old_path).name}",))
-                row = cur.fetchone()
-                if row:
-                    track = dict(row)
+                try:
+                    cur.execute("SELECT * FROM tracks WHERE filepath LIKE ? LIMIT 1", (f"%{Path(old_path).name}",))
+                    row = cur.fetchone()
+                    if row:
+                        track = dict(row)
+                finally:
+                    cur.close()
 
         if not track:
             return False

@@ -55,7 +55,23 @@ class TestMusicFileManager(unittest.TestCase):
         })
 
     def tearDown(self):
-        self.temp_dir.cleanup()
+        if hasattr(self, "file_manager") and self.file_manager:
+            try:
+                self.file_manager.clear_clipboard()
+            except Exception:
+                pass
+        if hasattr(self, "db") and self.db:
+            try:
+                self.db.close()
+            except Exception:
+                pass
+            self.db = None
+        import gc
+        gc.collect()
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_cut_and_paste_moves_files_and_updates_db(self):
         """Cutting files moves them to target folder and updates filepath in DB."""
