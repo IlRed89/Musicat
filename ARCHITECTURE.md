@@ -11,15 +11,17 @@
 graph TD
     UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode] --> Navbar[Clean Top Navbar<br/>Analysis Home / Library / Tag Editor / Smart Crates / Similars / Organize / Settings]
     
-    Navbar --> AnalysisHome[Analysis / Home View<br/>Spotify Trends & Quality Diagnostics]
-    Navbar --> DJLibrary[DJ Library View<br/>RAM-Cached Table & Waveform Deck]
-    Navbar --> Mp3tag[Dedicated Mp3tag Spreadsheet Workbench]
-    Navbar --> CratesBench[Dedicated Smart Crates Workbench]
-    Navbar --> Similars[Cosine Similarity Engine & Web Discovery]
-    Navbar --> Organize[Physical File Organizer & Dispatcher]
+    Navbar --> Stack[QStackedWidget 6 Embedded Workspaces]
+    Stack --> AnalysisHome[Index 0: Analysis / Home View<br/>Spotify/SoundCloud/Beatport Trends & Quality Diagnostics]
+    Stack --> DJLibrary[Index 1: DJ Library View<br/>RAM-Cached Table, 2-Row Filters & Drive Tree Explorer]
+    Stack --> Mp3tag[Index 2: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Live Pattern Engine]
+    Stack --> CratesBench[Index 3: Dedicated Smart Crates Workbench<br/>Interactive Rule Guide & Extended M3U8 Export]
+    Stack --> Similars[Index 4: Similar Tracks Workspace<br/>Cosine Similarity Engine & Web Discovery]
+    Stack --> Organize[Index 5: Embedded File Organizer<br/>Physical File Dispatcher & Collision Safety]
     Navbar --> Settings[Modular Settings Dialog]
 
-    DJLibrary --> FilterBar[Live DJ Filter Bar <15ms]
+    DJLibrary --> DriveExplorer[Collapsible Drive & Folder Tree Explorer]
+    DJLibrary --> FilterBar[Live DJ 2-Row Filter Bar <15ms]
     FilterBar --> FilterEngine[LiveFilterEngine + In-Memory RAM Index]
     FilterEngine --> SearchFactory[Unified Search Engine Factory]
 
@@ -29,6 +31,8 @@ graph TD
 
     DJLibrary --> Player[libVLC Mini-Player Deck with +/-8% Pitch]
 
+    Mp3tag --> PatternEngine[PatternEngine with $num token support]
+    Mp3tag --> NumberWizard[Track Numbering Wizard Dialog]
     Mp3tag --> TagEditor[AudioTagEditor Mutagen]
     TagEditor --> Reconciler[Metadata Reconciler]
     Reconciler --> Scrapers[Beatport / Discogs / MusicBrainz / Traxsource / HD Artwork]
@@ -41,6 +45,9 @@ graph TD
 
     AnalysisHome --> QualityPlugin[Audio Quality & Loudnorm Plugin]
     QualityPlugin --> EBUR128[EBU R128 / True Peak 4x Sinc / FFmpeg loudnorm]
+
+    UI --> StatusBar[Status Bar Telemetry<br/>HardwareProgressBar CPU & RAM with Dynamic Color Thresholds]
+    StatusBar --> HwMonitor[HardwareMonitor Asynchronous Poller 1.5s]
 
     UI --> LoggerSubsys[Structured Logging Subsystem<br/>ZipRotatingFileHandler 20MB & Support Bundle]
     LoggerSubsys --> GuiLog[Thread-Safe GuiLogHandler & Live Dock]
@@ -58,21 +65,36 @@ graph TD
 - **Default Light Theme:**
   - Standard enterprise styling based on high-contrast clean backgrounds (`#FFFFFF` / `#F8F9FA`), dark grey typography (`#212529`), soft borders (`#DEE2E6`), and electric blue accents (`#0D6EFD`).
   - Dark Theme toggle available via Settings dialog without restarting.
-- **Top Bar Modular Navbar:**
-  - Minimal layout containing direct access buttons to all main functional modules:
-    `[Analisi / Home]`, `[Libreria]`, `[Tag Editor (Mp3tag)]`, `[Smart Crates]`, `[Trova Simili]`, `[Organizza File]`, `[Impostazioni]`.
-  - Elimination of fragmented shortcut icons or partial buttons.
-- **Dedicated Smart Crates Workbench (`src/gui/views/crates_view.py`):**
-  - Independent full-screen view for managing dynamic crates and generating Pioneer CDJ/Rekordbox-compatible extended `.m3u8` playlists.
+- **6 Embedded Workspaces Architecture (`QStackedWidget` in `MainWindow`):**
+  - Primary modules are hosted as embedded views in a central `QStackedWidget` rather than separate blocking popups:
+    - **Index 0:** Analisi / Home (`HomeTrendsView`)
+    - **Index 1:** Libreria DJ (`library_container` con tabella, filtri e albero cartelle)
+    - **Index 2:** Tag Editor Mp3tag (`Mp3tagWorkspaceWindow` incorporato in-app)
+    - **Index 3:** Smart Crates (`SmartCratesView`)
+    - **Index 4:** Trova Simili (`SimilarTracksView`)
+    - **Index 5:** Organizza File (`OrganizerView` incorporato in-app)
+  - Switching between views via top navbar is instantaneous (`view_stack.setCurrentIndex(...)`) while completely retaining active selections and playback state.
+- **Collapsible Drive & Folder Tree Explorer (`DriveExplorerWidget`):**
+  - Built-in left sidebar within the Library view utilizing `QFileSystemModel` to provide quick drive navigation and 1-click folder-scoped library filtering.
+- **Visual Hardware Progress Bars in Status Bar (`HardwareProgressBar`):**
+  - Compact horizontal bars in the status bar for CPU and RAM utilization.
+  - Three-tier dynamic color thresholding:
+    - **Green (`#28A745`):** 0% – 60% (Optimal load);
+    - **Yellow / Orange (`#FD7E14`):** 61% – 84% (Moderate/elevated load);
+    - **Red (`#DC3545`):** 85% – 100% (High stress/saturation).
+  - Centered text display (`CPU XX%`, `RAM X.X / YY GB`) updated asynchronously every 1.5 seconds via `HardwareMonitor`.
+- **Advanced Mp3tag Workbench (`src/gui/mp3tag_workspace.py` & `src/tags/patterns.py`):**
+  - **Track Numbering Wizard (`TrackNumberingWizardDialog`):** Sequential track numbering with offset, leading zero padding (`01, 02...`), total track count suffix (`01/12`), folder/album reset, and live tabular preview.
+  - **Live Bidirectional Pattern Converters (`FilenameToTagDialog` & `TagToFilenameDialog`):** Real-time pattern preview table with advanced token support including `$num(%track%,2)`.
+  - **1-Click Case Transformation:** Title Case, UPPERCASE, and lowercase one-click actions.
+- **Dynamic Unified Genre ComboBox & "Vario" Fallback:**
+  - Single editable `QComboBox` with auto-completion, alphabetically ordered from the SQLite catalog.
+  - Tracks lacking genre tags are automatically labeled and grouped under `"Vario"` in the table and filter queries.
 - **Dynamic Table Column Customization (`TrackTableModel` & `QTableView`):**
   - Custom header context menu (`horizontalHeader`) providing user-configurable toggling for all 19 tracks columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`).
-  - Persistent layout storage in `config.json` (`ui.visible_columns` and `ui.custom_columns_active`), with adaptive responsive fallback when uncustomized.
-- **Real Hardware Resource Telemetry (`HardwareMonitor`):**
-  - Native OS telemetry measuring process memory alongside true installed physical memory (`GlobalMemoryStatusEx` on Windows, `sysctl` on macOS), clarifying unlimited 64-bit address space.
-- **Dynamic Theming Integration:**
-  - `BreadcrumbBar` and resource badges dynamically adapt to active Light and Dark themes, avoiding hardcoded dark backgrounds.
+  - Persistent layout storage in `config.json` (`ui.visible_columns` and `ui.custom_columns_active`).
 - **Startup Sequence:**
-  - Applications initializes into the **Analysis / Home** view as the default landing view.
+  - Applications initializes into the **Analysis / Home** view (Index 0) as the default landing view.
 
 ---
 

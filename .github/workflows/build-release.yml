@@ -49,6 +49,8 @@ jobs:
           pip install pyinstaller pillow
 
       - name: Run Unit Tests Validation
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           python run_tests.py
 

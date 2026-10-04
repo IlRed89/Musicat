@@ -75,12 +75,16 @@ class TestDynamicHardwareMonitor(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = Path(tmp_dir) / "test.db"
             db = Database(str(db_path))
-            win = MainWindow(db=db)
-            self.assertTrue(hasattr(win, "bar_cpu"))
-            self.assertTrue(hasattr(win, "bar_ram"))
-            self.assertIsInstance(win.bar_cpu, HardwareProgressBar)
-            self.assertIsInstance(win.bar_ram, HardwareProgressBar)
-            win.close()
+            try:
+                win = MainWindow(db=db)
+                self.assertTrue(hasattr(win, "bar_cpu"))
+                self.assertTrue(hasattr(win, "bar_ram"))
+                self.assertIsInstance(win.bar_cpu, HardwareProgressBar)
+                self.assertIsInstance(win.bar_ram, HardwareProgressBar)
+                win.close()
+                win.deleteLater()
+            finally:
+                db.close()
 
 
 class TestAdvancedMp3tagToolset(unittest.TestCase):
@@ -231,7 +235,16 @@ class TestDynamicGenreComboBoxAndVarioFallback(unittest.TestCase):
         })
 
     def tearDown(self):
-        self.temp_dir.cleanup()
+        if hasattr(self, "db") and self.db:
+            try:
+                self.db.close()
+            except Exception:
+                pass
+            self.db = None
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_genre_combobox_is_editable_and_has_all_genres(self):
         widget = GenreMultiSelectWidget(self.db)

@@ -1564,6 +1564,8 @@ class MainWindow(QMainWindow):
 
     def cleanup(self) -> None:
         """Explicitly cleans up child components, stopping threads and audio engine."""
+        if hasattr(self, "_hw_timer") and self._hw_timer.isActive():
+            self._hw_timer.stop()
         if hasattr(self, "home_view") and hasattr(self.home_view, "cleanup"):
             self.home_view.cleanup()
         if hasattr(self, "crates_view") and hasattr(self.crates_view, "cleanup"):

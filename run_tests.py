@@ -9,6 +9,9 @@ import os
 import sys
 import unittest
 
+# Ensure headless offscreen platform for PySide6 / Qt on CI runners (Linux, macOS, Windows)
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 
 def main() -> None:
     suite = unittest.defaultTestLoader.discover("tests")

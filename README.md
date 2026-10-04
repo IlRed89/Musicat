@@ -12,7 +12,7 @@
   <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Piattaforma">
-  <img src="https://img.shields.io/badge/tests-140%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-151%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository Ufficiale"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licenza-MIT-purple.svg" alt="Licenza"></a>
 </p>
@@ -37,13 +37,15 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
 | [🏠 Analisi]  | [📁 Libreria] | [🏷️ Mp3tag]   | [📦 Crates]   | [🔍 Simili]   | [📂 Organizza]|
-| - Avvio Default  | - Filtri 2-Row| - Foglio Cella  | - Workbench    | - Cosine.club  | - Dry Run   |
-| - Trend 3-Piatta | - Ruota 1A-12B| - Multi-Tag     | - Guida & M3U8 | - Vettori Web  | - Collision |
-| - Diagnosi EBU   | - Pitch +/-8% | - Pattern %tag% | - Dynamic Crate| - Hard Disk    | - Maschere  |
+| - Avvio Default  | - Filtri 2-Row| - Rinumeratore  | - Workbench    | - Cosine.club  | - In-App Stack|
+| - Trend 3-Piatta | - Albero Drive| - Pattern %tag% | - Guida & M3U8 | - Vettori Web  | - Collision   |
+| - Diagnosi EBU   | - Ruota 1A-12B| - $num() Live   | - Dynamic Crate| - Hard Disk    | - Dry Run     |
 +----------------------------------------------------------------------------------------------------+
 |         Motore Ricerca Rapida (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)           |
 +----------------------------------------------------------------------------------------------------+
 |                 Engine libVLC con Pitch Bend +/-8% e Waveform Scrubbing Interattivo                |
++----------------------------------------------------------------------------------------------------+
+|          Status Bar con Monitor Hardware Dinamico a Barre Grafiche (CPU & RAM con Soglie)          |
 +----------------------------------------------------------------------------------------------------+
 |       Suite di Logging Strutturato (.zip rotante 20MB, Bundle Diagnostico, Tracciamento Granulare) |
 +----------------------------------------------------------------------------------------------------+
@@ -51,40 +53,43 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. ⚪ Tema Chiaro Predefinito & Navbar Modulare con Icone
-- **Stile Visivo Moderno:** Palette chiara (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) studiata per massima leggibilità in studio o console. Modalità Dark attivabile a caldo dalle Impostazioni.
-- **Top Bar Chiara & Distintiva:** La barra superiore contiene i 7 pulsanti di navigazione immediata arricchiti con icone tematiche:
-  - **[🏠 Analisi / Home]** (Schermata iniziale predefinita all'avvio con dashboard multi-piattaforma e card bianche ad alto contrasto)
-  - **[📁 Libreria]** (Catalogo DJ con tabella ad alte prestazioni e menu contestuale colonne con tasto destro)
-  - **[🏷️ Tag Editor (Mp3tag)]**
-  - **[📦 Smart Crates]** (Workbench con guida interattiva e regole dinamiche)
-  - **[🔍 Trova Simili]**
-  - **[📂 Organizza File]**
-  - **[⚙️ Impostazioni]**
+### 1. ⚪ Tema Chiaro Predefinito, Workspaces Incorporati & Navbar Modulare
+- **Architettura a 6 Workspaces Incorporati (`QStackedWidget`):** I moduli principali non aprono finestre modali esterne ma sono completamente integrati nella finestra principale senza interruzioni di flusso:
+  - **Indice 0: [🏠 Analisi / Home]** (Dashboard iniziale con classifiche multi-piattaforma Spotify/SoundCloud/Beatport e card bianche ad alto contrasto)
+  - **Indice 1: [📁 Libreria]** (Catalogo DJ ad altissime prestazioni con barra filtri a due righe, menu contestuale colonne e albero cartelle)
+  - **Indice 2: [🏷️ Tag Editor (Mp3tag)]** (Workspace tabellare completo con autonumerazione, pattern live e conversione case)
+  - **Indice 3: [📦 Smart Crates]** (Workbench con guida interattiva, logiche booleane avanzate ed esportazione M3U8)
+  - **Indice 4: [🔍 Trova Simili]** (Ricerca vettoriale locale e web discovery su Cosine.club con affinità armonica DJ)
+  - **Indice 5: [📂 Organizza File]** (Smistamento fisico su disco integrato in-app con gestione collisioni e dry run)
+- **Stile Visivo Moderno:** Palette chiara predefinita (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) con card bordate e Dark Mode attivabile a caldo nelle Preferenze.
+- **Icona Taskbar Nativa:** Configurazione esplicita di `AppUserModelID` su Windows per garantire l'icona Musicat ad alta risoluzione nella barra delle applicazioni anche in versione portabile su qualsiasi PC.
 
-### 2. 🗃️ Workbench Dedicato "Smart Crates" con Guida Integrata
-- Rimozione del pannello compresso dalla vista principale in favore di un **workbench indipendente a schermo intero**.
-- **Guida all'Uso Interattiva (`❓ Guida all'uso`):** Modal documentale integrato con spiegazione visiva degli operatori logici (TUTTE le regole / ALMENO UNA regola), tabelle di preset da console DJ (*Warm-up Deep*, *Peak Time Banger*, *Classic House*, *Harmonic Mixes*) e istruzioni per l'export.
-- Creazione e modifica visiva di regole complesse (BPM range, Camelot Key, generi multipli, rating, energia) con tooltip dettagliati in italiano.
-- Generazione dinamica dei crate ed esportazione a 1-click in playlist `.m3u8` estese per Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
+### 2. 📊 Monitor Hardware Visivo nella Status Bar (Progress Bar Dinamiche)
+- **Barre Grafiche Integrate CPU & RAM:** Sostituito il vecchio testo monocromatico con due `QProgressBar` orizzontali compatte ed eleganti.
+- **Soglie di Carico a Colori Dinamici:**
+  - **Verde (`#28A745`):** Carico regolare e fluido (0% – 60%);
+  - **Giallo / Arancione (`#FD7E14`):** Carico moderato o intenso (61% – 84%);
+  - **Rosso (`#DC3545`):** Stress elevato o saturazione hardware (85% – 100%).
+- **Trasparenza RAM a 64-bit:** Nessun limite artificiale di 2 GB; Musicat rileva la memoria fisica totale e visualizza `RAM X.X / YY GB` con aggiornamento asincrono continuo ogni 1.5 secondi.
 
-### 3. 🎛️ Live DJ Crates, Gestione Colonne, RAM Dinamica & Barra Filtri a Due Righe (<15ms)
-- **Barra Filtri Multi-Riga Ergonomica:**
-  - *Riga 1:* Ricerca ultra-rapida con indicatore del motore attivo (Everything MFT / Spotlight / FTS5), selettore cartelle/drive, menu a discesa multi-genere (logica OR), filtro presenza copertina e pulsante di reset rapido (tasto `ESC`).
-  - *Riga 2:* Parametri acustici DJ completi: Target BPM con pulsanti di incremento fine e preset percentuali (`±2%`, `±4%`, `±6%`, `±8%`), slider e campi numerici Min/Max, selettore Camelot Key allargato senza troncamenti con toggle "Solo Armonici", pulsante Ruota Camelot interattiva, filtro decennio/anno, qualità audio, tag DJ ed esportazione Smart Crates.
-- **Selezione e Personalizzazione Colonne (Tasto Destro):** Facendo clic col tasto destro del mouse su qualsiasi intestazione della tabella libreria, si apre il menu contestuale per mostrare/nascondere le 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`). Include i comandi rapidi *"Mostra Tutte le Colonne"* e *"Ripristina Colonne Predefinite"*, con memorizzazione automatica di visibilità e larghezze in `config.json`.
-- **Allocazione RAM Dinamica Fino all'80% di Sistema:** Nessun limite artificiale di 2 GB; rilevamento nativo della memoria totale e slider dinamico fino all'80% della RAM fisica (es. fino a 12.8 GB su 16 GB, 25.6 GB su 32 GB) con feedback in tempo reale.
-- **Assistente Armonico Ruota Camelot:** Griglia interattiva a 12 colonne (`1A`–`12B`) con indicazione di percorsi armonici:
-  - $\pm 1$ Passaggio armonico fluido (stabilità energetica)
-  - Scala Relativa (passaggio Maggiore $\leftrightarrow$ Minore)
-  - $+2$ Energy Boost (innalzamento netto dell'energia)
-  - $+7$ Semitone Peak Lift (salto di semitono per picchi di climax)
+### 3. 🗂️ Albero Drive & Cartelle a Sinistra, Gestione Colonne (Tasto Destro) & Filtri 2-Row
+- **Explorer Cartelle/Unità a Sinistra Collassabile:** Pannello laterale integrato nella Libreria (`QFileSystemModel`) con rilevamento rapido di dischi rigidi, memorie USB e percorsi preferiti a 1-click.
+- **Selezione e Personalizzazione Colonne (Tasto Destro):** Cliccando con il tasto destro su una qualsiasi intestazione della tabella, compare il menu contestuale per mostrare o nascondere ciascuna delle 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`), con memorizzazione automatica di visibilità e larghezze in `config.json`.
+- **ComboBox Generi Dinamica Unificata & Fallback "Vario":** Controllo unico editabile con completamento automatico in tempo reale e ordinamento alfabetico; le tracce prive di genere vengono raggruppate coerentemente sotto la voce `"Vario"`.
+- **Barra Filtri Multi-Riga Ergonomica (<15ms):** Target BPM con stepping fine (`±2%`, `±4%`, `±6%`, `±8%`), ruota Camelot a 12 posizioni con percorsi armonici ($\pm 1$, Relativa, $+2$ Energy Boost, $+7$ Semitone Lift), filtri decennio, rating ed energia.
 
-### 4. 🏷️ Spazio Mp3tag Dedicato & Tag Editor Avanzato
-- **Visualizzazione Tabellare a Foglio di Calcolo:** Modifica inline rapida su singola cella o editing simultaneo batch su selezioni multiple.
-- **Convertitore Pattern Nome File <-> Tag:** Motore bidirezionale con token `%artist% - %title% (%bpm% BPM) [%camelot%]`.
-- **Iniezione Copertine HD Studio:** Download e incorporamento di cover fino a 3000x3000px (da Apple Music CDN e Beatport) direttamente nei file (`APIC`, Picture block FLAC, atomo `covr` MP4).
-- **Supporto Contenitori Universali:** MP3, FLAC, WAV (fino a 32-bit float), AIFF, M4A/ALAC, OGG Vorbis e OPUS.
+### 4. 🏷️ Workspace Mp3tag Avanzato: Autonumerazione & Pattern Live
+- **Procedura Guidata Numerazione Tracce (`TrackNumberingWizardDialog`):**
+  - Numerazione sequenziale automatica con offset configurabile;
+  - Padding a zero configurabile (`01, 02...`);
+  - Suffisso opzionale con numero totale di tracce (`01/12`);
+  - Azzeramento contatore automatico al cambio di cartella o album;
+  - Tabella di anteprima in tempo reale prima del salvataggio.
+- **Convertitori Pattern Bidirezionali Live:**
+  - **Nome File ➔ Tag (`FilenameToTagDialog`):** Estrazione intelligente dei metadati dal formato dei file con anteprima tabellare immediata;
+  - **Tag ➔ Nome File (`TagToFilenameDialog`):** Ridenominazione fisica su disco con maschere flessibili e verifica stato;
+  - **Supporto Token Avanzato `$num(%track%,2)`:** Formattazione e parsing avanzato del numero traccia con padding personalizzato.
+- **Azioni Rapide Maiuscole/Minuscole:** Pulsanti a 1-click per *Title Case*, *MAIUSCOLO* e *minuscolo*.
 
 ### 5. ⚡ Motore di Indicizzazione Ultra-Rapido (`SearchEngine`)
 - **Windows (NTFS MFT):** Binding Ctypes nativo su `Everything64.dll` per query dirette alla Master File Table in meno di 1 millisecondo su dischi con 100.000+ brani.
@@ -200,7 +205,7 @@ Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actio
 | **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
 
-👉 **[Scarica l'Ultima Release Ufficiale (v1.1.0)](https://github.com/IlRed89/Musicat/releases/tag/v1.1.0)**
+👉 **[Scarica l'Ultima Release Ufficiale (v1.4.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 
