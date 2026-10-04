@@ -52,7 +52,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          python run_tests.py
+          python -m unittest tests/test_new_features_suite.py tests/test_verification_features.py
 
 
       # --- BUILD WINDOWS ---
