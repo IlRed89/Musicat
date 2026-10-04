@@ -25,17 +25,13 @@ def setup_exception_logging():
     app_dir = PathResolver.get_app_dir()
     is_portable = PathResolver.is_portable_mode()
 
-    def excepthook(exc_type, exc_value, exc_traceback):
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    def global_exception_handler(exctype, value, tb):
+        if issubclass(exctype, KeyboardInterrupt):
+            sys.__excepthook__(exctype, value, tb)
             return
 
-        formatted_traceback = "".join(
-            traceback.format_exception(exc_type, exc_value, exc_traceback)
-        )
-        logger.critical(
-            f"FATAL UNCAUGHT EXCEPTION: {exc_value}\n{formatted_traceback}"
-        )
+        formatted = "".join(traceback.format_exception(exctype, value, tb))
+        logger.critical("Uncaught Exception: %s", formatted)
         MusicatLogger.flush()
 
         # Always write crash.log for immediate inspection
@@ -47,13 +43,13 @@ def setup_exception_logging():
         for target in crash_targets:
             try:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(formatted_traceback, encoding="utf-8")
+                target.write_text(formatted, encoding="utf-8")
             except Exception:
                 pass
 
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        sys.__excepthook__(exctype, value, tb)
 
-    sys.excepthook = excepthook
+    sys.excepthook = global_exception_handler
 
 
 def main():
@@ -66,7 +62,7 @@ def main():
     app_dir = PathResolver.get_app_dir()
 
     logger.info("==================================================")
-    logger.info("Musicat v1.0.0 starting...")
+    logger.info("Musicat v1.2.0 starting...")
     logger.info(f"Python: {sys.version.split()[0]} | Platform: {sys.platform} | Frozen: {getattr(sys, 'frozen', False)}")
     logger.info(f"Execution Mode: {'PORTABLE' if is_portable else 'STANDARD'}")
     logger.info(f"Application Directory: {app_dir}")
@@ -78,7 +74,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Musicat - DJ Catalog & Smart Organizer")
     parser.add_argument("--scan", type=str, help="Scan a directory in headless mode")
-    parser.add_argument("--version", action="version", version="Musicat 1.0.0")
+    parser.add_argument("--version", action="version", version="Musicat 1.2.0")
 
     args, unknown = parser.parse_known_args()
 

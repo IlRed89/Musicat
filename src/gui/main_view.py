@@ -174,27 +174,27 @@ class MainWindow(QMainWindow):
 
         # Main Navigation Macro-Buttons:
         # [Analisi / Home], [Libreria], [Tag Editor (Mp3tag)], [Smart Crates], [Trova Simili], [Organizza File], [Impostazioni]
-        self.btn_nav_trends = QPushButton(_t("nav_analysis", "Analisi / Home"))
+        self.btn_nav_trends = QPushButton(_t("nav_analysis", "🏠  Analisi / Home"))
         self.btn_nav_trends.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_trends.clicked.connect(lambda: self._switch_view(1))
 
-        self.btn_nav_library = QPushButton(_t("nav_library", "Libreria"))
+        self.btn_nav_library = QPushButton(_t("nav_library", "📁  Libreria"))
         self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
 
-        self.btn_nav_mp3tag = QPushButton(_t("nav_mp3tag", "Tag Editor (Mp3tag)"))
+        self.btn_nav_mp3tag = QPushButton(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
         self.btn_nav_mp3tag.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_mp3tag.clicked.connect(self._on_open_mp3tag_workspace)
 
-        self.btn_nav_crates = QPushButton(_t("nav_crates", "Smart Crates"))
+        self.btn_nav_crates = QPushButton(_t("nav_crates", "📦  Smart Crates"))
         self.btn_nav_crates.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_crates.clicked.connect(lambda: self._switch_view(2))
 
-        self.btn_nav_similar = QPushButton(_t("nav_similar", "Trova Simili"))
+        self.btn_nav_similar = QPushButton(_t("nav_similar", "🔍  Trova Simili"))
         self.btn_nav_similar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_similar.clicked.connect(self._on_action_find_similar)
 
-        self.btn_nav_organizer = QPushButton(_t("nav_organizer", "Organizza File"))
+        self.btn_nav_organizer = QPushButton(_t("nav_organizer", "📂  Organizza File"))
         self.btn_nav_organizer.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_organizer.clicked.connect(self._on_open_sorter)
 
@@ -207,7 +207,7 @@ class MainWindow(QMainWindow):
         nav_layout.addStretch()
 
         # Dedicated Settings button in top-right corner
-        self.btn_nav_settings = QPushButton(_t("nav_settings", "Impostazioni"))
+        self.btn_nav_settings = QPushButton(_t("nav_settings", "⚙️  Impostazioni"))
         self.btn_nav_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_settings.clicked.connect(self._on_open_settings)
         nav_layout.addWidget(self.btn_nav_settings)
@@ -256,6 +256,12 @@ class MainWindow(QMainWindow):
             saved_cols = self.settings_manager.get("ui.visible_columns", [])
             if saved_cols and isinstance(saved_cols, list):
                 self._apply_saved_column_visibility(saved_cols)
+
+        # Restore saved column widths if configured
+        saved_widths = self.settings_manager.get("ui.column_widths", {})
+        if saved_widths and isinstance(saved_widths, dict):
+            self._apply_saved_column_widths(saved_widths)
+        self.table_header.sectionResized.connect(self._on_table_section_resized)
 
         # Dynamic Collapsible Right Sidebar (Dedicated Folder Tree / Filesystem Navigator)
         self.sidebar_widget = QWidget(self)
@@ -307,6 +313,7 @@ class MainWindow(QMainWindow):
         self.home_view.play_track_requested.connect(self._on_home_play_track)
         self.home_view.find_similar_requested.connect(self._on_home_find_similar)
         self.home_view.navigate_to_library_requested.connect(lambda: self._switch_view(0))
+        self.home_view.filter_genre_requested.connect(self._on_home_genre_filter_requested)
         self.view_stack.addWidget(self.home_view)
 
         # Page 2: Dedicated Smart Crates Workbench
@@ -863,32 +870,39 @@ class MainWindow(QMainWindow):
 
     def _on_sidebar_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         """Handles selection of sidebar items to filter the main library view."""
-        if not hasattr(self, "sidebar_tree"):
-            return
-        data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not data:
-            return
-        itype = data.get("type")
-        val = data.get("value")
+        try:
+            if not hasattr(self, "sidebar_tree"):
+                return
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if not data or not isinstance(data, dict):
+                return
+            itype = data.get("type")
+            val = data.get("value")
+            MusicatLogger.get_logger().info(f"[SIDEBAR_CLICK] Selezione: type={itype!r}, value={val!r}")
 
-        if itype == "all":
-            self.filter_bar.reset_filters()
-        elif itype == "genre" and val:
-            self.filter_bar.genre_widget.set_selected_genres([val])
-        elif itype == "crate" and val:
-            idx = self.filter_bar.cmb_crates.findData(val)
-            if idx < 0:
-                idx = self.filter_bar.cmb_crates.findText(val)
-            if idx >= 0:
-                self.filter_bar.cmb_crates.setCurrentIndex(idx)
-        elif itype == "camelot" and val:
-            idx = self.filter_bar.cmb_camelot.findData(val)
-            if idx >= 0:
-                self.filter_bar.cmb_camelot.setCurrentIndex(idx)
-            else:
-                crit = self.filter_bar.get_current_criteria()
-                crit.camelot_key = val
-                self.filter_bar.filter_changed.emit(crit)
+            if itype == "all":
+                self.filter_bar.reset_filters()
+            elif itype == "genre" and val:
+                if not self.all_tracks:
+                    self.status_bar.showMessage(f"Libreria vuota: nessuna traccia trovata per '{val}'", 4000)
+                    return
+                self.filter_bar.genre_widget.set_genres([val])
+            elif itype == "crate" and val:
+                idx = self.filter_bar.cmb_crates.findData(val)
+                if idx < 0:
+                    idx = self.filter_bar.cmb_crates.findText(val)
+                if idx >= 0:
+                    self.filter_bar.cmb_crates.setCurrentIndex(idx)
+            elif itype == "camelot" and val:
+                idx = self.filter_bar.cmb_camelot.findData(val)
+                if idx >= 0:
+                    self.filter_bar.cmb_camelot.setCurrentIndex(idx)
+                else:
+                    crit = self.filter_bar.get_current_criteria()
+                    crit.camelot_key = val
+                    self.filter_bar.filter_changed.emit(crit)
+        except Exception as exc:
+            MusicatLogger.get_logger().error(f"[SIDEBAR_CLICK] Errore gestito: {exc}\n{traceback.format_exc()}")
 
     def _on_cut_tracks(self) -> None:
         """Cuts selected tracks to clipboard for physical moving."""
@@ -954,6 +968,10 @@ class MainWindow(QMainWindow):
             self.player_widget.update_theme(theme_id)
         if hasattr(self, "filter_bar"):
             self.filter_bar.update_theme(theme_id)
+        if hasattr(self, "home_view") and hasattr(self.home_view, "update_theme"):
+            self.home_view.update_theme(theme_id)
+        if hasattr(self, "crates_view") and hasattr(self.crates_view, "update_theme"):
+            self.crates_view.update_theme(theme_id)
         self.status_bar.showMessage(f"Applied settings: Theme '{theme_id}'")
 
     def _on_table_header_context_menu(self, pos: QPoint) -> None:
@@ -1025,6 +1043,27 @@ class MainWindow(QMainWindow):
         for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
             is_visible = col_id in saved_set
             self.table_header.setSectionHidden(idx, not is_visible)
+
+    def _on_table_section_resized(self, logical_index: int, old_size: int, new_size: int) -> None:
+        """Saves resized column widths into configuration."""
+        if logical_index < len(TrackTableModel.COLUMNS):
+            _, col_id = TrackTableModel.COLUMNS[logical_index]
+            widths = self.settings_manager.get("ui.column_widths", {})
+            if not isinstance(widths, dict):
+                widths = {}
+            widths[col_id] = new_size
+            self.settings_manager.set("ui.column_widths", widths)
+            self.settings_manager.save()
+
+    def _apply_saved_column_widths(self, saved_widths: Dict[str, int]) -> None:
+        """Restores saved column widths from configuration."""
+        if not isinstance(saved_widths, dict):
+            return
+        for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
+            if col_id in saved_widths:
+                w = saved_widths[col_id]
+                if isinstance(w, int) and w > 20:
+                    self.table_header.resizeSection(idx, w)
 
     def _on_table_context_menu(self, pos: QPoint) -> None:
         selected = self._get_selected_tracks()
@@ -1311,6 +1350,55 @@ class MainWindow(QMainWindow):
                 "Seleziona una traccia dalla tabella o carica un brano nel player per cercare tracce simili.",
             )
 
+    def _on_home_genre_filter_requested(self, genre: str) -> None:
+        """Handles genre filter requests originating from Home view or cards."""
+        try:
+            logger = MusicatLogger.get_logger()
+            logger.info(f"[MAIN_VIEW:HOME_GENRE] Ricevuta richiesta filtro genere: {genre!r}")
+            if not genre or not isinstance(genre, str):
+                logger.warning(f"[MAIN_VIEW:HOME_GENRE] Genere non valido: {genre!r}")
+                return
+
+            if getattr(self, "_is_filtering_genre", False):
+                logger.warning("[MAIN_VIEW:HOME_GENRE] Filtro genere già in corso, evento ignorato.")
+                return
+            self._is_filtering_genre = True
+
+            def apply_filter() -> None:
+                try:
+                    if not self.all_tracks:
+                        if self.isVisible():
+                            QMessageBox.information(
+                                self,
+                                _t("home_empty_genre_title", "Libreria Vuota per questo Genere"),
+                                _t(
+                                    "home_empty_genre_msg",
+                                    "La tua libreria locale non contiene brani corrispondenti al genere '{genre}'.\nImporta o scansiona nuove tracce per visualizzarle.",
+                                    genre=genre,
+                                ),
+                            )
+                        else:
+                            self.status_bar.showMessage(
+                                _t("home_empty_genre_status", "Libreria vuota: nessuna traccia disponibile per '{genre}'", genre=genre), 4000
+                            )
+                        return
+
+                    self._switch_view(0)
+                    if hasattr(self, "filter_bar") and hasattr(self.filter_bar, "genre_widget"):
+                        self.filter_bar.genre_widget.set_genres([genre])
+                    self.status_bar.showMessage(
+                        _t("genre_filter_applied", "Filtro applicato per il genere: {genre}", genre=genre), 4000
+                    )
+                except Exception as exc:
+                    MusicatLogger.get_logger().error(f"[MAIN_VIEW:HOME_GENRE] Errore applicazione filtro: {exc}", exc_info=True)
+                finally:
+                    self._is_filtering_genre = False
+
+            QTimer.singleShot(0, apply_filter)
+        except Exception as exc:
+            self._is_filtering_genre = False
+            MusicatLogger.get_logger().error(f"[MAIN_VIEW:HOME_GENRE] Errore gestito: {exc}", exc_info=True)
+
     def _on_breadcrumb_directory_selected(self, directory_path: str) -> None:
         """Filters library table to directory clicked in MiniPlayer breadcrumbs."""
         self._switch_view(0)
@@ -1320,19 +1408,19 @@ class MainWindow(QMainWindow):
         """Dynamically retranslates all top-level main window components."""
         self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
         if hasattr(self, "btn_nav_trends"):
-            self.btn_nav_trends.setText(_t("nav_analysis", "⚡ Analisi / Home"))
+            self.btn_nav_trends.setText(_t("nav_analysis", "🏠  Analisi / Home"))
         if hasattr(self, "btn_nav_library"):
-            self.btn_nav_library.setText(_t("nav_library", "🎵 Libreria"))
+            self.btn_nav_library.setText(_t("nav_library", "📁  Libreria"))
         if hasattr(self, "btn_nav_mp3tag"):
-            self.btn_nav_mp3tag.setText(_t("nav_mp3tag", "🏷️ Tag Editor (Mp3tag)"))
+            self.btn_nav_mp3tag.setText(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
         if hasattr(self, "btn_nav_crates"):
-            self.btn_nav_crates.setText(_t("nav_crates", "🎛️ Smart Crates"))
+            self.btn_nav_crates.setText(_t("nav_crates", "📦  Smart Crates"))
         if hasattr(self, "btn_nav_similar"):
-            self.btn_nav_similar.setText(_t("nav_similar", "✨ Trova Simili"))
+            self.btn_nav_similar.setText(_t("nav_similar", "🔍  Trova Simili"))
         if hasattr(self, "btn_nav_organizer"):
-            self.btn_nav_organizer.setText(_t("nav_organizer", "📦 Organizza File"))
+            self.btn_nav_organizer.setText(_t("nav_organizer", "📂  Organizza File"))
         if hasattr(self, "btn_nav_settings"):
-            self.btn_nav_settings.setText(_t("nav_settings", "⚙️ Impostazioni"))
+            self.btn_nav_settings.setText(_t("nav_settings", "⚙️  Impostazioni"))
         if hasattr(self, "sb_title"):
             self.sb_title.setText(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
         if hasattr(self, "crates_view"):

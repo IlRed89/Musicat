@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core.i18n import _t, I18n
 from ..tags.editor import AudioTagEditor
 from ..tags.patterns import PatternEngine, sanitize_filename
 
@@ -40,8 +41,8 @@ class PatternDialog(QDialog):
         super().__init__(parent)
         self.tracks = selected_tracks
 
-        self.setWindowTitle(f"Musicat Pattern Converter - {len(self.tracks)} track(s)")
-        self.resize(850, 600)
+        self.setWindowTitle(_t("pattern_title", "Musicat — Convertitore Pattern - {count} tracce", count=len(self.tracks)))
+        self.resize(880, 620)
 
         self._init_ui()
         self._update_fn_to_tag_preview()
@@ -55,7 +56,7 @@ class PatternDialog(QDialog):
         # Tab 1: Filename -> Tag
         tab_fn_to_tag = QWidget()
         l1 = QVBoxLayout(tab_fn_to_tag)
-        l1.addWidget(QLabel("<b>Extract Metadata from Filename:</b>"))
+        l1.addWidget(QLabel(_t("pattern_fn_tag_desc", "<b>Estrai Metadati dal Nome File:</b>")))
 
         preset_row1 = QHBoxLayout()
         self.cmb_fn_presets = QComboBox()
@@ -69,26 +70,31 @@ class PatternDialog(QDialog):
         self.cmb_fn_presets.currentIndexChanged.connect(lambda: self.txt_fn_pattern.setText(self.cmb_fn_presets.currentData()))
         self.txt_fn_pattern.textChanged.connect(self._update_fn_to_tag_preview)
 
-        preset_row1.addWidget(QLabel("Preset:"))
+        preset_row1.addWidget(QLabel(_t("pattern_preset", "Preset:")))
         preset_row1.addWidget(self.cmb_fn_presets, 2)
         preset_row1.addWidget(self.txt_fn_pattern, 3)
         l1.addLayout(preset_row1)
 
         self.table_fn_preview = QTableWidget()
         self.table_fn_preview.setColumnCount(4)
-        self.table_fn_preview.setHorizontalHeaderLabels(["Filename", "Extracted Artist", "Extracted Title", "Other Extracted Tags"])
+        self.table_fn_preview.setHorizontalHeaderLabels([
+            _t("pattern_col_filename", "Nome File"),
+            _t("pattern_col_artist", "Artista Estratto"),
+            _t("pattern_col_title", "Titolo Estratto"),
+            _t("pattern_col_other", "Altri Tag Estratti"),
+        ])
         self.table_fn_preview.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table_fn_preview.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.table_fn_preview.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.table_fn_preview.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         l1.addWidget(self.table_fn_preview)
 
-        tabs.addTab(tab_fn_to_tag, "Filename ➔ Tag")
+        tabs.addTab(tab_fn_to_tag, _t("pattern_tab_fn_tag", "Nome File ➔ Tag"))
 
         # Tab 2: Tag -> Filename
         tab_tag_to_fn = QWidget()
         l2 = QVBoxLayout(tab_tag_to_fn)
-        l2.addWidget(QLabel("<b>Rename Files using Database Tags:</b>"))
+        l2.addWidget(QLabel(_t("pattern_tag_fn_desc", "<b>Rinomina File Fisici usando i Tag:</b>")))
 
         preset_row2 = QHBoxLayout()
         self.cmb_tag_presets = QComboBox()
@@ -101,30 +107,34 @@ class PatternDialog(QDialog):
         self.cmb_tag_presets.currentIndexChanged.connect(lambda: self.txt_tag_pattern.setText(self.cmb_tag_presets.currentData()))
         self.txt_tag_pattern.textChanged.connect(self._update_tag_to_fn_preview)
 
-        preset_row2.addWidget(QLabel("Preset:"))
+        preset_row2.addWidget(QLabel(_t("pattern_preset", "Preset:")))
         preset_row2.addWidget(self.cmb_tag_presets, 2)
         preset_row2.addWidget(self.txt_tag_pattern, 3)
         l2.addLayout(preset_row2)
 
         self.table_tag_preview = QTableWidget()
         self.table_tag_preview.setColumnCount(3)
-        self.table_tag_preview.setHorizontalHeaderLabels(["Current Filename", "New Proposed Filename", "Status"])
+        self.table_tag_preview.setHorizontalHeaderLabels([
+            _t("pattern_col_cur_fn", "Nome File Attuale"),
+            _t("pattern_col_new_fn", "Nuovo Nome Proposto"),
+            _t("pattern_col_status", "Stato"),
+        ])
         self.table_tag_preview.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table_tag_preview.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table_tag_preview.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         l2.addWidget(self.table_tag_preview)
 
-        tabs.addTab(tab_tag_to_fn, "Tag ➔ Filename")
+        tabs.addTab(tab_tag_to_fn, _t("pattern_tab_tag_fn", "Tag ➔ Nome File"))
 
         # Tab 3: Tag -> Tag
         tab_tag_to_tag = QWidget()
         l3 = QVBoxLayout(tab_tag_to_tag)
-        l3.addWidget(QLabel("<b>Copy or Manipulate Tag Fields:</b>"))
+        l3.addWidget(QLabel(_t("pattern_tag_tag_desc", "<b>Copia o Trasferisci Campi di Metadati:</b>")))
 
         t_row = QHBoxLayout()
         self.cmb_tag_action = QComboBox()
-        self.cmb_tag_action.addItem("Copy Field", "copy")
-        self.cmb_tag_action.addItem("Swap Fields", "swap")
+        self.cmb_tag_action.addItem(_t("pattern_act_copy", "Copia Campo"), "copy")
+        self.cmb_tag_action.addItem(_t("pattern_act_swap", "Scambia Campi"), "swap")
 
         self.cmb_src_field = QComboBox()
         for fld in ("comment", "initial_key", "remixer", "label", "genre", "album"):
@@ -134,18 +144,18 @@ class PatternDialog(QDialog):
         for fld in ("camelot_key", "musical_key", "remixer", "genre", "comment", "album_artist"):
             self.cmb_dst_field.addItem(fld)
 
-        t_row.addWidget(QLabel("Action:"))
+        t_row.addWidget(QLabel(_t("pattern_action", "Azione:")))
         t_row.addWidget(self.cmb_tag_action)
-        t_row.addWidget(QLabel("Source:"))
+        t_row.addWidget(QLabel(_t("pattern_source", "Sorgente:")))
         t_row.addWidget(self.cmb_src_field)
-        t_row.addWidget(QLabel("➔ Target:"))
+        t_row.addWidget(QLabel(_t("pattern_target", "➔ Destinazione:")))
         t_row.addWidget(self.cmb_dst_field)
         t_row.addStretch()
 
         l3.addLayout(t_row)
         l3.addStretch()
 
-        tabs.addTab(tab_tag_to_tag, "Tag ➔ Tag")
+        tabs.addTab(tab_tag_to_tag, _t("pattern_tab_tag_tag", "Tag ➔ Tag"))
 
         main_layout.addWidget(tabs)
         self.tabs = tabs
@@ -153,9 +163,21 @@ class PatternDialog(QDialog):
         # Action Buttons
         btn_box = QHBoxLayout()
         btn_box.addStretch()
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_apply = QPushButton("Apply Conversion to Files")
+        self.btn_cancel = QPushButton(_t("settings_btn_cancel", "Annulla"))
+        self.btn_apply = QPushButton(_t("pattern_btn_apply", "⚡ Applica Conversione ai File"))
         self.btn_apply.setObjectName("PrimaryButton")
+        self.btn_apply.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6efd;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 14px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+            }
+        """)
 
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_apply.clicked.connect(self._on_apply)
@@ -243,6 +265,10 @@ class PatternDialog(QDialog):
                 AudioTagEditor.write_metadata(fp, {dst_f: m.get(dst_f)})
                 updated_tracks.append(m)
 
-        QMessageBox.information(self, "Conversion", f"Applied successfully to {len(updated_tracks)} track(s)!")
+        QMessageBox.information(
+            self,
+            _t("pattern_applied_title", "Conversione Completata"),
+            _t("pattern_applied_msg", "Applicata con successo a {count} tracce!", count=len(updated_tracks)),
+        )
         self.conversion_applied.emit(updated_tracks)
         self.accept()

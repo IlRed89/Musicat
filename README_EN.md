@@ -12,7 +12,7 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Lingua-Italiano-green.svg" alt="Lingua: Italiano"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/tests-132%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-140%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="License"></a>
 </p>
@@ -36,10 +36,10 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 +----------------------------------------------------------------------------------------------------+
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
-| [Analysis / Home] | [DJ Library]   | [Mp3tag Space]  | [Smart Crates] | [Find Similars] | [Organize]   |
-| - Startup Default | - RAM Filters  | - Cell Grid     | - Workbench    | - Cosine.club   | - Dry Run    |
-| - Spotify Trends  | - 1A-12B Wheel | - Multi-Tag     | - Dynamic Crate| - Web Vectors   | - Collision  |
-| - EBU Diagnostics | - Pitch +/-8%  | - Pattern %tag% | - Export M3U8  | - Hard Drive    | - Rule Tree  |
+| [🏠 Home]       | [📁 Library]   | [🏷️ Mp3tag]     | [📦 Crates]    | [🔍 Similar]    | [📂 Organize]  |
+| - Startup Home  | - 2-Row Filters| - Cell Grid     | - Guide & M3U8 | - Cosine.club   | - Dry Run      |
+| - Multi-Platform| - 1A-12B Wheel | - Multi-Tag     | - Dynamic Crate| - Web Vectors   | - Collision    |
+| - EBU Loudness  | - Pitch +/-8%  | - Pattern %tag% | - Export M3U8  | - Hard Drive    | - Rule Tree    |
 +----------------------------------------------------------------------------------------------------+
 |           Unified Search Engine (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)         |
 +----------------------------------------------------------------------------------------------------+
@@ -51,27 +51,29 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. ⚪ Modern Light Theme Default & Clean Modular Navbar
+### 1. ⚪ Modern Light Theme Default & Iconic Modular Navbar
 - **High-Contrast Light Theme:** Modern palette (`#FFFFFF` / `#F8F9FA`, text `#212529`, accents `#0D6EFD`) engineered for pristine legibility in clubs, studios, and high-glare environments. Instant switch to Dark Theme available in Settings.
-- **Minimal Top Bar with No Ambiguous Icons:** No isolated shortcut icons. The top navbar solely features explicit navigation buttons to full modules:
-  - **[Analysis / Home]** (Default initial screen on application startup)
-  - **[Library]**
-  - **[Tag Editor (Mp3tag)]**
-  - **[Smart Crates]**
-  - **[Find Similars]**
-  - **[Organize Files]**
-  - **[Settings]**
+- **Minimal Top Bar with Thematic Icons:** Clean top navigation bar equipped with representative icons:
+  - **[🏠 Analysis / Home]** (Default initial screen with multi-platform trends and high-contrast white cards)
+  - **[📁 Library]** (High-performance DJ catalog with right-click column management)
+  - **[🏷️ Tag Editor (Mp3tag)]**
+  - **[📦 Smart Crates]** (Rule-based crate builder with integrated guide)
+  - **[🔍 Find Similars]**
+  - **[📂 Organize Files]**
+  - **[⚙️ Settings]**
 
-### 2. 🗃️ Dedicated "Smart Crates" Workbench
+### 2. 🗃️ Dedicated "Smart Crates" Workbench with Interactive Guide
 - Full-screen dedicated workbench replacing small cluttered sidebars.
-- Visual rule builder for complex multi-attribute queries (BPM ranges, Camelot Key, multi-genres, rating, energy profile).
+- **Integrated User Guide (`❓ User Guide`):** Dedicated interactive dialog explaining boolean operators (ALL rules / ANY rule), real-world DJ preset tables (*Warm-up Deep*, *Peak Time Banger*, *Classic House*, *Harmonic Mixes*), and M3U8 export workflows.
+- Visual rule builder for complex multi-attribute queries (BPM ranges, Camelot Key, multi-genres, rating, energy profile) with localized tooltips.
 - 1-click dynamic export to extended `.m3u8` playlists for Pioneer CDJ, Rekordbox, Traktor, Serato, and Engine DJ.
 
-### 3. 🎛️ Live DJ Crates, Column Customization & Filter Engine (<15ms Latency)
-- **Right-Click Column Selection:** Right-clicking any column header displays a context menu permitting users to selectively show or hide any of the 19 library columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`), with *"Show All Columns"* and *"Reset Default Columns"*, persistently stored in `config.json`.
-- **True System RAM & Hardware Telemetry:** The status bar reports actual process memory alongside total installed system memory (e.g. `RAM: 283 MB / 24 GB`). As a 64-bit architecture, Musicat operates without artificial memory restrictions.
-- **Multi-Genre Selector:** Auto-complete dropdown supporting multiple simultaneous genres with `OR` filtering (e.g. *Tech House* OR *Afro House* OR *Melodic Techno*).
-- **Dynamic BPM Targeting:** Target BPM input with pitch tolerance presets (`±2%`, `±4%`, `±6%`, `±8%`), as well as explicit Min/Max ranges.
+### 3. 🎛️ Live DJ Crates, 2-Row Filter Bar, Column Customization & Dynamic RAM (<15ms)
+- **Ergonomic Two-Row Filter Bar:**
+  - *Row 1:* Fast text search with active engine badge (Everything MFT / Spotlight / FTS5), folder/drive selector, multi-genre dropdown (OR logic), cover art toggle, and quick ESC reset.
+  - *Row 2:* Full DJ acoustic controls: Target BPM with fine steppers and pitch presets (`±2%`, `±4%`, `±6%`, `±8%`), Min/Max BPM sliders, wide Camelot Key dropdown without truncation, "Harmonic Only" checkbox, interactive Camelot Wheel button, decade/year filter, audio quality selector, DJ tag pills, and Smart Crates quick export.
+- **Right-Click Column Selection & Width Persistence:** Right-clicking any column header displays a context menu permitting users to selectively show or hide any of the 19 library columns. Column widths and visibility are automatically persisted to `config.json`.
+- **Dynamic System RAM Allocation (up to 80%):** Removed arbitrary 2 GB cache limit. Dynamically detects total physical RAM and allows allocating up to 80% with live display (e.g. `Allocated: 8.0 GB / 32.0 GB total`).
 - **Harmonic Camelot Wheel Assistant:** Visual 12-column interactive Camelot Wheel (`1A`–`12B`) supporting:
   - $\pm 1$ Smooth Transitions (Energy stability)
   - Relative Key (Major $\leftrightarrow$ Minor mood change)
@@ -101,14 +103,15 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
   - *Non-destructive:* ReplayGain metadata tagging (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
   - *Physical re-encode:* Physical re-encoding with FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP).
 
-### 8. 🏠 Spotify Top Trends & Smart Recommendations
-- **Live Spotify DJ Charts:** Category trends (Dance/Electro, Tech House, Techno, Global Top 50) with local caching.
+### 8. 🏠 Multi-Platform Trends Dashboard & Smart Recommendations
+- **Multi-Source Charts:** Dedicated tabs for `Top Spotify`, `Top SoundCloud / Hype`, and `Top Beatport / Discogs` with category switching, rich offline fallbacks, and isolated caching.
 - **Collection Cross-Check:** Instant visual badge indicating whether a trending track is owned locally (`✓ In Library`) or missing (`+ Missing`).
 - **Cosine Similarity Engine:** Deep discovery via Cosine.club, Chosic, and Last.fm matching acoustic vectors against your local library files.
 
-### 9. ⚖️ Multi-Source Scraping & Conflict Reconciliation
-- Simultaneous queries to **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz**, and social platforms (**SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**).
-- Discrepancy comparison matrix with field-by-field selective resolution checkboxes.
+### 9. ⚖️ Multi-Source Scraping, Discogs Authority & Live API Connection Tests
+- **Discogs Metadata Priority:** Metadata reconciler configured with Discogs as top authority for year, label, catalog number, format, and artist.
+- **Live API Connection Tests:** Dedicated credentials fields and live test buttons for Spotify, SoundCloud, YouTube Data API v3, Discogs, and Beatport with instant visual status feedback (green/red).
+- **Conflict Reconciliation Matrix:** Interactive table for resolving discrepancies across multiple web sources before writing tags to physical files.
 
 ### 10. 💾 Dual-Mode Installation & Drive Migration
 - **Standard Mode:** Installs into `Program Files`, adds Start Menu shortcuts, and stores data in `%APPDATA%\Musicat`.

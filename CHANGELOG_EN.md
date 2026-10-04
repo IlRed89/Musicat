@@ -10,6 +10,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-04
+
+### 🚀 Column Header Context Menu, 2-Row Filter Bar, Multi-Platform Trends, Discogs Priority & 80% RAM Allocation
+
+#### 🎛️ Column Context Menu & Width Persistence
+- **Header Context Menu:** Right-clicking any column header displays a popup menu with checkable items for all columns to show/hide in real time.
+- **Automatic Persistence:** Column resizing (`ui.column_widths`) and visibility (`ui.visible_columns`) are persisted directly to `config.json` and restored on startup.
+- **Settings Streamlined:** Removed redundant column checkboxes from Settings dialog, replaced by an informative help card.
+
+#### ⚪ Light Theme Sanitization & GPU Card Fix
+- **Complete Dark Theme Residual Purge:** Cleaned Settings sidebar, tabs, and sub-pages to clean `#F8F9FA` / `#FFFFFF` with `#DEE2E6` borders and `#212529` text.
+- **Home/Analyze Cards:** Categorization cards updated with crisp white background (`#FFFFFF`), subtle border (`#D0D7DE`), 8px radius, and smooth hover state (`#F8F9FA`, border `#0D6EFD`).
+- **GPU Hardware Acceleration Frame:** Converted from dark background to clean white styling with green hardware badge and readable text.
+
+#### 🧠 Dynamic System RAM Allocation (up to 80%)
+- **2 GB Limit Removed:** Eradicated the legacy 2 GB cap on cache memory.
+- **Native Hardware Detection:** Accurately reads total installed system RAM (`GlobalMemoryStatusEx` on Windows, `psutil`).
+- **Dynamic Slider:** Ranges from 512 MB up to **80% of total installed physical RAM** with live feedback label: `Allocated: X.X GB / Y.Y GB total`.
+
+#### 🌐 Expanded Scrapers & API Credentials
+- **Multi-Service Credentials:** Added dedicated inputs for Spotify, SoundCloud, YouTube Data API v3, Discogs (User-Agent + Token), and Beatport.
+- **Live Connection Test:** Each service features a "Test Connection" button providing instantaneous green/red visual validation.
+
+#### 💿 Discogs Primary Metadata Authority
+- **Enhanced Discogs Parser:** Advanced extraction of formats (Vinyl/Digital), catalog numbers (`catno`), and primary record labels.
+- **Reconciliation Hierarchy:** Discogs elevated to top authority priority for Year, Label, Catalog Number, Format, and Artist.
+- **Default Scraper:** Discogs preset as primary choice in scraper dialog.
+
+#### 📈 Multi-Platform Trends Dashboard
+- **Platform Tabs:** Dedicated tabs for `Top Spotify`, `Top SoundCloud / Hype`, and `Top Beatport / Discogs`.
+- **Source-Specific Categories:** Dynamically populated musical genres matching each platform's catalog.
+- **Offline Datasets & Library Cross-Check:** Rich offline fallbacks and visual badge for tracks already found in the user's local collection.
+
+#### 🎚️ Two-Row Live DJ Filter Bar
+- **Row 1 (Library & Search):** Search query with engine indicator, folder/drive selector, multi-genre dropdown (OR logic), cover toggle, and reset ESC button.
+- **Row 2 (Acoustic Parameters):**
+  - Expanded BPM target with pitch presets (`±2%`, `±4%`, `±6%`, `±8%`) and min/max inputs.
+  - Camelot Key selector with full text visibility without truncation, Harmonic Mix checkbox, and Camelot Wheel modal button.
+  - Decade/Year, Audio Quality filter, DJ tag badges, and Smart Crates quick export.
+
+#### ❓ Smart Crates Integrated Guide & Tooltips
+- **Interactive Help Modal:** New `"❓ User Guide"` button opening `SmartCratesHelpDialog` explaining AND/OR logic and console-ready DJ presets (*Warm-up*, *Peak Time*, *Classic House*, *Harmonic Mixes*).
+- **Comprehensive Tooltips:** Added descriptive hints across all crate rules and actions.
+
+#### 🧭 Emoji Navbar Icons & Stability Hardening
+- **Representative Icons:** Updated 7 navbar buttons (`[🏠 Home]`, `[📁 Library]`, `[🏷️ Mp3tag]`, `[📦 Smart Crates]`, `[🔍 Similar]`, `[📂 Organize]`, `[⚙️ Settings]`).
+- **Crash Prevention:** Installed global exception hook (`sys.excepthook`) and hardened genre navigation when library is empty.
+- **Test Suite:** 140 of 140 unit tests passing (100% OK in 8.9s).
+
+---
+
 ## [1.1.0] - 2026-10-02
 
 ### 🚀 Major UI/UX Polish, Logging Suite, Code Documentation & Architectural Consolidation

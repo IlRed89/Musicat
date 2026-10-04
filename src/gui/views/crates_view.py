@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -68,6 +69,104 @@ COMMON_PRESET_GENRES = [
     "Nu Disco / Disco",
     "Electro",
 ]
+
+
+class SmartCratesHelpDialog(QDialog):
+    """Informative guide dialog explaining AND/OR logic, DJ crate presets, and M3U export."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(_t("crates_help_title", "📖 Guida Completa agli Smart Crates & Regole DJ"))
+        self.resize(760, 600)
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        header = QLabel(_t("crates_help_header", "<h3>🎛️ Guida Completa all'Uso degli Smart Crates</h3>"))
+        header.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
+        layout.addWidget(header)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #d0d7de;
+                border-radius: 8px;
+                background-color: #ffffff;
+            }
+        """)
+
+        content = QWidget()
+        content.setStyleSheet("background-color: #ffffff;")
+        c_layout = QVBoxLayout(content)
+        c_layout.setContentsMargins(18, 16, 18, 16)
+        c_layout.setSpacing(18)
+
+        # Section 1: AND / OR Logic
+        sec1 = QLabel("""
+        <h4 style='color: #0d6efd; margin-top: 0;'>1. Come Funziona la Logica delle Regole (AND / OR)</h4>
+        <p style='color: #212529; font-size: 13px; line-height: 1.5;'>
+        Gli <b>Smart Crates</b> sono casse intelligenti che scansionano dinamicamente la tua collezione musicale applicando filtri avanzati:<br>
+        • <b>Logica OR (Disgiunzione) all'interno dei Generi:</b> Se specifichi più generi (es. <code>Tech House, Deep House, Afro House</code>), verranno incluse le tracce che appartengono ad <b>almeno uno</b> di questi generi.<br>
+        • <b>Logica AND (Congiunzione) tra sezioni diverse:</b> Ogni parametro configurato (Generi, BPM, Chiave, Anno, Qualità Audio) agisce in simultanea. La traccia deve soddisfare <b>tutti i criteri attivi</b> per apparire nel crate.<br>
+        • <b>Anteprima Istantanea in Tempo Reale:</b> Non occorre salvare ogni volta: regolando un cursore o una casella, la tabella a destra aggiorna i risultati in pochi millisecondi.
+        </p>
+        """)
+        sec1.setWordWrap(True)
+        c_layout.addWidget(sec1)
+
+        # Section 2: Practical DJ Examples
+        sec2 = QLabel("""
+        <h4 style='color: #0d6efd; margin-top: 6px;'>2. Esempi Pratici di Crate per DJ Set</h4>
+        <div style='background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; color: #212529; font-size: 12.5px; line-height: 1.5;'>
+            <p style='margin-bottom: 8px;'><b>🌅 Crate Warm-up (Apertura Serata):</b><br>
+            • <i>Generi:</i> Deep House, Organic House, Afro House<br>
+            • <i>BPM Target:</i> 120.0 (tolleranza ±2% o range manuale 118.0 - 122.0 BPM)<br>
+            • <i>Qualità Audio:</i> Solo Conforme (OK) per un sound pulito e mai aggressivo.</p>
+            
+            <p style='margin-bottom: 8px;'><b>🔥 Crate Peak Time (Momento Clou):</b><br>
+            • <i>Generi:</i> Tech House, Peak Time Techno<br>
+            • <i>BPM Target:</i> 126.0 - 128.0 (oppure 130.0 - 134.0 per Techno)<br>
+            • <i>Qualità:</i> Escludi Clipping (&gt;0 dBTP) per la massima dinamica sui grandi impianti.</p>
+
+            <p style='margin-bottom: 8px;'><b>📻 Crate Revival / Flashback (Anni 90 &amp; 2000):</b><br>
+            • <i>Anno di Uscita:</i> Min 1990 - Max 2005<br>
+            • <i>Tag DJ:</i> Club, Vocal (per trovare al volo le tracce più famose da cantare).</p>
+
+            <p style='margin-bottom: 0;'><b>🎡 Crate Mix Armonico su Chiave Target:</b><br>
+            • <i>Chiave Camelot:</i> Seleziona ad esempio <code>8A (La Minore)</code><br>
+            • <i>Opzione "Solo Armonici":</i> Attiva la spunta per trovare automaticamente tracce in <code>8A, 7A, 9A, 8B</code> e boost energetico <code>10A</code>!</p>
+        </div>
+        """)
+        sec2.setWordWrap(True)
+        c_layout.addWidget(sec2)
+
+        # Section 3: M3U8 Export
+        sec3 = QLabel("""
+        <h4 style='color: #0d6efd; margin-top: 6px;'>3. Esportazione M3U8 per Rekordbox, Serato, Traktor ed Engine DJ</h4>
+        <p style='color: #212529; font-size: 13px; line-height: 1.5;'>
+        Una volta configurato il tuo Smart Crate, clicca sul pulsante <b>📤 Esporta Playlist DJ</b>:<br>
+        • Viene creato un file standard <code>.m3u8</code> con percorsi assoluti UTF-8 riconosciuto da tutti i software professionali.<br>
+        • <b>Pioneer Rekordbox:</b> Trascina il file <code>.m3u8</code> nella sezione <i>Playlist</i> dell'albero di navigazione.<br>
+        • <b>Serato DJ Pro:</b> Trascina il file direttamente nella barra laterale dei Crate.<br>
+        • <b>Native Instruments Traktor:</b> Tasto destro su <i>Playlists</i> -&gt; <i>Import Playlist</i>.<br>
+        • <b>Denon Engine DJ:</b> Trascina il file nella vista <i>Playlists</i> per esportarlo su drive USB standalone.<br>
+        • <i>Nessuna duplicazione:</i> I tuoi file audio restano nella loro posizione su disco, viene creato solo il puntatore alla traccia.
+        </p>
+        """)
+        sec3.setWordWrap(True)
+        c_layout.addWidget(sec3)
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        btn_close = QPushButton(_t("dialog_close", "Ho capito / Chiudi"))
+        btn_close.setStyleSheet("background-color: #0d6efd; color: #ffffff; font-weight: bold; padding: 7px 22px; border-radius: 4px; border: none;")
+        btn_close.clicked.connect(self.accept)
+        layout.addWidget(btn_close, 0, Qt.AlignmentFlag.AlignCenter)
 
 
 class SmartCratesView(QWidget):
@@ -117,6 +216,11 @@ class SmartCratesView(QWidget):
 
         header.addStretch()
 
+        self.btn_top_help = QPushButton(_t("crates_btn_help", "❓ Guida all'uso"))
+        self.btn_top_help.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_top_help.setStyleSheet("background-color: #6f42c1; color: #ffffff; font-weight: bold; padding: 6px 14px; border-radius: 4px;")
+        self.btn_top_help.clicked.connect(self._open_help_dialog)
+
         self.btn_top_new = QPushButton(_t("crates_btn_new", "+ Nuovo Crate"))
         self.btn_top_new.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_top_new.setStyleSheet("background-color: #0d6efd; color: #ffffff; font-weight: bold; padding: 6px 14px; border-radius: 4px;")
@@ -132,6 +236,7 @@ class SmartCratesView(QWidget):
         self.btn_top_export.setStyleSheet("background-color: #0dcaf0; color: #000000; font-weight: bold; padding: 6px 14px; border-radius: 4px;")
         self.btn_top_export.clicked.connect(self._on_export_crate_playlist)
 
+        header.addWidget(self.btn_top_help)
         header.addWidget(self.btn_top_new)
         header.addWidget(self.btn_top_save)
         header.addWidget(self.btn_top_export)
@@ -395,6 +500,7 @@ class SmartCratesView(QWidget):
         self.main_splitter.setStretchFactor(2, 3)
 
         main_layout.addWidget(self.main_splitter, 1)
+        self._apply_tooltips()
 
     # -------------------------------------------------------------
     # Logic: Load & Manage Crates List
@@ -701,10 +807,48 @@ class SmartCratesView(QWidget):
         if track:
             self.play_track_requested.emit(track)
 
+    def _open_help_dialog(self) -> None:
+        """Opens the comprehensive guide dialog for Smart Crates, AND/OR logic, and M3U DJ exports."""
+        dlg = SmartCratesHelpDialog(self)
+        dlg.exec()
+
+    def _apply_tooltips(self) -> None:
+        """Applies comprehensive Italian tooltips to all interactive elements."""
+        self.btn_top_help.setToolTip(_t("crates_tip_help", "Apri la guida completa con spiegazione logica AND/OR, esempi pratici per DJ set ed esportazione M3U8"))
+        self.btn_top_new.setToolTip(_t("crates_tip_new", "Crea un nuovo Smart Crate vuoto con regole predefinite"))
+        self.btn_top_save.setToolTip(_t("crates_tip_save", "Salva le regole del crate attualmente selezionato nel database"))
+        self.btn_top_export.setToolTip(_t("crates_tip_export", "Esporta le tracce del crate corrente in formato playlist M3U8 per software DJ"))
+        self.txt_search_crates.setToolTip(_t("crates_tip_search_list", "Filtra l'elenco dei tuoi Smart Crate per nome"))
+        self.list_crates.setToolTip(_t("crates_tip_crates_list", "Elenco degli Smart Crates salvati (fai clic per selezionare e modificare)"))
+        self.btn_crate_dup.setToolTip(_t("crates_tip_dup", "Duplica lo Smart Crate selezionato"))
+        self.btn_crate_ren.setToolTip(_t("crates_tip_ren", "Rinomina lo Smart Crate selezionato"))
+        self.btn_crate_del.setToolTip(_t("crates_tip_del", "Elimina definitivamente lo Smart Crate selezionato"))
+        self.txt_crate_name.setToolTip(_t("crates_tip_name", "Nome identificativo del crate (es. Peak Time 126-128)"))
+        self.txt_rule_query.setToolTip(_t("crates_tip_rule_query", "Filtra tracce che contengono queste parole chiave nel titolo, artista o album"))
+        self.txt_rule_genres.setToolTip(_t("crates_tip_rule_genres", "Generi musicali separati da virgola. La traccia deve corrispondere ad almeno uno di essi (logica OR)"))
+        self.spin_target_bpm.setToolTip(_t("crates_tip_target_bpm", "BPM di riferimento per il set (imposta 0 per nessun target)"))
+        self.cmb_tolerance.setToolTip(_t("crates_tip_tolerance", "Tolleranza percentuale di variazione BPM consentita"))
+        self.spin_min_bpm.setToolTip(_t("crates_tip_min_bpm", "BPM minimo consentito"))
+        self.spin_max_bpm.setToolTip(_t("crates_tip_max_bpm", "BPM massimo consentito"))
+        self.cmb_camelot.setToolTip(_t("crates_tip_camelot", "Chiave armonica Camelot richiesta per il mix armonico"))
+        self.chk_harmonic_compatible.setToolTip(_t("crates_tip_harmonic_chk", "Se attivo, include le chiavi compatibili secondo la Ruota di Camelot (±1, Relativo, +2 Boost)"))
+        self.spin_year_min.setToolTip(_t("crates_tip_year_min", "Anno minimo di pubblicazione"))
+        self.spin_year_max.setToolTip(_t("crates_tip_year_max", "Anno massimo di pubblicazione"))
+        self.cmb_quality.setToolTip(_t("crates_tip_quality", "Filtra per stato di salute acustico o escludi clipping (>0 dBTP)"))
+        self.table_preview.setToolTip(_t("crates_tip_table", "Doppio clic su una traccia per ascoltarla immediatamente"))
+        self.btn_export_m3u8.setToolTip(_t("crates_tip_export_m3u8", "Genera file .m3u8 pronto per Rekordbox, Serato, Traktor ed Engine DJ"))
+        self.btn_reset_rules.setToolTip(_t("crates_tip_reset_rules", "Ripristina tutte le regole del modulo ai valori predefiniti"))
+        self.btn_tag_intro.setToolTip(_t("crates_tip_tag_intro", "Includi tracce con versione o tag Intro"))
+        self.btn_tag_vocal.setToolTip(_t("crates_tip_tag_vocal", "Includi tracce con tag o voce Vocal"))
+        self.btn_tag_inst.setToolTip(_t("crates_tip_tag_inst", "Includi versioni strumentali"))
+        self.btn_tag_acapella.setToolTip(_t("crates_tip_tag_acapella", "Includi tracce acapella"))
+        self.btn_tag_club.setToolTip(_t("crates_tip_tag_club", "Includi tracce con versione Club / Extended Mix"))
+
     def _retranslate_ui(self) -> None:
         """Updates text elements based on active locale."""
         self.lbl_title.setText(_t("crates_workbench_title", "🎛️ SMART CRATES WORKBENCH"))
         self.lbl_subtitle.setText(_t("crates_workbench_sub", "Costruttore di casse intelligenti basate su regole logiche per DJ set"))
+        self.btn_top_help.setText(_t("crates_btn_help", "❓ Guida all'uso"))
         self.btn_top_new.setText(_t("crates_btn_new", "+ Nuovo Crate"))
         self.btn_top_save.setText(_t("crates_btn_save", "💾 Salva Regole"))
         self.btn_top_export.setText(_t("crates_btn_export", "📤 Esporta Playlist DJ"))
@@ -716,3 +860,4 @@ class SmartCratesView(QWidget):
         self.lbl_preview_title.setText(_t("crates_preview_title", "🎵 Anteprima Tracce Incluse"))
         self.btn_export_m3u8.setText(_t("crates_btn_export_m3u8", "📤 Esporta M3U8 (Rekordbox / Serato / Traktor)"))
         self.btn_reset_rules.setText(_t("crates_btn_reset_rules", "✕ Ripristina Regole"))
+        self._apply_tooltips()

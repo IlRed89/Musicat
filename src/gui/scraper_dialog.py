@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from ..scrapers.beatport import BeatportScraper, ScrapedTrack
 from ..scrapers.musicbrainz import MusicBrainzClient
 from ..scrapers.discogs import DiscogsClient
+from ..core.i18n import _t, I18n
 from ..scrapers.acoustid import AcoustIDMatcher
 from ..tags.editor import AudioTagEditor
 
@@ -55,8 +56,8 @@ class ScraperDialog(QDialog):
         self.current_scraped: Optional[Dict[str, Any]] = None
         self.downloaded_art_bytes: Optional[bytes] = None
 
-        self.setWindowTitle(f"Online Scraping & Auto-Tagging - {self.track.get('filename')}")
-        self.resize(840, 640)
+        self.setWindowTitle(_t("scraper_title", "Musicat — Ricerca Metadati Online - {filename}", filename=self.track.get("filename")))
+        self.resize(860, 650)
 
         self._init_ui()
         self._initial_search()
@@ -67,13 +68,13 @@ class ScraperDialog(QDialog):
 
         # Provider & Query Bar
         query_bar = QHBoxLayout()
-        query_bar.addWidget(QLabel("Provider:"))
+        query_bar.addWidget(QLabel(_t("scraper_provider", "Provider:")))
 
         self.cmb_provider = QComboBox()
-        self.cmb_provider.addItem("Beatport (Club & Electronic Priority)", "beatport")
-        self.cmb_provider.addItem("MusicBrainz", "musicbrainz")
-        self.cmb_provider.addItem("Discogs", "discogs")
-        self.cmb_provider.addItem("AcoustID (Audio Fingerprint)", "acoustid")
+        self.cmb_provider.addItem("💽 Discogs (Fonte Primaria: Label, Anno, Cat#, Formati)", "discogs")
+        self.cmb_provider.addItem("🎧 Beatport (Priorità Club & Electronic BPM/Key)", "beatport")
+        self.cmb_provider.addItem("🎼 MusicBrainz", "musicbrainz")
+        self.cmb_provider.addItem("🔍 AcoustID (Impronta Acustica)", "acoustid")
 
         self.txt_query = QLineEdit()
         # Pre-fill query with artist and title or filename
@@ -81,8 +82,20 @@ class ScraperDialog(QDialog):
         title = self.track.get("title") or Path(self.track.get("filepath", "")).stem
         self.txt_query.setText(f"{artist} {title}".strip())
 
-        self.btn_search = QPushButton("🔎 Search")
+        self.btn_search = QPushButton(_t("scraper_btn_search", "🔎 Cerca"))
         self.btn_search.setObjectName("PrimaryButton")
+        self.btn_search.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6efd;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 14px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+            }
+        """)
         self.btn_search.clicked.connect(self._do_search)
 
         query_bar.addWidget(self.cmb_provider)
@@ -91,12 +104,19 @@ class ScraperDialog(QDialog):
         main_layout.addLayout(query_bar)
 
         # Candidates Table
-        candidates_group = QGroupBox("Search Candidates")
+        candidates_group = QGroupBox(_t("scraper_candidates", "Candidati Trovati"))
         cand_layout = QVBoxLayout(candidates_group)
 
         self.table_candidates = QTableWidget()
         self.table_candidates.setColumnCount(6)
-        self.table_candidates.setHorizontalHeaderLabels(["Title", "Artist", "Mix Name", "Label", "BPM", "Key"])
+        self.table_candidates.setHorizontalHeaderLabels([
+            _t("col_title", "Titolo"),
+            _t("col_artist", "Artista"),
+            _t("scraper_col_mix", "Versione/Mix"),
+            _t("col_label", "Etichetta"),
+            _t("col_bpm", "BPM"),
+            _t("col_musical_key", "Key"),
+        ])
         self.table_candidates.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table_candidates.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.table_candidates.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -109,12 +129,16 @@ class ScraperDialog(QDialog):
         main_layout.addWidget(candidates_group, 2)
 
         # Side-by-Side Before / After Diff
-        diff_group = QGroupBox("Before / After Comparison")
+        diff_group = QGroupBox(_t("scraper_diff_group", "Confronto Metadati Prima / Dopo"))
         diff_layout = QHBoxLayout(diff_group)
 
         self.table_diff = QTableWidget()
         self.table_diff.setColumnCount(3)
-        self.table_diff.setHorizontalHeaderLabels(["Field", "Current (Before)", "Scraped (After)"])
+        self.table_diff.setHorizontalHeaderLabels([
+            _t("scraper_col_field", "Campo"),
+            _t("scraper_col_before", "Attuale (Prima)"),
+            _t("scraper_col_after", "Trovato Online (Dopo)"),
+        ])
         self.table_diff.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table_diff.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table_diff.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -122,10 +146,10 @@ class ScraperDialog(QDialog):
 
         # Artwork Diff Panel
         art_panel = QVBoxLayout()
-        art_panel.addWidget(QLabel("Proposed Artwork:"))
-        self.lbl_art = QLabel("No Image")
+        art_panel.addWidget(QLabel(_t("scraper_art_label", "Cover Proposta:")))
+        self.lbl_art = QLabel(_t("scraper_no_art", "Nessuna Immagine"))
         self.lbl_art.setFixedSize(140, 140)
-        self.lbl_art.setStyleSheet("border: 1px dashed #353846; background-color: #161821;")
+        self.lbl_art.setStyleSheet("border: 1px dashed #ced4da; background-color: #f8f9fa; border-radius: 6px;")
         self.lbl_art.setAlignment(Qt.AlignmentFlag.AlignCenter)
         art_panel.addWidget(self.lbl_art)
         art_panel.addStretch()
@@ -137,9 +161,25 @@ class ScraperDialog(QDialog):
         btn_box = QHBoxLayout()
         btn_box.addStretch()
 
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_apply = QPushButton("Apply Scraped Metadata to File")
+        self.btn_cancel = QPushButton(_t("settings_btn_cancel", "Annulla"))
+        self.btn_apply = QPushButton(_t("scraper_btn_apply", "⚡ Applica Metadati al File"))
         self.btn_apply.setObjectName("PrimaryButton")
+        self.btn_apply.setStyleSheet("""
+            QPushButton {
+                background-color: #198754;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #157347;
+            }
+            QPushButton:disabled {
+                background-color: #e9ecef;
+                color: #adb5bd;
+            }
+        """)
         self.btn_apply.setEnabled(False)
 
         self.btn_cancel.clicked.connect(self.reject)
@@ -230,7 +270,7 @@ class ScraperDialog(QDialog):
                 pix = QPixmap.fromImage(img).scaled(130, 130, Qt.AspectRatioMode.KeepAspectRatio)
                 self.lbl_art.setPixmap(pix)
                 return
-        self.lbl_art.setText("No Artwork")
+        self.lbl_art.setText(_t("scraper_no_art", "Nessuna Immagine"))
 
     def _apply_scraped(self) -> None:
         if not self.current_scraped:
@@ -252,8 +292,16 @@ class ScraperDialog(QDialog):
             merged = dict(self.track)
             merged.update(updates)
 
-            QMessageBox.information(self, "Tags Applied", "Scraped metadata saved successfully to audio file!")
+            QMessageBox.information(
+                self,
+                _t("scraper_success_title", "Metadati Applicati"),
+                _t("scraper_success_msg", "Metadati online salvati con successo nel file audio!"),
+            )
             self.metadata_applied.emit(merged)
             self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not write metadata: {e}")
+            QMessageBox.critical(
+                self,
+                _t("scraper_err_title", "Errore"),
+                _t("scraper_err_msg", "Impossibile scrivere i metadati: {error}", error=str(e)),
+            )

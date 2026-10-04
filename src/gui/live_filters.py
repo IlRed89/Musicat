@@ -355,11 +355,26 @@ class GenreMultiSelectWidget(QWidget):
         self._build_menu()
         self.genres_changed.emit([])
 
-    def set_genres(self, genres: List[str]) -> None:
-        self.selected_genres = set(genres)
-        self._update_display()
-        self._build_menu()
-        self.genres_changed.emit(list(self.selected_genres))
+    def set_genres(self, genres: Any) -> None:
+        """Safely updates selected genres from a list, set, string, or empty/None value."""
+        try:
+            if genres is None:
+                self.selected_genres = set()
+            elif isinstance(genres, (list, set, tuple)):
+                self.selected_genres = {str(g).strip() for g in genres if g and str(g).strip()}
+            elif isinstance(genres, str):
+                self.selected_genres = {genres.strip()} if genres.strip() else set()
+            else:
+                self.selected_genres = {str(genres).strip()}
+            self._update_display()
+            self._build_menu()
+            self.genres_changed.emit(list(self.selected_genres))
+        except Exception as exc:
+            MusicatLogger.get_logger().error(f"[GENRE_WIDGET] Errore in set_genres: {exc}")
+
+    def set_selected_genres(self, genres: Any) -> None:
+        """Alias for set_genres."""
+        self.set_genres(genres)
 
 
 class LiveFilterBar(QFrame):
@@ -391,7 +406,8 @@ class LiveFilterBar(QFrame):
         main_layout.setSpacing(6)
 
         # -------------------------------------------------------------
-        # ROW 1: PRIMARY LIVE DJ CONTROLS (Search, Genre, BPM, Camelot, Reset)
+        # ROW 1: PRIMARY SEARCH & REPOSITORY FILTERS
+        # (Search bar + engine, Folder/Drive selector, Genre multi-select, Cover filter, Reset ESC)
         # -------------------------------------------------------------
         row1 = QHBoxLayout()
         row1.setSpacing(8)
@@ -401,7 +417,7 @@ class LiveFilterBar(QFrame):
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
         self.txt_search.setPlaceholderText(f"🔍 Quick Search / {fast_engine} (Ctrl+F)...")
         self.txt_search.setClearButtonEnabled(True)
-        self.txt_search.setMinimumWidth(220)
+        self.txt_search.setMinimumWidth(200)
 
         # Search Engine Badge
         self.lbl_search_engine = QLabel(SearchEngine.get_engine_badge())
@@ -409,17 +425,64 @@ class LiveFilterBar(QFrame):
             "color: #00d2ff; font-size: 10px; padding: 2px 5px; border: 1px solid #0284c7; border-radius: 3px;"
         )
 
-        # 2. Multi-Genre Selector (Ctrl+G)
+        # 2. Drive / Directory Folder Filter
+        folder_box = QHBoxLayout()
+        folder_box.setSpacing(4)
+        self.lbl_folder = QLabel("📁 Cartella:")
+        self.cmb_folder = QComboBox()
+        self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
+        self.cmb_folder.setMinimumWidth(160)
+        self.cmb_folder.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
+        folder_box.addWidget(self.lbl_folder)
+        folder_box.addWidget(self.cmb_folder)
+
+        # 3. Multi-Genre Selector (Ctrl+G)
         self.genre_widget = GenreMultiSelectWidget(self.db, self)
 
-        # 3. BPM Range & Target Tolerance (Ctrl+B) - Elastic, non-truncated layout
+        # 4. Cover Art Filter
+        cover_box = QHBoxLayout()
+        cover_box.setSpacing(4)
+        self.lbl_cover = QLabel("🖼️ Cover:")
+        self.cmb_cover = QComboBox()
+        self.cmb_cover.addItem("Tutte", "")
+        self.cmb_cover.addItem("Con Cover", "with_cover")
+        self.cmb_cover.addItem("Senza Cover", "without_cover")
+        self.cmb_cover.setMinimumWidth(100)
+        self.cmb_cover.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
+        cover_box.addWidget(self.lbl_cover)
+        cover_box.addWidget(self.cmb_cover)
+
+        # 5. Instant Reset Button (ESC)
+        self.btn_reset = QPushButton("✕ Reset (ESC)")
+        self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
+        self.btn_reset.clicked.connect(self.reset_filters)
+
+        # Assemble Row 1
+        row1.addWidget(self.txt_search, 2)
+        row1.addWidget(self.lbl_search_engine)
+        row1.addLayout(folder_box)
+        row1.addWidget(self.genre_widget, 2)
+        row1.addLayout(cover_box)
+        row1.addWidget(self.btn_reset)
+        main_layout.addLayout(row1)
+
+        # -------------------------------------------------------------
+        # ROW 2: ACOUSTIC & MUSICAL DJ FILTERS
+        # (BPM Range & Tolerance, Camelot Key / Wheel, Decade/Year, Quality, DJ Tags)
+        # -------------------------------------------------------------
+        row2 = QHBoxLayout()
+        row2.setSpacing(8)
+
+        # 1. BPM Range & Target Tolerance (Ctrl+B)
         bpm_box = QHBoxLayout()
-        bpm_box.setSpacing(5)
+        bpm_box.setSpacing(4)
         self.lbl_bpm = QLabel("BPM:")
-        self.lbl_bpm.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 11px;")
+        self.lbl_bpm.setStyleSheet("color: #0284c7; font-weight: bold; font-size: 11px;")
 
         self.lbl_bpm_target = QLabel("Target:")
-        self.lbl_bpm_target.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self.lbl_bpm_target.setStyleSheet("color: #64748b; font-size: 10px;")
         self.spin_target_bpm = QDoubleSpinBox()
         self.spin_target_bpm.setRange(0, 250)
         self.spin_target_bpm.setDecimals(1)
@@ -434,14 +497,14 @@ class LiveFilterBar(QFrame):
         self.cmb_bpm_tolerance.addItem("±6%", 6.0)
         self.cmb_bpm_tolerance.addItem("±8%", 8.0)
         self.cmb_bpm_tolerance.setCurrentIndex(1)  # ±4% default
-        self.cmb_bpm_tolerance.setToolTip("BPM Pitch Tolerance")
+        self.cmb_bpm_tolerance.setToolTip("Tolleranza Pitch BPM")
         self.cmb_bpm_tolerance.setMinimumWidth(62)
 
         self.lbl_bpm_or = QLabel("o")
         self.lbl_bpm_or.setStyleSheet("color: #64748b; font-size: 10px;")
 
         self.lbl_bpm_min = QLabel("Min:")
-        self.lbl_bpm_min.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self.lbl_bpm_min.setStyleSheet("color: #64748b; font-size: 10px;")
         self.spin_bpm_min = QDoubleSpinBox()
         self.spin_bpm_min.setRange(0, 250)
         self.spin_bpm_min.setDecimals(1)
@@ -453,7 +516,7 @@ class LiveFilterBar(QFrame):
         self.lbl_bpm_dash.setStyleSheet("color: #64748b; font-size: 10px;")
 
         self.lbl_bpm_max = QLabel("Max:")
-        self.lbl_bpm_max.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self.lbl_bpm_max.setStyleSheet("color: #64748b; font-size: 10px;")
         self.spin_bpm_max = QDoubleSpinBox()
         self.spin_bpm_max.setRange(0, 250)
         self.spin_bpm_max.setDecimals(1)
@@ -472,26 +535,27 @@ class LiveFilterBar(QFrame):
         bpm_box.addWidget(self.lbl_bpm_max)
         bpm_box.addWidget(self.spin_bpm_max)
 
-        # 4. Harmonic Mixing Assistant (Camelot Wheel Matching) (Ctrl+K)
+        # 2. Harmonic Mixing Assistant (Camelot Wheel Matching) (Ctrl+K)
         camelot_box = QHBoxLayout()
         camelot_box.setSpacing(4)
         self.lbl_key = QLabel("Key:")
+        self.lbl_key.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
         self.cmb_camelot = QComboBox()
         self.cmb_camelot.addItem("All Keys", "")
         for k in CAMELOT_KEYS_ORDERED:
             musical = CAMELOT_TO_KEY.get(k, "")
             self.cmb_camelot.addItem(f"{k} ({musical})", k)
-        self.cmb_camelot.setMinimumWidth(105)
+        self.cmb_camelot.setMinimumWidth(125)
         self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
-        self.chk_harmonic_only = QCheckBox("Harmonic Only")
+        self.chk_harmonic_only = QCheckBox("Solo Armonici")
         self.chk_harmonic_only.setChecked(True)
-        self.chk_harmonic_only.setToolTip("Show only harmonically compatible keys (±1, Relative, +2 Boost)")
-        self.chk_harmonic_only.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 11px;")
+        self.chk_harmonic_only.setToolTip("Mostra solo chiavi armonicamente compatibili (±1, Relativo, +2 Boost)")
+        self.chk_harmonic_only.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
-        self.btn_wheel_popup = QPushButton("🎡 Wheel")
-        self.btn_wheel_popup.setToolTip("Open Visual Camelot Wheel Assistant (Ctrl+K)")
+        self.btn_wheel_popup = QPushButton("🎡 Ruota")
+        self.btn_wheel_popup.setToolTip("Apri Ruota Camelot Interattiva (Ctrl+K)")
         self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_wheel_popup.clicked.connect(self._open_camelot_wheel)
 
@@ -500,43 +564,23 @@ class LiveFilterBar(QFrame):
         camelot_box.addWidget(self.chk_harmonic_only)
         camelot_box.addWidget(self.btn_wheel_popup)
 
-        # 5. Instant Reset Button (ESC)
-        self.btn_reset = QPushButton("✕ Reset (ESC)")
-        self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
-        self.btn_reset.clicked.connect(self.reset_filters)
-
-        # Assemble Row 1
-        row1.addWidget(self.txt_search, 2)
-        row1.addWidget(self.lbl_search_engine)
-        row1.addWidget(self.genre_widget, 2)
-        row1.addLayout(bpm_box)
-        row1.addLayout(camelot_box)
-        row1.addWidget(self.btn_reset)
-        main_layout.addLayout(row1)
-
-        # -------------------------------------------------------------
-        # ROW 2: ADVANCED FILTERING (Decades, Audio Quality, Tags, Smart Crates)
-        # -------------------------------------------------------------
-        row2 = QHBoxLayout()
-        row2.setSpacing(10)
-
-        # Decade / Year Filter
+        # 3. Decade / Year Filter
         year_box = QHBoxLayout()
         year_box.setSpacing(4)
-        self.lbl_year = QLabel("Year:")
+        self.lbl_year = QLabel("Anno:")
         self.cmb_decade = QComboBox()
-        self.cmb_decade.addItem("Any Year", (None, None))
+        self.cmb_decade.addItem("Qualsiasi Anno", (None, None))
         self.cmb_decade.addItem("2020s (2020-2026)", (2020, 2026))
         self.cmb_decade.addItem("2010s (2010-2019)", (2010, 2019))
         self.cmb_decade.addItem("2000s (2000-2009)", (2000, 2009))
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
-        self.cmb_decade.setMinimumWidth(150)
+        self.cmb_decade.setMinimumWidth(140)
         self.cmb_decade.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
 
-        # Audio Quality / Diagnostics Filter
+        # 4. Audio Quality / Diagnostics Filter
         quality_box = QHBoxLayout()
         quality_box.setSpacing(4)
         self.lbl_quality = QLabel("Audio:")
@@ -548,12 +592,12 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
-        self.cmb_quality.setMinimumWidth(190)
+        self.cmb_quality.setMinimumWidth(160)
         self.cmb_quality.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
-        # Quick DJ Tags (Pills)
+        # 5. Quick DJ Tags (Pills)
         tags_box = QHBoxLayout()
         tags_box.setSpacing(4)
         self.btn_tag_intro = QPushButton("Intro")
@@ -573,60 +617,35 @@ class LiveFilterBar(QFrame):
             btn.toggled.connect(self._trigger_debounce)
             tags_box.addWidget(btn)
 
-        # Smart Crate Actions
+        # Smart Crate Actions (Destra)
         crate_box = QHBoxLayout()
-        crate_box.setSpacing(6)
+        crate_box.setSpacing(4)
 
         self.cmb_crates = QComboBox()
         self.cmb_crates.addItem("📁 Smart Crates...", "")
-        self.cmb_crates.setFixedWidth(160)
+        self.cmb_crates.setFixedWidth(135)
         self.cmb_crates.currentIndexChanged.connect(self._on_crate_selected)
 
-        self.btn_save_crate = QPushButton("💾 Save Crate")
-        self.btn_save_crate.setStyleSheet("background-color: #1e3a5f; border: 1px solid #0284c7; color: #38bdf8; font-weight: bold; padding: 3px 8px; border-radius: 4px; font-size: 11px;")
+        self.btn_save_crate = QPushButton("💾 Salva")
+        self.btn_save_crate.setStyleSheet("background-color: #1e3a5f; border: 1px solid #0284c7; color: #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 4px; font-size: 11px;")
         self.btn_save_crate.clicked.connect(self._on_save_crate)
 
-        self.btn_export_m3u = QPushButton("📤 Export M3U8")
-        self.btn_export_m3u.setStyleSheet("background-color: #14532d; border: 1px solid #16a34a; color: #4ade80; font-weight: bold; padding: 3px 8px; border-radius: 4px; font-size: 11px;")
-        self.btn_export_m3u.setToolTip("Export current filtered crate to M3U8 for Rekordbox, Traktor, Serato, Engine DJ")
+        self.btn_export_m3u = QPushButton("📤 M3U8")
+        self.btn_export_m3u.setStyleSheet("background-color: #14532d; border: 1px solid #16a34a; color: #4ade80; font-weight: bold; padding: 3px 6px; border-radius: 4px; font-size: 11px;")
+        self.btn_export_m3u.setToolTip("Esporta crate filtrato corrente in M3U8 per Rekordbox, Traktor, Serato, Engine DJ")
         self.btn_export_m3u.clicked.connect(self.export_playlist_requested.emit)
 
         crate_box.addWidget(self.cmb_crates)
         crate_box.addWidget(self.btn_save_crate)
         crate_box.addWidget(self.btn_export_m3u)
 
-        # Drive / Directory Folder Filter
-        folder_box = QHBoxLayout()
-        folder_box.setSpacing(4)
-        self.lbl_folder = QLabel("📁 Cartella:")
-        self.cmb_folder = QComboBox()
-        self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
-        self.cmb_folder.setMinimumWidth(160)
-        self.cmb_folder.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
-        folder_box.addWidget(self.lbl_folder)
-        folder_box.addWidget(self.cmb_folder)
-
-        # Cover Art Filter
-        cover_box = QHBoxLayout()
-        cover_box.setSpacing(4)
-        self.lbl_cover = QLabel("🖼️ Cover:")
-        self.cmb_cover = QComboBox()
-        self.cmb_cover.addItem("Tutte", "")
-        self.cmb_cover.addItem("Con Cover", "with_cover")
-        self.cmb_cover.addItem("Senza Cover", "without_cover")
-        self.cmb_cover.setMinimumWidth(100)
-        self.cmb_cover.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
-        cover_box.addWidget(self.lbl_cover)
-        cover_box.addWidget(self.cmb_cover)
-
-        row2.addLayout(folder_box)
-        row2.addLayout(cover_box)
+        row2.addLayout(bpm_box)
+        row2.addLayout(camelot_box)
         row2.addLayout(year_box)
         row2.addLayout(quality_box)
         row2.addLayout(tags_box)
         row2.addStretch()
+        row2.addLayout(crate_box)
         main_layout.addLayout(row2)
 
         self.update_theme("light")

@@ -531,6 +531,10 @@ class I18n(QObject):
 
         return val
 
+    def _load_locale(self, code: str) -> Dict[str, str]:
+        """Returns loaded translation dictionary for specified language code."""
+        return self._translations.get(code, {})
+
 
 def _t(key: str, default: Optional[str] = None, **kwargs: Any) -> str:
     """Global convenience translator."""

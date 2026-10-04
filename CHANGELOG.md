@@ -10,6 +10,69 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.2.0] - 2026-10-04
+
+### 🚀 Menu Colonne Tasto Destro, Barra Filtri 2-Righe, Trend Multi-Piattaforma, Discogs Priority & Allocazione RAM 80%
+
+#### 🎛️ Gestione Colonne Contestuale & Persistenza Larghezze
+- **Menu Contestuale Header Tabella:** Cliccando con il tasto destro su una qualsiasi intestazione della libreria viene visualizzato un menu a comparsa con l'elenco completo delle colonne e checkbox interattive per mostrare/nascondere le colonne in tempo reale.
+- **Salvataggio Automatico Larghezze e Visibilità:** Il ridimensionamento manuale delle colonne e la loro visibilità vengono memorizzati all'istante in `config.json` (`ui.column_widths` e `ui.visible_columns`) e ripristinati a ogni avvio.
+- **Rimozione Ridondanza nelle Impostazioni:** Rimossa la vecchia selezione manuale delle colonne dalla schermata Impostazioni, sostituita da un box guida chiaro ed esplicativo sull'uso del tasto destro.
+
+#### ⚪ Bonifica Totale Tema Chiaro & Fix Visivo GPU
+- **Pulizia Radicale Residui Scuri:** Bonificate tutte le sidebar laterali, schede interne e pannelli secondari nelle Impostazioni con sfondo uniforme chiaro (`#F8F9FA` / `#FFFFFF`), bordi leggeri (`#DEE2E6`) e testo scuro ad alto contrasto (`#212529`).
+- **Card Informative in Analisi / Home:** Riquadri e card di generi e trend convertiti a sfondo bianco puro (`#FFFFFF`), con bordo discreto (`#D0D7DE`), angoli arrotondati (8px) ed effetto hover morbido (`#F8F9FA`, bordo `#0D6EFD`).
+- **Riquadro Accelerazione Hardware GPU:** Eliminato qualsiasi sfondo scuro residuo; layout aggiornato con sfondo bianco, badge di stato verde chiaro e parametri ben leggibili.
+
+#### 🧠 Allocazione Dinamica RAM Fino all'80% di Sistema
+- **Rimozione Limite Fisso 2 GB:** Eliminato il tetto rigido dei 2 GB per la memoria cache.
+- **Rilevamento RAM Reale di Sistema:** Utilizzo delle API native di sistema (`GlobalMemoryStatusEx` su Windows, `psutil`) per determinare la memoria fisica totale installata.
+- **Slider Dinamico:** Corsa da un minimo di 512 MB fino all'**80% della RAM totale** installata (es. fino a 12.8 GB su 16 GB, oltre 25 GB su 32 GB), con etichetta interattiva in tempo reale: `Allocati: X.X GB / Y.Y GB totali`.
+
+#### 🌐 Sezione Scrapers & API Credentials Espansa
+- **Supporto Piattaforme Complete:** Inserimento e persistenza di chiavi API e credenziali per Spotify (Client ID & Secret), SoundCloud (Client ID & Auth Token), YouTube Data API v3 (API Key), Discogs (User-Agent + Personal Access Token) e Beatport.
+- **Test Connessione Live con Feedback Visivo:** Ciascuna fonte dispone del proprio pulsante *"Verifica Connessione"* che testa le API in tempo reale e mostra un indicatore visivo immediato di successo (verde) o errore (rosso con messaggio dettagliato).
+
+#### 💿 Discogs come Autorità Prioritaria nei Metadati
+- **Client Discogs Avanzato:** Parsing approfondito di formato vinile/digitale, etichetta discografica primaria, numero di catalogo (`catno`) e crediti artisti.
+- **Riconciliazione Gerarchica:** Aggiornato `MetadataReconciler` per accordare a Discogs la massima priorità autorevole per Anno, Etichetta, Numero di Catalogo, Formato e Artista, superando le fonti generiche.
+- **Scraper Dialog Predefinito:** Selettore dello Scraper con Discogs preselezionato come provider prioritario.
+
+#### 📈 Dashboard Trends Multi-Piattaforma & Classifiche
+- **Suddivisione per Sorgente a Schede:** Introdotte le schede dedicate `Top Spotify`, `Top SoundCloud / Hype`, e `Top Beatport / Discogs`.
+- **Categorie Specifiche:** Aggiornamento contestuale delle categorie musicali in base alla piattaforma selezionata (Dance, Tech House, Melodic Techno, Indie Dance, Drum & Bass, Nu-Disco, ecc.).
+- **Dataset Offline Estesi & Cache Indipendente:** Fallback offline ricchi per ciascuna piattaforma e cache JSON isolata per sorgente per navigare velocemente senza latenza.
+- **Cross-Check con Libreria Locale:** Riconoscimento istantaneo dei brani di tendenza già presenti nella collezione locale con badge visivo dedicato.
+
+#### 🎚️ Barra Filtri Live a Due Righe (Risoluzione Troncatura Key & BPM)
+- **Riga 1 (Ricerca e Organizzazione):** Barra di ricerca testuale con indicatore motore (Everything/Spotlight/FTS5), selettore cartella/drive di scansione, dropdown multi-genere (logica OR), filtro presenza copertina e pulsante Reset (ESC).
+- **Riga 2 (Parametri Musicali DJ):**
+  - Sezione BPM espansa: Box target con controlli passo, preset percentuali rapidi (`±2%`, `±4%`, `±6%`, `±8%`) e slider/box per range minimo e massimo.
+  - Sezione Camelot Key: Dropdown allargato con piena leggibilità di codici Camelot e tonalità musicali aperte, checkbox "Solo Armonici" e pulsante Ruota Camelot interattiva.
+  - Filtri per decennio/anno, qualità audio (Lossless/High/Standard), tag DJ ed esportazione Smart Crates.
+
+#### ❓ Guida Integrata & Tooltip per Smart Crates
+- **Finestra Guida Interattiva:** Aggiunto il pulsante `"❓ Guida all'uso"` nel workbench Smart Crates che apre la nuova finestra `SmartCratesHelpDialog`.
+- **Esempi Pratici per DJ:** Spiegazione approfondita delle logiche AND/OR, tabelle con preset tipici da console (*Warm-up Set*, *Peak Time Banger*, *Classic House*, *Harmonic Mixes*) e istruzioni per l'esportazione M3U8 compatibile con Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
+- **Tooltip Completi:** Aggiunti tooltip descrittivi su tutti i campi, selettori e pulsanti dell'editor delle regole.
+
+#### 🧭 Icone Rappresentative sui Tasti Navbar
+- **Identità Visiva Rinnovata:** Ciascun pulsante della barra superiore include un'icona tematica ed esplicativa:
+  - `[🏠 Analisi / Home]`
+  - `[📁 Libreria]`
+  - `[🏷️ Tag Editor (Mp3tag)]`
+  - `[📦 Smart Crates]`
+  - `[🔍 Trova Simili]`
+  - `[📂 Organizza File]`
+  - `[⚙️ Impostazioni]`
+
+#### 🛡️ Robustezza & Prevenzione Crash
+- **Hook Globale Eccezioni:** Installazione in `main.py` di un intercettore globale `sys.excepthook` per registrare qualsiasi errore imprevisto nei file di log prima dell'eventuale chiusura.
+- **Protezione Navigazione Generi:** Azzerato qualsiasi crash o blocco modale al click su card di generi o categorie quando la libreria è vuota o in fase di caricamento.
+- **Suite di Test a 140 Test:** Copertura completa verificata al 100% (`140 passed in 8.9s`).
+
+---
+
 ## [1.1.0] - 2026-10-02
 
 ### 🚀 Revisione UI/UX, Tema Chiaro Default, Suite di Logging Avanzato & Workbench Smart Crates

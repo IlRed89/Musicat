@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from ..tags.editor import AudioTagEditor
 from ..audio.analyzer import KEY_TO_CAMELOT, CAMELOT_TO_KEY, key_to_camelot, camelot_to_key, AcousticAnalyzer
+from ..core.i18n import _t, I18n
 
 
 class TagEditorDialog(QDialog):
@@ -33,7 +34,7 @@ class TagEditorDialog(QDialog):
 
     tags_saved = Signal(list)  # List of updated track records
 
-    KEEP_EXISTING_PLACEHOLDER = "<keep existing>"
+    KEEP_EXISTING_PLACEHOLDER = "<mantieni invariato>"
 
     def __init__(self, tracks: List[Dict[str, Any]], parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -42,8 +43,8 @@ class TagEditorDialog(QDialog):
         self.pending_cover_bytes: Optional[bytes] = None
         self.pending_remove_cover: bool = False
 
-        self.setWindowTitle(f"Musicat Tag Editor - {len(tracks)} track(s) selected")
-        self.resize(720, 640)
+        self.setWindowTitle(_t("tag_editor_title", "Musicat — Editor Tag - {count} tracce", count=len(tracks)))
+        self.resize(750, 660)
 
         self._init_ui()
         self._populate_fields()
@@ -53,11 +54,16 @@ class TagEditorDialog(QDialog):
         main_layout.setSpacing(12)
 
         header_lbl = QLabel(
-            f"<b>Batch Editing {len(self.tracks)} Tracks</b> (fields left as '{self.KEEP_EXISTING_PLACEHOLDER}' will not be changed)"
+            _t(
+                "tag_editor_batch_header",
+                "<b>Modifica Multipla di {count} Tracce</b> (i campi lasciati come '{keep}' non verranno modificati)",
+                count=len(self.tracks),
+                keep=self.KEEP_EXISTING_PLACEHOLDER,
+            )
             if self.is_batch
-            else f"<b>Editing Track:</b> {self.tracks[0].get('filename')}"
+            else _t("tag_editor_single_header", "<b>Modifica Traccia:</b> {filename}", filename=self.tracks[0].get("filename"))
         )
-        header_lbl.setStyleSheet("color: #00d2ff; font-size: 14px;")
+        header_lbl.setStyleSheet("color: #0d6efd; font-size: 14px; font-weight: bold;")
         main_layout.addWidget(header_lbl)
 
         content_layout = QHBoxLayout()
@@ -89,45 +95,45 @@ class TagEditorDialog(QDialog):
 
         self.txt_musical_key = QLineEdit()
         key_box.addWidget(self.cmb_camelot)
-        key_box.addWidget(QLabel("Key:"))
+        key_box.addWidget(QLabel(_t("col_musical_key", "Key:")))
         key_box.addWidget(self.txt_musical_key)
 
         self.spin_energy = QSpinBox()
         self.spin_energy.setRange(0, 10)
-        self.spin_energy.setSpecialValueText("Not set")
+        self.spin_energy.setSpecialValueText(_t("tag_not_set", "Non impostato"))
 
         self.txt_comment = QLineEdit()
 
-        form_layout.addRow("Title:", self.txt_title)
-        form_layout.addRow("Artist:", self.txt_artist)
-        form_layout.addRow("Remixer:", self.txt_remixer)
-        form_layout.addRow("Album:", self.txt_album)
-        form_layout.addRow("Album Artist:", self.txt_album_artist)
-        form_layout.addRow("Genre:", self.txt_genre)
-        form_layout.addRow("Label:", self.txt_label)
-        form_layout.addRow("Year:", self.txt_year)
-        form_layout.addRow("Track #:", self.txt_track_num)
-        form_layout.addRow("BPM:", self.txt_bpm)
-        form_layout.addRow("Camelot / Key:", key_box)
-        form_layout.addRow("Energy Level:", self.spin_energy)
-        form_layout.addRow("Comment:", self.txt_comment)
+        form_layout.addRow(_t("col_title", "Titolo:"), self.txt_title)
+        form_layout.addRow(_t("col_artist", "Artista:"), self.txt_artist)
+        form_layout.addRow(_t("col_remixer", "Remixer:"), self.txt_remixer)
+        form_layout.addRow(_t("col_album", "Album:"), self.txt_album)
+        form_layout.addRow(_t("tag_album_artist", "Artista Album:"), self.txt_album_artist)
+        form_layout.addRow(_t("col_genre", "Genere:"), self.txt_genre)
+        form_layout.addRow(_t("col_label", "Etichetta:"), self.txt_label)
+        form_layout.addRow(_t("col_year", "Anno:"), self.txt_year)
+        form_layout.addRow(_t("tag_track_num", "Traccia #:"), self.txt_track_num)
+        form_layout.addRow(_t("col_bpm", "BPM:"), self.txt_bpm)
+        form_layout.addRow(_t("tag_camelot_key", "Camelot / Key:"), key_box)
+        form_layout.addRow(_t("tag_energy_level", "Livello Energia:"), self.spin_energy)
+        form_layout.addRow(_t("tag_comment", "Commento:"), self.txt_comment)
 
         content_layout.addWidget(form_widget, 3)
 
         # Right Column: Artwork & Acoustic Helpers
         right_panel = QVBoxLayout()
 
-        art_group = QGroupBox("Album Artwork")
+        art_group = QGroupBox(_t("tag_art_group", "Copertina Album"))
         art_layout = QVBoxLayout(art_group)
 
-        self.art_preview = QLabel("No Artwork")
+        self.art_preview = QLabel(_t("tag_no_art", "Nessuna Copertina"))
         self.art_preview.setFixedSize(180, 180)
         self.art_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.art_preview.setStyleSheet("border: 1px dashed #3a3f52; background-color: #161821;")
+        self.art_preview.setStyleSheet("border: 1px dashed #ced4da; background-color: #f8f9fa; border-radius: 6px;")
 
-        btn_load_art = QPushButton("Load Cover Image...")
-        btn_export_art = QPushButton("Export cover.jpg...")
-        btn_remove_art = QPushButton("Remove Cover")
+        btn_load_art = QPushButton(_t("tag_btn_load_art", "Carica Immagine Copertina..."))
+        btn_export_art = QPushButton(_t("tag_btn_export_art", "Esporta cover.jpg..."))
+        btn_remove_art = QPushButton(_t("tag_btn_remove_art", "Rimuovi Copertina"))
 
         btn_load_art.clicked.connect(self._on_load_artwork)
         btn_export_art.clicked.connect(self._on_export_artwork)
@@ -141,11 +147,23 @@ class TagEditorDialog(QDialog):
         right_panel.addWidget(art_group)
 
         # Acoustic Action Group
-        acoustic_group = QGroupBox("Acoustic Tools")
+        acoustic_group = QGroupBox(_t("tag_acoustic_group", "Strumenti Acustici"))
         acoustic_layout = QVBoxLayout(acoustic_group)
 
-        btn_calc_bpm_key = QPushButton("🎵 Auto-Detect BPM & Key")
+        btn_calc_bpm_key = QPushButton(_t("tag_btn_calc_bpm_key", "🎵 Rileva BPM & Key"))
         btn_calc_bpm_key.setObjectName("AccentButton")
+        btn_calc_bpm_key.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6efd;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 14px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+            }
+        """)
         btn_calc_bpm_key.clicked.connect(self._on_detect_acoustic)
 
         acoustic_layout.addWidget(btn_calc_bpm_key)
@@ -159,9 +177,21 @@ class TagEditorDialog(QDialog):
         btn_box = QHBoxLayout()
         btn_box.addStretch()
 
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_save = QPushButton("Save Tags to File(s)")
+        self.btn_cancel = QPushButton(_t("settings_btn_cancel", "Annulla"))
+        self.btn_save = QPushButton(_t("tag_btn_save", "💾 Salva Tag nei File"))
         self.btn_save.setObjectName("PrimaryButton")
+        self.btn_save.setStyleSheet("""
+            QPushButton {
+                background-color: #198754;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #157347;
+            }
+        """)
 
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_save.clicked.connect(self._on_save)

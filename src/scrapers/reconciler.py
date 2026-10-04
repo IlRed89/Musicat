@@ -39,6 +39,22 @@ class MetadataReconciler:
     # Priority ordering for electronic & DJ club tracks
     DEFAULT_SOURCE_PRIORITY = ["Beatport", "Traxsource", "Discogs", "MusicBrainz", "Apple Music / iTunes (Studio HD)"]
 
+    # Field-specific domain authority ranking:
+    # Discogs is primary gold standard for: release year, record label, catalog number, release format, and artist credits.
+    FIELD_AUTHORITY_PRIORITY = {
+        "year": ["Discogs", "MusicBrainz", "Beatport", "Traxsource"],
+        "label": ["Discogs", "Beatport", "Traxsource", "MusicBrainz"],
+        "catalog_number": ["Discogs", "Beatport", "Traxsource"],
+        "format": ["Discogs", "MusicBrainz"],
+        "artist": ["Discogs", "MusicBrainz", "Beatport", "Traxsource"],
+        "bpm": ["Beatport", "Traxsource", "Discogs"],
+        "camelot_key": ["Beatport", "Traxsource"],
+        "musical_key": ["Beatport", "Traxsource"],
+        "remixer": ["Beatport", "Traxsource", "Discogs"],
+        "genre": ["Beatport", "Traxsource", "Discogs", "MusicBrainz"],
+        "artwork_url": ["Apple Music / iTunes (Studio HD)", "Beatport", "Discogs", "Traxsource"],
+    }
+
     COMPARABLE_FIELDS = [
         "title",
         "artist",
@@ -50,6 +66,7 @@ class MetadataReconciler:
         "musical_key",
         "camelot_key",
         "catalog_number",
+        "format",
         "artwork_url",
     ]
 
@@ -100,19 +117,11 @@ class MetadataReconciler:
             has_conflict = len(unique_normalized_vals) > 1
 
             # --- Consensus Recommendation Algorithm ---
-            # 1. Authority Hierarchy Priority:
-            #    Beatport / Traxsource: Gold standard for BPM, Camelot Key, Subgenre, Mix Name.
-            #    Discogs: Gold standard for Catalog Number, Record Label, Vinyl country.
-            #    MusicBrainz: Gold standard for canonical ISRC and release year.
-            #    Apple Music: Gold standard for high-res cover art (up to 3000x3000px).
-            # 2. Majority Vote (Frequency Consensus):
-            #    If no preferred source provided a value, selects the most frequent representation.
-            # 3. Fallback:
-            #    First non-null candidate.
+            # 1. Authority Hierarchy Priority (Discogs primary for year, label, catno, format, artist)
             recommended: Any = None
             if source_vals:
-                # 1. Check priority sources according to domain authority
-                for p_src in cls.DEFAULT_SOURCE_PRIORITY:
+                priority_list = cls.FIELD_AUTHORITY_PRIORITY.get(fld, cls.DEFAULT_SOURCE_PRIORITY)
+                for p_src in priority_list:
                     if p_src in source_vals:
                         recommended = source_vals[p_src]
                         break

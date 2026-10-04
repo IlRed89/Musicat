@@ -784,6 +784,27 @@ QLabel#BpmBadge {
     font-weight: bold;
     padding: 2px 6px;
 }
+
+/* Home Trends & Category Cards in Light Theme */
+HomeTrendsView {
+    background-color: #f8f9fa;
+}
+
+TrendingTrackCard, QFrame[card="true"] {
+    background-color: #ffffff;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    color: #212529;
+}
+
+TrendingTrackCard:hover, QFrame[card="true"]:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+}
+
+TrendingTrackCard QLabel {
+    color: #212529;
+}
 """
 
 

@@ -7,6 +7,7 @@ from .home_view import HomeTrendsView
 from .similar_dialog import SimilarTracksDialog, SimilarSearchWorker
 from .library_view import BreadcrumbBar
 from .crates_view import SmartCratesView
+from .organizer_view import OrganizerView
 
 __all__ = [
     "QualityDiagnosisDialog",
@@ -17,4 +18,5 @@ __all__ = [
     "SimilarSearchWorker",
     "BreadcrumbBar",
     "SmartCratesView",
+    "OrganizerView",
 ]

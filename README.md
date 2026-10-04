@@ -12,7 +12,7 @@
   <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Piattaforma">
-  <img src="https://img.shields.io/badge/tests-132%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-140%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository Ufficiale"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licenza-MIT-purple.svg" alt="Licenza"></a>
 </p>
@@ -36,10 +36,10 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
-| [Analisi / Home] | [Libreria DJ] | [Spazio Mp3tag] | [Smart Crates] | [Trova Simili] | [Organizza] |
-| - Avvio Default  | - Filtri RAM  | - Foglio Cella  | - Workbench    | - Cosine.club  | - Dry Run   |
-| - Trend Spotify  | - Ruota 1A-12B| - Multi-Tag     | - Dynamic Crate| - Vettori Web  | - Collision |
-| - Diagnosi EBU   | - Pitch +/-8% | - Pattern %tag% | - Export M3U8  | - Hard Disk    | - Maschere  |
+| [🏠 Analisi]  | [📁 Libreria] | [🏷️ Mp3tag]   | [📦 Crates]   | [🔍 Simili]   | [📂 Organizza]|
+| - Avvio Default  | - Filtri 2-Row| - Foglio Cella  | - Workbench    | - Cosine.club  | - Dry Run   |
+| - Trend 3-Piatta | - Ruota 1A-12B| - Multi-Tag     | - Guida & M3U8 | - Vettori Web  | - Collision |
+| - Diagnosi EBU   | - Pitch +/-8% | - Pattern %tag% | - Dynamic Crate| - Hard Disk    | - Maschere  |
 +----------------------------------------------------------------------------------------------------+
 |         Motore Ricerca Rapida (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)           |
 +----------------------------------------------------------------------------------------------------+
@@ -51,27 +51,29 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. ⚪ Tema Chiaro Predefinito & Navbar Modulare Pulita
+### 1. ⚪ Tema Chiaro Predefinito & Navbar Modulare con Icone
 - **Stile Visivo Moderno:** Palette chiara (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) studiata per massima leggibilità in studio o console. Modalità Dark attivabile a caldo dalle Impostazioni.
-- **Top Bar Minimale Senza Icone Ambigue:** Nessun pulsante scorciatoia parziale o icona isolata. La navbar contiene esclusivamente i bottoni di navigazione verso i moduli completi:
-  - **[Analisi / Home]** (Schermata iniziale predefinita all'avvio)
-  - **[Libreria]**
-  - **[Tag Editor (Mp3tag)]**
-  - **[Smart Crates]**
-  - **[Trova Simili]**
-  - **[Organizza File]**
-  - **[Impostazioni]**
+- **Top Bar Chiara & Distintiva:** La barra superiore contiene i 7 pulsanti di navigazione immediata arricchiti con icone tematiche:
+  - **[🏠 Analisi / Home]** (Schermata iniziale predefinita all'avvio con dashboard multi-piattaforma e card bianche ad alto contrasto)
+  - **[📁 Libreria]** (Catalogo DJ con tabella ad alte prestazioni e menu contestuale colonne con tasto destro)
+  - **[🏷️ Tag Editor (Mp3tag)]**
+  - **[📦 Smart Crates]** (Workbench con guida interattiva e regole dinamiche)
+  - **[🔍 Trova Simili]**
+  - **[📂 Organizza File]**
+  - **[⚙️ Impostazioni]**
 
-### 2. 🗃️ Workbench Dedicato "Smart Crates"
+### 2. 🗃️ Workbench Dedicato "Smart Crates" con Guida Integrata
 - Rimozione del pannello compresso dalla vista principale in favore di un **workbench indipendente a schermo intero**.
-- Creazione, modifica visiva di regole complesse (BPM range, Camelot Key, generi multipli, rating, energia).
+- **Guida all'Uso Interattiva (`❓ Guida all'uso`):** Modal documentale integrato con spiegazione visiva degli operatori logici (TUTTE le regole / ALMENO UNA regola), tabelle di preset da console DJ (*Warm-up Deep*, *Peak Time Banger*, *Classic House*, *Harmonic Mixes*) e istruzioni per l'export.
+- Creazione e modifica visiva di regole complesse (BPM range, Camelot Key, generi multipli, rating, energia) con tooltip dettagliati in italiano.
 - Generazione dinamica dei crate ed esportazione a 1-click in playlist `.m3u8` estese per Pioneer CDJ, Rekordbox, Traktor, Serato ed Engine DJ.
 
-### 3. 🎛️ Live DJ Crates, Gestione Colonne & Barra Filtri Rapidi (<15ms di Latenza)
-- **Selezione e Personalizzazione Colonne (Tasto Destro):** Facendo clic col tasto destro del mouse su qualsiasi intestazione della tabella libreria, si apre il menu contestuale per mostrare/nascondere le 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`). Include i comandi rapidi *"Mostra Tutte le Colonne"* e *"Ripristina Colonne Predefinite"*, con memorizzazione persistente in `config.json`.
-- **Monitoraggio Hardware di Sistema Reale (Nessun Limite RAM):** Barra di stato con telemetria CPU e memoria fisica totale del computer (es. `RAM: 283 MB / 24 GB`). Essendo un'applicazione a 64-bit, Musicat non impone alcun limite di memoria artificiale e può utilizzare tutta la RAM necessaria.
-- **Selettore Multi-Genere:** Autocomplete istantaneo con selezione multipla e logica `OR` (es. *Tech House* OR *Afro House* OR *Melodic Techno*).
-- **Target BPM & Tolleranze Pitch:** Box numerico con preset a percentuale (`±2%`, `±4%`, `±6%`, `±8%`) ed estremi Min/Max personalizzabili.
+### 3. 🎛️ Live DJ Crates, Gestione Colonne, RAM Dinamica & Barra Filtri a Due Righe (<15ms)
+- **Barra Filtri Multi-Riga Ergonomica:**
+  - *Riga 1:* Ricerca ultra-rapida con indicatore del motore attivo (Everything MFT / Spotlight / FTS5), selettore cartelle/drive, menu a discesa multi-genere (logica OR), filtro presenza copertina e pulsante di reset rapido (tasto `ESC`).
+  - *Riga 2:* Parametri acustici DJ completi: Target BPM con pulsanti di incremento fine e preset percentuali (`±2%`, `±4%`, `±6%`, `±8%`), slider e campi numerici Min/Max, selettore Camelot Key allargato senza troncamenti con toggle "Solo Armonici", pulsante Ruota Camelot interattiva, filtro decennio/anno, qualità audio, tag DJ ed esportazione Smart Crates.
+- **Selezione e Personalizzazione Colonne (Tasto Destro):** Facendo clic col tasto destro del mouse su qualsiasi intestazione della tabella libreria, si apre il menu contestuale per mostrare/nascondere le 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`). Include i comandi rapidi *"Mostra Tutte le Colonne"* e *"Ripristina Colonne Predefinite"*, con memorizzazione automatica di visibilità e larghezze in `config.json`.
+- **Allocazione RAM Dinamica Fino all'80% di Sistema:** Nessun limite artificiale di 2 GB; rilevamento nativo della memoria totale e slider dinamico fino all'80% della RAM fisica (es. fino a 12.8 GB su 16 GB, 25.6 GB su 32 GB) con feedback in tempo reale.
 - **Assistente Armonico Ruota Camelot:** Griglia interattiva a 12 colonne (`1A`–`12B`) con indicazione di percorsi armonici:
   - $\pm 1$ Passaggio armonico fluido (stabilità energetica)
   - Scala Relativa (passaggio Maggiore $\leftrightarrow$ Minore)
@@ -101,14 +103,15 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
   - *Non distruttiva:* Tag metadati ReplayGain (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
   - *Fisica con FFmpeg:* Re-encoding a 2 passaggi con filtro `loudnorm` (target: $-14$ LUFS, $-1.0$ dBTP).
 
-### 8. 🏠 Spotify Top Trends & Motore Tracce Simili
-- **Top Trends Spotify Live:** Classifiche suddivise per genere (Dance/Electro, Tech House, Techno, Global Top 50) con caching locale.
+### 8. 🏠 Dashboard Trends Multi-Piattaforma & Motore Tracce Simili
+- **Classifiche Multi-Sorgente:** Schede dedicate per `Top Spotify`, `Top SoundCloud / Hype` e `Top Beatport / Discogs`. Categorie musicali contestuali, dataset offline estesi e navigazione ad alta reattività.
 - **Riconciliazione Istantanea con la Collezione:** Badge visivo per verificare al volo se la traccia in classifica è già presente nel proprio hard disk (`✓ In Libreria`) o mancante (`+ Mancante`).
 - **Motore di Similarità (Cosine.club):** Ricerca vettoriale su database online e matching acustico diretto contro la propria libreria locale.
 
-### 9. ⚖️ Scraping Multi-Fonte & Riconciliazione Conflitti
-- Query simultanea verso **Beatport**, **Traxsource**, **Discogs**, **MusicBrainz** e piattaforme social (**SoundCloud**, **YouTube Music**, **Hypeddit**, **Remix.audio**).
-- Tabella di riconciliazione "Prima / Dopo" con risoluzione campo per campo (seleziona Titolo da Beatport, Anno da Discogs, Etichetta da Traxsource).
+### 9. ⚖️ Scraping Multi-Fonte, Discogs Priority & Test Connessione Live
+- **Discogs come Autorità Prioritaria:** Riconciliatore di metadati ottimizzato per dare precedenza autorevole a Discogs per anno, etichetta discografica, catalog number, formato vinile/digitale e artisti.
+- **Integrazioni API Complete:** Campi credenziali persistenti per Spotify, SoundCloud, YouTube Data API v3, Discogs e Beatport con pulsanti di **Test Connessione Live** e riscontro visivo istantaneo (verde/rosso).
+- **Tabella di Riconciliazione Conflitti:** Matrice visuale per risolvere punto per punto le discrepanze tra le varie fonti online prima dell'applicazione ai file fisici.
 
 ### 10. 💾 Installazione Dual-Mode & Portabilità Totale (`portable.lock`)
 - **Modalità Standard:** Installazione guidata in `Program Files`, collegamenti di sistema e dati utente in `%APPDATA%\Musicat`.

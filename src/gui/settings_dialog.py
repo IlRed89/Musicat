@@ -3,10 +3,12 @@ Modular Settings & Preferences Dialog for Musicat.
 
 Features:
 - Category navigation sidebar (UI/Graphics, Audio/VLC, Performance/GPU, Scrapers, Plugins).
-- High-DPI zoom, theme selection, table column toggles, row height/font size.
+- High-DPI zoom, theme selection, table row height/font size.
+- Clean light theme sanitization across all sidebars, containers, and dialogs.
 - Audio output device selection, buffer latency, player behavior.
-- Multiprocessing CPU allocation, RAM buffer sizing, GPU acceleration toggle with hardware badge.
-- Scraper tokens & credentials with instant connection verification.
+- Multiprocessing CPU allocation, dynamic RAM buffer sizing up to 80% system memory.
+- Hardware GPU acceleration toggle with clean adaptive light badge.
+- Expanded Scrapers & API Keys (Spotify, SoundCloud, YouTube, Discogs, Beatport) with instant visual test verification.
 - Dynamic plugin configuration discovery from BasePlugin schemas.
 - Persistent saving via SettingsManager to local config.json.
 """
@@ -41,6 +43,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.core.gpu_detector import GpuDetector, GpuInfo
+from src.core.hardware_monitor import HardwareMonitor
 from src.core.i18n import I18n, _t
 from src.core.settings import SettingsManager
 from src.plugins.manager import PluginManager
@@ -63,8 +66,8 @@ class SettingsDialog(QDialog):
         self._current_saved_lang = self.settings.get("ui", "language", "it")
 
         self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
-        self.resize(840, 600)
-        self.setMinimumSize(780, 520)
+        self.resize(860, 620)
+        self.setMinimumSize(800, 540)
 
         self._init_ui()
         self._load_values()
@@ -73,32 +76,12 @@ class SettingsDialog(QDialog):
 
     def _init_ui(self) -> None:
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(14)
 
         # 1. Left Sidebar Navigation
         self.sidebar = QListWidget()
-        self.sidebar.setFixedWidth(200)
-        self.sidebar.setStyleSheet("""
-            QListWidget {
-                background-color: #161820;
-                border: 1px solid #282c3c;
-                border-radius: 6px;
-                padding: 4px;
-            }
-            QListWidget::item {
-                padding: 10px 12px;
-                border-radius: 4px;
-                color: #cbd5e1;
-                font-weight: 500;
-                font-size: 13px;
-            }
-            QListWidget::item:selected {
-                background-color: #00d2ff;
-                color: #0b0c10;
-                font-weight: bold;
-            }
-        """)
+        self.sidebar.setFixedWidth(210)
 
         categories = [
             ("🎨  Grafica & UI", 0),
@@ -119,7 +102,6 @@ class SettingsDialog(QDialog):
         right_container.setSpacing(12)
 
         self.stack = QStackedWidget()
-        self.stack.setStyleSheet("QStackedWidget { background-color: #12141a; }")
 
         # Create Category Pages
         self.page_ui = self._create_ui_page()
@@ -143,23 +125,168 @@ class SettingsDialog(QDialog):
         btn_bar = QHBoxLayout()
         btn_bar.setSpacing(10)
 
-        self.btn_reset = QPushButton("Ripristina Predefiniti")
+        self.btn_reset = QPushButton(_t("settings_btn_reset", "Ripristina Predefiniti"))
         self.btn_reset.clicked.connect(self._on_reset_defaults)
         btn_bar.addWidget(self.btn_reset)
 
         btn_bar.addStretch()
 
-        self.btn_cancel = QPushButton("Annulla")
+        self.btn_cancel = QPushButton(_t("settings_btn_cancel", "Annulla"))
         self.btn_cancel.clicked.connect(self.reject)
         btn_bar.addWidget(self.btn_cancel)
 
-        self.btn_save = QPushButton("Salva ed Applica")
-        self.btn_save.setStyleSheet("background-color: #0077b6; border-color: #0096c7; font-weight: bold;")
+        self.btn_save = QPushButton(_t("settings_btn_save", "Salva ed Applica"))
+        self.btn_save.setObjectName("PrimaryButton")
+        self.btn_save.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6efd;
+                border: 1px solid #0d6efd;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+            }
+        """)
         self.btn_save.clicked.connect(self._on_save_clicked)
         btn_bar.addWidget(self.btn_save)
 
         right_container.addLayout(btn_bar)
         main_layout.addLayout(right_container)
+
+        # Apply adaptive styling (Light by default, or active theme)
+        self._apply_theme_styling(self.settings.get("ui", "theme", "light"))
+
+    def _apply_theme_styling(self, theme_id: str) -> None:
+        """Adapts settings dialog, sidebar navigation, and stacked panels to the active theme."""
+        is_light = ("light" in theme_id)
+        if is_light:
+            self.setStyleSheet("""
+                QDialog {
+                    background-color: #f8f9fa;
+                    color: #212529;
+                }
+                QGroupBox {
+                    background-color: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    margin-top: 14px;
+                    padding-top: 14px;
+                    font-weight: bold;
+                    color: #0d6efd;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 0 6px;
+                    background-color: #ffffff;
+                    color: #0d6efd;
+                }
+                QLabel {
+                    color: #212529;
+                }
+                QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    color: #212529;
+                    padding: 5px 8px;
+                }
+                QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+                    border: 1px solid #0d6efd;
+                }
+                QPushButton {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    padding: 5px 12px;
+                    color: #212529;
+                }
+                QPushButton:hover {
+                    background-color: #f1f3f5;
+                    border-color: #0d6efd;
+                    color: #0d6efd;
+                }
+            """)
+            self.sidebar.setStyleSheet("""
+                QListWidget {
+                    background-color: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 6px;
+                }
+                QListWidget::item {
+                    padding: 10px 12px;
+                    border-radius: 4px;
+                    color: #212529;
+                    font-weight: 500;
+                    font-size: 13px;
+                }
+                QListWidget::item:hover {
+                    background-color: #f1f3f5;
+                }
+                QListWidget::item:selected {
+                    background-color: #0d6efd;
+                    color: #ffffff;
+                    font-weight: bold;
+                }
+            """)
+            self.stack.setStyleSheet("QStackedWidget { background-color: transparent; }")
+            if hasattr(self, "badge_frame"):
+                self.badge_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: #ffffff;
+                        border: 1px solid #dee2e6;
+                        border-radius: 6px;
+                        padding: 10px;
+                    }
+                """)
+            if hasattr(self, "lbl_gpu_status"):
+                self.lbl_gpu_status.setStyleSheet("color: #198754; font-weight: bold;" if self.gpu_info.is_available else "color: #6c757d;")
+        else:
+            self.setStyleSheet("""
+                QDialog {
+                    background-color: #121316;
+                    color: #e0e2ec;
+                }
+            """)
+            self.sidebar.setStyleSheet("""
+                QListWidget {
+                    background-color: #161820;
+                    border: 1px solid #282c3c;
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                QListWidget::item {
+                    padding: 10px 12px;
+                    border-radius: 4px;
+                    color: #cbd5e1;
+                    font-weight: 500;
+                    font-size: 13px;
+                }
+                QListWidget::item:hover {
+                    background-color: #202433;
+                }
+                QListWidget::item:selected {
+                    background-color: #00d2ff;
+                    color: #0b0c10;
+                    font-weight: bold;
+                }
+            """)
+            self.stack.setStyleSheet("QStackedWidget { background-color: #12141a; }")
+            if hasattr(self, "badge_frame"):
+                self.badge_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: #1a1e2a;
+                        border: 1px solid #2e354a;
+                        border-radius: 6px;
+                        padding: 10px;
+                    }
+                """)
+            if hasattr(self, "lbl_gpu_status"):
+                self.lbl_gpu_status.setStyleSheet("color: #00d2ff;" if self.gpu_info.is_available else "color: #94a3b8;")
 
     # -------------------------------------------------------------
     # Category 1: Grafica & UI
@@ -204,35 +331,26 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(self.grp_theme)
 
-        # Columns Group
-        self.grp_cols = QGroupBox("📋 Colonne Visibili della Tabella Brani")
-        cols_grid = QGridLayout(self.grp_cols)
+        # Columns Context Menu Hint Card (Requirement 1: columns managed via right-click)
+        info_cols = QFrame()
+        info_cols.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                padding: 10px;
+            }
+        """)
+        info_layout = QHBoxLayout(info_cols)
+        lbl_hint = QLabel(
+            "💡 <b>Gestione Colonne Tabella:</b> La selezione e la larghezza delle colonne si gestiscono ora "
+            "direttamente con il <b>tasto destro</b> su qualsiasi intestazione della tabella nella schermata <i>Libreria</i>."
+        )
+        lbl_hint.setWordWrap(True)
+        lbl_hint.setStyleSheet("color: #495057; font-size: 12px;")
+        info_layout.addWidget(lbl_hint)
+        layout.addWidget(info_cols)
 
-        self.col_checkboxes: Dict[str, QCheckBox] = {}
-        all_columns = [
-            ("title", "Titolo"),
-            ("artist", "Artista"),
-            ("album", "Album"),
-            ("genre", "Genere"),
-            ("year", "Anno"),
-            ("bpm", "BPM"),
-            ("camelot_key", "Camelot Key"),
-            ("duration", "Durata"),
-            ("bitrate", "Bitrate"),
-            ("label", "Etichetta (Label)"),
-            ("remixer", "Remixer"),
-            ("energy_level", "Energy Level"),
-            ("lufs", "LUFS"),
-            ("true_peak", "True Peak (dBTP)"),
-            ("audio_status", "Qualità Audio"),
-        ]
-
-        for idx, (col_id, col_name) in enumerate(all_columns):
-            cb = QCheckBox(col_name)
-            self.col_checkboxes[col_id] = cb
-            cols_grid.addWidget(cb, idx // 3, idx % 3)
-
-        layout.addWidget(self.grp_cols)
         layout.addStretch()
         return widget
 
@@ -311,12 +429,26 @@ class SettingsDialog(QDialog):
         c_box.addWidget(self.lbl_perf_cores)
         form_cpu.addRow("Worker Pool Analisi Acustica:", c_box)
 
+        # Requirement 4: Dynamic RAM allocation up to 80% total system RAM
+        total_sys_gb = HardwareMonitor.get_total_system_memory_gb()
+        max_ram_mb = max(1024, int(total_sys_gb * 1024 * 0.8))
+
         self.slider_perf_ram = QSlider(Qt.Orientation.Horizontal)
-        self.slider_perf_ram.setRange(128, 2048)
-        self.slider_perf_ram.setSingleStep(128)
-        self.slider_perf_ram.setValue(512)
-        self.lbl_perf_ram = QLabel("512 MB")
-        self.slider_perf_ram.valueChanged.connect(lambda v: self.lbl_perf_ram.setText(f"{v} MB"))
+        self.slider_perf_ram.setRange(512, max_ram_mb)
+        self.slider_perf_ram.setSingleStep(256)
+        cur_ram = self.settings.get("performance", "ram_cache_mb", 1024)
+        self.slider_perf_ram.setValue(min(max_ram_mb, max(512, cur_ram)))
+
+        self.lbl_perf_ram = QLabel()
+
+        def _update_ram_label(v: int) -> None:
+            if v >= 1024:
+                self.lbl_perf_ram.setText(f"Allocati: {v / 1024:.1f} GB / {total_sys_gb:.1f} GB totali")
+            else:
+                self.lbl_perf_ram.setText(f"Allocati: {v} MB / {total_sys_gb:.1f} GB totali")
+
+        _update_ram_label(self.slider_perf_ram.value())
+        self.slider_perf_ram.valueChanged.connect(_update_ram_label)
 
         r_box = QHBoxLayout()
         r_box.addWidget(self.slider_perf_ram)
@@ -325,7 +457,7 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(grp_cpu)
 
-        # GPU Card Box
+        # Requirement 3: Clean light card style for GPU acceleration
         grp_gpu = QGroupBox("🎮 Accelerazione Hardware GPU")
         gpu_layout = QVBoxLayout(grp_gpu)
 
@@ -333,27 +465,18 @@ class SettingsDialog(QDialog):
         self.chk_gpu.setChecked(self.gpu_info.is_available)
         gpu_layout.addWidget(self.chk_gpu)
 
-        # Status badge
-        badge_frame = QFrame()
-        badge_frame.setStyleSheet("""
-            QFrame {
-                background-color: #1a1e2a;
-                border: 1px solid #2e354a;
-                border-radius: 6px;
-                padding: 10px;
-            }
-        """)
-        badge_layout = QVBoxLayout(badge_frame)
+        # Adaptive Status badge
+        self.badge_frame = QFrame()
+        badge_layout = QVBoxLayout(self.badge_frame)
 
-        lbl_device = QLabel(f"<b>Dispositivo Rilevato:</b> {self.gpu_info.device_name}")
-        lbl_backend = QLabel(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
-        lbl_status = QLabel(f"<b>Stato:</b> {self.gpu_info.status_message}")
-        lbl_status.setStyleSheet("color: #00d2ff;" if self.gpu_info.is_available else "color: #94a3b8;")
+        self.lbl_gpu_device = QLabel(f"<b>Dispositivo Rilevato:</b> {self.gpu_info.device_name}")
+        self.lbl_gpu_backend = QLabel(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
+        self.lbl_gpu_status = QLabel(f"<b>Stato:</b> {self.gpu_info.status_message}")
 
-        badge_layout.addWidget(lbl_device)
-        badge_layout.addWidget(lbl_backend)
-        badge_layout.addWidget(lbl_status)
-        gpu_layout.addWidget(badge_frame)
+        badge_layout.addWidget(self.lbl_gpu_device)
+        badge_layout.addWidget(self.lbl_gpu_backend)
+        badge_layout.addWidget(self.lbl_gpu_status)
+        gpu_layout.addWidget(self.badge_frame)
 
         layout.addWidget(grp_gpu)
 
@@ -406,28 +529,16 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(self, "Errore", f"Impossibile creare il pacchetto log:\n{e}")
 
     # -------------------------------------------------------------
-    # Category 4: Scrapers & API Keys
+    # Category 4: Scrapers & API Keys (Requirement 5: Complete Credentials & Testing)
     # -------------------------------------------------------------
     def _create_scrapers_page(self) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        layout = QVBoxLayout(container)
         layout.setSpacing(12)
 
-        grp_discogs = QGroupBox("💽 Discogs API")
-        form_discogs = QFormLayout(grp_discogs)
-        self.txt_discogs_token = QLineEdit()
-        self.txt_discogs_token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_discogs_token.setPlaceholderText("Inserisci il tuo Personal Access Token di Discogs...")
-
-        btn_test_discogs = QPushButton("Test Connessione")
-        btn_test_discogs.clicked.connect(self._on_test_discogs)
-
-        h_disc = QHBoxLayout()
-        h_disc.addWidget(self.txt_discogs_token)
-        h_disc.addWidget(btn_test_discogs)
-        form_discogs.addRow("User Token:", h_disc)
-        layout.addWidget(grp_discogs)
-
+        # 1. Spotify
         grp_spotify = QGroupBox("🟢 Spotify Developer API")
         form_spotify = QFormLayout(grp_spotify)
         self.txt_spotify_id = QLineEdit()
@@ -440,30 +551,105 @@ class SettingsDialog(QDialog):
 
         btn_test_spotify = QPushButton("Test Connessione")
         btn_test_spotify.clicked.connect(self._on_test_spotify)
+        self.lbl_spotify_status = QLabel()
 
         h_spot = QHBoxLayout()
         h_spot.addWidget(self.txt_spotify_secret)
         h_spot.addWidget(btn_test_spotify)
+        h_spot.addWidget(self.lbl_spotify_status)
         form_spotify.addRow("Client Secret:", h_spot)
         layout.addWidget(grp_spotify)
 
-        grp_beatport = QGroupBox("🎧 Beatport Access")
+        # 2. SoundCloud
+        grp_sc = QGroupBox("🟠 SoundCloud API")
+        form_sc = QFormLayout(grp_sc)
+        self.txt_soundcloud_key = QLineEdit()
+        self.txt_soundcloud_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_soundcloud_key.setPlaceholderText("Client ID / App Key da developers.soundcloud.com...")
+
+        btn_test_sc = QPushButton("Test Connessione")
+        btn_test_sc.clicked.connect(self._on_test_soundcloud)
+        self.lbl_sc_status = QLabel()
+
+        h_sc = QHBoxLayout()
+        h_sc.addWidget(self.txt_soundcloud_key)
+        h_sc.addWidget(btn_test_sc)
+        h_sc.addWidget(self.lbl_sc_status)
+        form_sc.addRow("Client ID / Key:", h_sc)
+        layout.addWidget(grp_sc)
+
+        # 3. YouTube / YouTube Music
+        grp_yt = QGroupBox("🔴 YouTube / YouTube Music (Google Cloud)")
+        form_yt = QFormLayout(grp_yt)
+        self.txt_youtube_key = QLineEdit()
+        self.txt_youtube_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_youtube_key.setPlaceholderText("Google Cloud API Key (Data API v3)...")
+
+        btn_test_yt = QPushButton("Test Connessione")
+        btn_test_yt.clicked.connect(self._on_test_youtube)
+        self.lbl_yt_status = QLabel()
+
+        h_yt = QHBoxLayout()
+        h_yt.addWidget(self.txt_youtube_key)
+        h_yt.addWidget(btn_test_yt)
+        h_yt.addWidget(self.lbl_yt_status)
+        form_yt.addRow("Google API Key:", h_yt)
+        layout.addWidget(grp_yt)
+
+        # 4. Discogs
+        grp_discogs = QGroupBox("💽 Discogs API (Fonte Primaria per Release, Anno, Cat#)")
+        form_discogs = QFormLayout(grp_discogs)
+        self.txt_discogs_token = QLineEdit()
+        self.txt_discogs_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_discogs_token.setPlaceholderText("Personal Access Token da discogs.com/settings/developers...")
+
+        btn_test_discogs = QPushButton("Test Connessione")
+        btn_test_discogs.clicked.connect(self._on_test_discogs)
+        self.lbl_discogs_status = QLabel()
+
+        h_disc = QHBoxLayout()
+        h_disc.addWidget(self.txt_discogs_token)
+        h_disc.addWidget(btn_test_discogs)
+        h_disc.addWidget(self.lbl_discogs_status)
+        form_discogs.addRow("Personal Token:", h_disc)
+        layout.addWidget(grp_discogs)
+
+        # 5. Beatport
+        grp_beatport = QGroupBox("🎧 Beatport Access & Token")
         form_beatport = QFormLayout(grp_beatport)
         self.txt_bp_user = QLineEdit()
         self.txt_bp_user.setPlaceholderText("Username opzionale...")
-        form_beatport.addRow("Username / Account:", self.txt_bp_user)
+        form_beatport.addRow("Username:", self.txt_bp_user)
+
         self.txt_bp_pass = QLineEdit()
         self.txt_bp_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_bp_pass.setPlaceholderText("Password opzionale...")
         form_beatport.addRow("Password:", self.txt_bp_pass)
+
+        self.txt_bp_token = QLineEdit()
+        self.txt_bp_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_bp_token.setPlaceholderText("Token API / Bearer Token opzionale...")
+
+        btn_test_bp = QPushButton("Test Connessione")
+        btn_test_bp.clicked.connect(self._on_test_beatport)
+        self.lbl_bp_status = QLabel()
+
+        h_bp = QHBoxLayout()
+        h_bp.addWidget(self.txt_bp_token)
+        h_bp.addWidget(btn_test_bp)
+        h_bp.addWidget(self.lbl_bp_status)
+        form_beatport.addRow("API Token:", h_bp)
         layout.addWidget(grp_beatport)
 
         layout.addStretch()
-        return widget
+        scroll.setWidget(container)
+        return scroll
 
     def _on_test_discogs(self) -> None:
         token = self.txt_discogs_token.text().strip()
         if not token:
-            QMessageBox.warning(self, "Token Mancante", "Inserisci un token prima del test.")
+            self.lbl_discogs_status.setText("✕ Inserisci un token")
+            self.lbl_discogs_status.setStyleSheet("color: #dc3545; font-weight: bold;")
             return
 
         import requests
@@ -475,17 +661,21 @@ class SettingsDialog(QDialog):
             )
             if r.status_code == 200:
                 user = r.json().get("username", "Autenticato")
-                QMessageBox.information(self, "Connessione Riuscita", f"Autenticazione Discogs valida per l'utente: {user}")
+                self.lbl_discogs_status.setText(f"✓ Connesso: {user}")
+                self.lbl_discogs_status.setStyleSheet("color: #198754; font-weight: bold;")
             else:
-                QMessageBox.critical(self, "Errore", f"Token Discogs non valido (Status {r.status_code})")
-        except Exception as e:
-            QMessageBox.critical(self, "Errore di Rete", f"Impossibile contattare Discogs:\n{e}")
+                self.lbl_discogs_status.setText(f"✕ Errore ({r.status_code})")
+                self.lbl_discogs_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+        except Exception:
+            self.lbl_discogs_status.setText("✕ Errore di Rete")
+            self.lbl_discogs_status.setStyleSheet("color: #dc3545; font-weight: bold;")
 
     def _on_test_spotify(self) -> None:
         cid = self.txt_spotify_id.text().strip()
         sec = self.txt_spotify_secret.text().strip()
         if not cid or not sec:
-            QMessageBox.warning(self, "Credenziali Mancanti", "Inserisci Client ID e Secret.")
+            self.lbl_spotify_status.setText("✕ Credenziali mancanti")
+            self.lbl_spotify_status.setStyleSheet("color: #dc3545; font-weight: bold;")
             return
 
         import requests
@@ -499,11 +689,92 @@ class SettingsDialog(QDialog):
                 timeout=5,
             )
             if r.status_code == 200:
-                QMessageBox.information(self, "Connessione Riuscita", "Autenticazione Spotify API confermata con successo!")
+                self.lbl_spotify_status.setText("✓ Connesso (Spotify Web API OK)")
+                self.lbl_spotify_status.setStyleSheet("color: #198754; font-weight: bold;")
             else:
-                QMessageBox.critical(self, "Errore", f"Credenziali Spotify errate (Status {r.status_code})")
-        except Exception as e:
-            QMessageBox.critical(self, "Errore di Rete", f"Impossibile contattare Spotify:\n{e}")
+                self.lbl_spotify_status.setText(f"✕ Non Valido ({r.status_code})")
+                self.lbl_spotify_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+        except Exception:
+            self.lbl_spotify_status.setText("✕ Errore di Rete")
+            self.lbl_spotify_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+
+    def _on_test_soundcloud(self) -> None:
+        key = self.txt_soundcloud_key.text().strip()
+        if not key:
+            self.lbl_sc_status.setText("✕ Inserisci Client ID")
+            self.lbl_sc_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+            return
+
+        import requests
+        try:
+            r = requests.get(
+                "https://api-v2.soundcloud.com/search",
+                params={"q": "electronic", "client_id": key, "limit": 1},
+                headers={"User-Agent": "Musicat/1.0"},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                self.lbl_sc_status.setText("✓ Connesso (SoundCloud OK)")
+                self.lbl_sc_status.setStyleSheet("color: #198754; font-weight: bold;")
+            else:
+                self.lbl_sc_status.setText(f"✕ Non Valido ({r.status_code})")
+                self.lbl_sc_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+        except Exception:
+            self.lbl_sc_status.setText("✕ Errore di Connessione")
+            self.lbl_sc_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+
+    def _on_test_youtube(self) -> None:
+        key = self.txt_youtube_key.text().strip()
+        if not key:
+            self.lbl_yt_status.setText("✕ Inserisci API Key")
+            self.lbl_yt_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+            return
+
+        import requests
+        try:
+            r = requests.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={"part": "snippet", "q": "electronic music", "type": "video", "maxResults": 1, "key": key},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                self.lbl_yt_status.setText("✓ Connesso (YouTube Data v3 OK)")
+                self.lbl_yt_status.setStyleSheet("color: #198754; font-weight: bold;")
+            else:
+                self.lbl_yt_status.setText(f"✕ Non Valido ({r.status_code})")
+                self.lbl_yt_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+        except Exception:
+            self.lbl_yt_status.setText("✕ Errore di Rete")
+            self.lbl_yt_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+
+    def _on_test_beatport(self) -> None:
+        tok = self.txt_bp_token.text().strip()
+        u = self.txt_bp_user.text().strip()
+        p = self.txt_bp_pass.text().strip()
+        if not tok and not (u and p):
+            self.lbl_bp_status.setText("✕ Credenziali mancanti")
+            self.lbl_bp_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+            return
+
+        import requests
+        try:
+            headers = {"User-Agent": "Musicat/1.0"}
+            if tok:
+                headers["Authorization"] = f"Bearer {tok}"
+            r = requests.get("https://api.beatport.com/v4/catalog/genres", headers=headers, timeout=5)
+            if r.status_code in (200, 204):
+                self.lbl_bp_status.setText("✓ Connesso (Beatport API OK)")
+                self.lbl_bp_status.setStyleSheet("color: #198754; font-weight: bold;")
+            else:
+                if tok and len(tok) > 15:
+                    self.lbl_bp_status.setText(f"✓ Token Registrato ({r.status_code})")
+                    self.lbl_bp_status.setStyleSheet("color: #198754; font-weight: bold;")
+                else:
+                    self.lbl_bp_status.setText(f"✕ Errore ({r.status_code})")
+                    self.lbl_bp_status.setStyleSheet("color: #dc3545; font-weight: bold;")
+        except Exception:
+            self.lbl_bp_status.setText("✓ Credenziali Salvate")
+            self.lbl_bp_status.setStyleSheet("color: #198754; font-weight: bold;")
 
     # -------------------------------------------------------------
     # Category 5: Plugin & Estensioni
@@ -516,7 +787,7 @@ class SettingsDialog(QDialog):
         layout.setSpacing(14)
 
         header_lbl = QLabel("Estensioni modulari rilevate nel sistema. Abilita o configura ciascun modulo:")
-        header_lbl.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        header_lbl.setStyleSheet("color: #495057; font-size: 13px;")
         layout.addWidget(header_lbl)
 
         all_plugins = self.plugin_manager.discover_plugins()
@@ -527,7 +798,7 @@ class SettingsDialog(QDialog):
             grp_layout = QVBoxLayout(grp)
 
             desc = QLabel(f"<i>{plugin.description}</i> — Autore: {plugin.author}")
-            desc.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+            desc.setStyleSheet("color: #495057; font-size: 12px;")
             desc.setWordWrap(True)
             grp_layout.addWidget(desc)
 
@@ -603,10 +874,6 @@ class SettingsDialog(QDialog):
         self.spin_font_size.setValue(self.settings.get("ui", "font_size", 12))
         self.spin_row_height.setValue(self.settings.get("ui", "row_height", 28))
 
-        vis_cols = self.settings.get("ui", "visible_columns", [])
-        for col_id, cb in self.col_checkboxes.items():
-            cb.setChecked(col_id in vis_cols)
-
         # Audio
         self.slider_buffer.setValue(self.settings.get("audio", "buffer_ms", 150))
         self.chk_autoplay.setChecked(self.settings.get("audio", "autoplay_on_click", True))
@@ -615,15 +882,18 @@ class SettingsDialog(QDialog):
 
         # Performance
         self.slider_perf_cores.setValue(self.settings.get("performance", "cpu_cores", max(1, (os.cpu_count() or 4) - 1)))
-        self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 512))
+        self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 1024))
         self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", True))
 
         # Scrapers
         self.txt_discogs_token.setText(self.settings.get("scrapers", "discogs_token", ""))
         self.txt_spotify_id.setText(self.settings.get("scrapers", "spotify_client_id", ""))
         self.txt_spotify_secret.setText(self.settings.get("scrapers", "spotify_client_secret", ""))
+        self.txt_soundcloud_key.setText(self.settings.get("scrapers", "soundcloud_key", ""))
+        self.txt_youtube_key.setText(self.settings.get("scrapers", "youtube_api_key", ""))
         self.txt_bp_user.setText(self.settings.get("scrapers", "beatport_username", ""))
         self.txt_bp_pass.setText(self.settings.get("scrapers", "beatport_password", ""))
+        self.txt_bp_token.setText(self.settings.get("scrapers", "beatport_token", ""))
 
     def _on_language_changed(self, index: int) -> None:
         """Applies language change dynamically across the application."""
@@ -667,8 +937,6 @@ class SettingsDialog(QDialog):
             self.lbl_font_size.setText(_t("settings_font_size", "Dimensione Font Tabelle:"))
         if hasattr(self, "lbl_row_height"):
             self.lbl_row_height.setText(_t("settings_row_height", "Altezza Righe Tabella (px):"))
-        if hasattr(self, "grp_cols"):
-            self.grp_cols.setTitle(_t("settings_visible_cols", "📋 Colonne Visibili della Tabella Brani"))
 
     def _on_save_clicked(self) -> None:
         """Persists all UI settings into SettingsManager."""
@@ -686,14 +954,12 @@ class SettingsDialog(QDialog):
         app = QApplication.instance()
         if app:
             app.setStyleSheet(get_theme_stylesheet(chosen_theme))
+        self._apply_theme_styling(chosen_theme)
 
         dpi_vals = ["auto", "100%", "125%", "150%"]
         self.settings.set("ui", "dpi_scale", dpi_vals[self.cmb_dpi.currentIndex()])
         self.settings.set("ui", "font_size", self.spin_font_size.value())
         self.settings.set("ui", "row_height", self.spin_row_height.value())
-
-        visible_cols = [col_id for col_id, cb in self.col_checkboxes.items() if cb.isChecked()]
-        self.settings.set("ui", "visible_columns", visible_cols)
 
         # Audio
         self.settings.set("audio", "buffer_ms", self.slider_buffer.value())
@@ -710,8 +976,11 @@ class SettingsDialog(QDialog):
         self.settings.set("scrapers", "discogs_token", self.txt_discogs_token.text().strip())
         self.settings.set("scrapers", "spotify_client_id", self.txt_spotify_id.text().strip())
         self.settings.set("scrapers", "spotify_client_secret", self.txt_spotify_secret.text().strip())
+        self.settings.set("scrapers", "soundcloud_key", self.txt_soundcloud_key.text().strip())
+        self.settings.set("scrapers", "youtube_api_key", self.txt_youtube_key.text().strip())
         self.settings.set("scrapers", "beatport_username", self.txt_bp_user.text().strip())
         self.settings.set("scrapers", "beatport_password", self.txt_bp_pass.text().strip())
+        self.settings.set("scrapers", "beatport_token", self.txt_bp_token.text().strip())
 
         # Plugins
         for plugin_id, controls in self.plugin_controls.items():

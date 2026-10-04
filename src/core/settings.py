@@ -18,7 +18,7 @@ from src.core.path_resolver import PathResolver
 
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "version": "1.1.0",
+    "version": "1.2.0",
     "ui": {
         "language": "it",  # "it" (Italiano, default) or "en" (English)
         "theme": "light",  # "light" (Default), "dark_dj", "high_contrast"
@@ -54,8 +54,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "discogs_token": "",
         "spotify_client_id": "",
         "spotify_client_secret": "",
+        "soundcloud_key": "",
+        "youtube_api_key": "",
         "beatport_username": "",
         "beatport_password": "",
+        "beatport_token": "",
     },
     "plugins": {},
 }
