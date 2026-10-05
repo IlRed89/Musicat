@@ -187,6 +187,7 @@ Generates an all-in-one diagnostic `.zip` archive containing:
 | `Ctrl + R` | Reconcile | Opens multi-source metadata reconciliation matrix |
 | `Ctrl + Q` | Audio Quality | Opens EBU R128 loudness and clipping diagnostics |
 | `Ctrl + Shift + S`| Find Similars | Finds acoustically matching tracks locally and online |
+| `Ctrl + Shift + P` / `Alt + F` | Pattern Tagging | Opens advanced Mp3tag bulk pattern extraction dialog with live preview |
 | `Ctrl + S` | Smart Organizer | Opens disk reorganization and physical dispatch tool |
 | `Ctrl + L` | Live Log Console | Toggles system live log stream dock |
 | `Ctrl + ,` | Settings | Opens system preferences modal |
@@ -205,7 +206,7 @@ Ready-to-use binaries are built on every GitHub tag via automated GitHub Actions
 | **macOS Universal** | `Musicat-macOS.dmg` | Native Drag & Drop Applications installer DMG |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Standalone portable archive for APFS/HFS+ external SSDs |
 
-👉 **[Download the Latest Official Release (v1.4.0)](https://github.com/IlRed89/Musicat/releases/latest)**
+👉 **[Download the Latest Official Release (v1.5.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 

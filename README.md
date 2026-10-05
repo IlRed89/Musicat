@@ -187,6 +187,7 @@ Questo genera istantaneamente un archivio zip contenente:
 | `Ctrl + R` | Riconciliazione | Avvia la riconciliazione metadati da fonti multiple |
 | `Ctrl + Q` | Qualità Audio | Apre la diagnostica del volume e clipping EBU R128 |
 | `Ctrl + Shift + S`| Trova Simili | Trova tracce compatibili nella propria libreria locale e online |
+| `Ctrl + Shift + P` / `Alt + F` | Tag da Pattern | Apre il dialog avanzato Mp3tag per estrazione massiva da maschera/pattern con anteprima live |
 | `Ctrl + S` | Smart Organizer | Apre lo strumento di smistamento e spostamento fisico su disco |
 | `Ctrl + L` | Log in Tempo Reale | Mostra/nasconde la console dei log di sistema |
 | `Ctrl + ,` | Impostazioni | Apre la finestra Preferenze di Sistema |
@@ -205,7 +206,7 @@ Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actio
 | **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
 
-👉 **[Scarica l'Ultima Release Ufficiale (v1.4.0)](https://github.com/IlRed89/Musicat/releases/latest)**
+👉 **[Scarica l'Ultima Release Ufficiale (v1.5.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 

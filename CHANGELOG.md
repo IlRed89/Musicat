@@ -10,6 +10,33 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.5.0] - 2026-10-05
+
+### 🚀 Home Trends Estesi a Scorrimento Fluido, Pulizia Header Libreria, Esplora Risorse Drive Pulito & Tagging Massivo da Pattern (Mp3tag)
+
+#### 📈 Home Trends: Elenco Completo a Scorrimento Illimitato (Nessun Blocco a 4/5 Tracce)
+- **Rimozione Vincoli e Troncamenti Hardcoded:** Eliminati i limiti `[:5]` e parametri restrittivi `limit=5` in tutto il motore trends (`spotify_trends.py` e `home_view.py`).
+- **Espansione Catalogo Curato su Tutte le 18 Categorie:** Arricchite tutte le categorie di Spotify, SoundCloud e Beatport con feed da 20+ tracce autentiche complete di metadati, BPM, chiavi Camelot e link alle copertine ad alta risoluzione.
+- **Caricamento Copertine Asincrono con Concorrenza Controllata (`QSemaphore`):** Implementata gestione concorrenza a 6 worker contemporanei in `AsyncThumbnailLoader` con cache in memoria `_cache`, garantendo scorrimento a 60 FPS fluido e zero micro-scatti durante lo scroll prolungato della griglia.
+
+#### 🎛️ Pulizia Header Libreria & Allargamento Elastico dei Controlli
+- **Rimozione Controlli Smart Crates dalla Barra Filtri:** Rimossa la combobox dei crates e i pulsanti *"Salva Crate"* / *"Esporta M3U8"* dall'angolo in alto a destra della Libreria (`live_filters.py`). La consultazione e gestione dei crates è centralizzata esclusivamente nel workspace dedicato incorporato.
+- **Riorganizzazione Elastica dello Spazio Orizzontale:** Allargati i controlli di ricerca, BPM target (`85px`), tolleranza (`72px`), BPM Min/Max (`75px`), chiave Camelot (`140px`), pulsante ruota armonica (`70px`), decadi/anni (`160px`), filtri audio (`170px`) e pill tag DJ (`55-95px`), eliminando qualsiasi compressione visiva delle etichette.
+- **Routing Diretto dei Crate dalla Sidebar:** Il clic su un elemento crate nell'albero della barra laterale reindirizza istantaneamente al workspace Smart Crates (`select_crate_by_name`).
+
+#### 🗂️ Esplora Risorse Filesystem (Radice Unità Fisiche Pulita)
+- **Radice Logica di Sistema:** Impostata la radice di `QFileSystemModel` sulla radice logica di sistema (`""` su Windows, `/Volumes` su macOS) con tutte le unità compresse all'avvio (`collapseAll()`).
+- **Visualizzazione Chiara delle Unità:** All'apertura della barra laterale compaiono esclusivamente le lettere delle unità fisiche (`Disco locale (C:)`, `D:`, `E:`) non espanse, senza auto-espansione caotica dei contenuti di `C:\`.
+
+#### 🏷️ Workspace Mp3tag: Tagging Massivo da Pattern (`BulkPatternTagDialog`) & Scorciatoia Rapida
+- **Dialog Tagging da Pattern Avanzato:** Implementato `BulkPatternTagDialog` accessibile tramite scorciatoia rapida (`Ctrl + Shift + P` e `Alt + F`) e da pulsante dedicato nel pannello sinistro.
+- **Supporto Maschere e Segnaposto Flessibili:** Supporto completo per maschere personalizzabili (es. `[%title%] - [%artist%]`, `[%artist%] - [%title%]`, `[%track%]. [%title%]`) con pulsanti rapidi per l'inserimento dei segnaposto `[%title%]`, `[%artist%]`, `[%album%]`, `[%year%]`, `[%genre%]`, `[%track%]`.
+- **Tabella Anteprima Live Prima ➔ Dopo (Preview):** Visualizzazione in tempo reale con evidenziazione colorata delle differenze (valore attuale ➔ nuovo valore in ciano/verde) e conteggio delle modifiche prima dell'applicazione.
+- **Scrittura Diretta su Disco via Mutagen & Sincronizzazione DB:** Salvataggio effettivo immediato nei file fisici con Mutagen (`AudioTagEditor.write_metadata`) e sincronizzazione con il database SQLite e la griglia dell'editor.
+- **Pulizia Toolbar e Azioni Rapide:** Rimossi i pulsanti ridondanti per conversione maiuscole/minuscole dalla toolbar e dal pannello laterale, snellendo l'area di lavoro.
+
+---
+
 ## [1.4.0] - 2026-10-04
 
 ### 🚀 Monitor Hardware Visivo (Progress Bar Dinamiche), Mp3tag Avanzato (Autonumerazione & Pattern Live), ComboBox Generi Unificata & Fallback "Vario"

@@ -480,11 +480,12 @@ class LiveFilterBar(QFrame):
 
         # 5. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
+        self.btn_reset.setMinimumWidth(115)
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
         self.btn_reset.clicked.connect(self.reset_filters)
 
         # Assemble Row 1
-        row1.addWidget(self.txt_search, 2)
+        row1.addWidget(self.txt_search, 3)
         row1.addWidget(self.lbl_search_engine)
         row1.addLayout(folder_box)
         row1.addWidget(self.genre_widget, 2)
@@ -513,7 +514,7 @@ class LiveFilterBar(QFrame):
         self.spin_target_bpm.setValue(0)
         self.spin_target_bpm.setSpecialValueText("Target")
         self.spin_target_bpm.setToolTip("Target Deck BPM (es. 126.0)")
-        self.spin_target_bpm.setMinimumWidth(75)
+        self.spin_target_bpm.setMinimumWidth(85)
 
         self.cmb_bpm_tolerance = QComboBox()
         self.cmb_bpm_tolerance.addItem("±2%", 2.0)
@@ -522,7 +523,7 @@ class LiveFilterBar(QFrame):
         self.cmb_bpm_tolerance.addItem("±8%", 8.0)
         self.cmb_bpm_tolerance.setCurrentIndex(1)  # ±4% default
         self.cmb_bpm_tolerance.setToolTip("Tolleranza Pitch BPM")
-        self.cmb_bpm_tolerance.setMinimumWidth(62)
+        self.cmb_bpm_tolerance.setMinimumWidth(72)
 
         self.lbl_bpm_or = QLabel("o")
         self.lbl_bpm_or.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -534,7 +535,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_min.setDecimals(1)
         self.spin_bpm_min.setValue(0)
         self.spin_bpm_min.setSpecialValueText("Min")
-        self.spin_bpm_min.setMinimumWidth(68)
+        self.spin_bpm_min.setMinimumWidth(75)
 
         self.lbl_bpm_dash = QLabel("-")
         self.lbl_bpm_dash.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -546,7 +547,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.setDecimals(1)
         self.spin_bpm_max.setValue(0)
         self.spin_bpm_max.setSpecialValueText("Max")
-        self.spin_bpm_max.setMinimumWidth(68)
+        self.spin_bpm_max.setMinimumWidth(75)
 
         bpm_box.addWidget(self.lbl_bpm)
         bpm_box.addWidget(self.lbl_bpm_target)
@@ -570,7 +571,7 @@ class LiveFilterBar(QFrame):
         for k in CAMELOT_KEYS_ORDERED:
             musical = CAMELOT_TO_KEY.get(k, "")
             self.cmb_camelot.addItem(f"{k} ({musical})", k)
-        self.cmb_camelot.setMinimumWidth(125)
+        self.cmb_camelot.setMinimumWidth(140)
         self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.chk_harmonic_only = QCheckBox("Solo Armonici")
@@ -579,6 +580,7 @@ class LiveFilterBar(QFrame):
         self.chk_harmonic_only.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
         self.btn_wheel_popup = QPushButton("🎡 Ruota")
+        self.btn_wheel_popup.setMinimumWidth(70)
         self.btn_wheel_popup.setToolTip("Apri Ruota Camelot Interattiva (Ctrl+K)")
         self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_wheel_popup.clicked.connect(self._open_camelot_wheel)
@@ -599,7 +601,7 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.addItem("2000s (2000-2009)", (2000, 2009))
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
-        self.cmb_decade.setMinimumWidth(140)
+        self.cmb_decade.setMinimumWidth(160)
         self.cmb_decade.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
@@ -616,52 +618,30 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
-        self.cmb_quality.setMinimumWidth(160)
+        self.cmb_quality.setMinimumWidth(170)
         self.cmb_quality.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
         # 5. Quick DJ Tags (Pills)
         tags_box = QHBoxLayout()
-        tags_box.setSpacing(4)
+        tags_box.setSpacing(6)
         self.btn_tag_intro = QPushButton("Intro")
         self.btn_tag_vocal = QPushButton("Vocal")
         self.btn_tag_inst = QPushButton("Instrumental")
         self.btn_tag_acapella = QPushButton("Acapella")
         self.btn_tag_club = QPushButton("Club")
 
-        self.btn_tag_intro.setMinimumWidth(44)
-        self.btn_tag_vocal.setMinimumWidth(46)
-        self.btn_tag_inst.setMinimumWidth(80)
-        self.btn_tag_acapella.setMinimumWidth(62)
-        self.btn_tag_club.setMinimumWidth(44)
+        self.btn_tag_intro.setMinimumWidth(55)
+        self.btn_tag_vocal.setMinimumWidth(55)
+        self.btn_tag_inst.setMinimumWidth(95)
+        self.btn_tag_acapella.setMinimumWidth(75)
+        self.btn_tag_club.setMinimumWidth(55)
 
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setCheckable(True)
             btn.toggled.connect(self._trigger_debounce)
             tags_box.addWidget(btn)
-
-        # Smart Crate Actions (Destra)
-        crate_box = QHBoxLayout()
-        crate_box.setSpacing(4)
-
-        self.cmb_crates = QComboBox()
-        self.cmb_crates.addItem("📁 Smart Crates...", "")
-        self.cmb_crates.setFixedWidth(135)
-        self.cmb_crates.currentIndexChanged.connect(self._on_crate_selected)
-
-        self.btn_save_crate = QPushButton("💾 Salva")
-        self.btn_save_crate.setStyleSheet("background-color: #1e3a5f; border: 1px solid #0284c7; color: #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 4px; font-size: 11px;")
-        self.btn_save_crate.clicked.connect(self._on_save_crate)
-
-        self.btn_export_m3u = QPushButton("📤 M3U8")
-        self.btn_export_m3u.setStyleSheet("background-color: #14532d; border: 1px solid #16a34a; color: #4ade80; font-weight: bold; padding: 3px 6px; border-radius: 4px; font-size: 11px;")
-        self.btn_export_m3u.setToolTip("Esporta crate filtrato corrente in M3U8 per Rekordbox, Traktor, Serato, Engine DJ")
-        self.btn_export_m3u.clicked.connect(self.export_playlist_requested.emit)
-
-        crate_box.addWidget(self.cmb_crates)
-        crate_box.addWidget(self.btn_save_crate)
-        crate_box.addWidget(self.btn_export_m3u)
 
         row2.addLayout(bpm_box)
         row2.addLayout(camelot_box)
@@ -669,7 +649,6 @@ class LiveFilterBar(QFrame):
         row2.addLayout(quality_box)
         row2.addLayout(tags_box)
         row2.addStretch()
-        row2.addLayout(crate_box)
         main_layout.addLayout(row2)
 
         self.update_theme("light")
@@ -702,15 +681,11 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.setItemText(3, _t("filter_brickwall", "🧱 Brickwall (LRA < 3)"))
         self.cmb_quality.setItemText(4, _t("filter_problematic", "⚡ Tracce Problematiche"))
         self.cmb_quality.setItemText(5, _t("filter_conforme", "✅ Conforme (OK)"))
-        self.cmb_crates.setItemText(0, _t("filter_smart_crates", "📁 Smart Crates..."))
-        self.btn_save_crate.setText(_t("filter_save_crate", "💾 Salva Crate"))
-        self.btn_export_m3u.setText(_t("filter_export_m3u", "📤 Esporta M3U8"))
         self.cmb_folder.setItemText(0, _t("filter_all_folders", "Tutte le Cartelle / Drive"))
         self.cmb_cover.setItemText(0, _t("filter_all_covers", "Tutte"))
         self.cmb_cover.setItemText(1, _t("filter_with_cover", "Con Cover"))
         self.cmb_cover.setItemText(2, _t("filter_without_cover", "Senza Cover"))
 
-        self._refresh_crates_dropdown()
         self.refresh_directories()
 
     def update_theme(self, theme_id: str = "light") -> None:
@@ -1047,49 +1022,15 @@ class LiveFilterBar(QFrame):
         self.chk_harmonic_only.setChecked(harmonic_only)
         self._trigger_debounce()
 
-    # Smart Crate management
+    # Legacy Smart Crate helper stubs (management moved to Crates View)
     def _refresh_crates_dropdown(self) -> None:
-        self.cmb_crates.blockSignals(True)
-        self.cmb_crates.clear()
-        self.cmb_crates.addItem("📁 Smart Crates...", "")
-        try:
-            crates = self.filter_engine.get_smart_crates()
-            for c in crates:
-                self.cmb_crates.addItem(f"⚡ {c['name']}", c["name"])
-        except Exception:
-            pass
-        self.cmb_crates.blockSignals(False)
+        pass
 
     def _on_save_crate(self) -> None:
-        crit = self.get_current_criteria()
-        if crit.is_empty():
-            QMessageBox.warning(self, "Empty Filter", "Please set at least one filter rule before saving a Smart Crate.")
-            return
-
-        name, ok = QInputDialog.getText(
-            self,
-            "Save Smart Crate",
-            "Enter a name for this dynamic Smart Crate (e.g. 'Peak Time Tech House 126-128'):",
-        )
-        if ok and name.strip():
-            crate_name = name.strip()
-            self.filter_engine.save_smart_crate(crate_name, crit)
-            self._refresh_crates_dropdown()
-            # Select it
-            idx = self.cmb_crates.findData(crate_name)
-            if idx >= 0:
-                self.cmb_crates.setCurrentIndex(idx)
-            self.crate_saved.emit(crate_name)
-            QMessageBox.information(self, "Smart Crate Saved", f"Smart Crate '{crate_name}' saved!\nIt will auto-update as new tracks are added to your library.")
+        pass
 
     def _on_crate_selected(self, index: int) -> None:
-        crate_name = self.cmb_crates.currentData()
-        if not crate_name:
-            return
-        crit = self.filter_engine.load_smart_crate_criteria(crate_name)
-        if crit:
-            self.set_criteria(crit)
-            self.crate_selected.emit(crate_name)
+        pass
 
     # Keyboard Focus Helpers
     def focus_search(self) -> None:

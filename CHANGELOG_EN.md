@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] - 2026-10-05
+
+### 🚀 Full Scrolling Home Trends, Clean Library Header, Clean Drive Explorer & Bulk Pattern Tagging (Mp3tag)
+
+#### 📈 Home Trends: Uncapped Scrolling Catalog (No 4/5 Track Truncation)
+- **Removed Hardcoded Slices & Limits:** Eliminated hardcoded `[:5]` slices and restrictive `limit=5` params across the trends engine (`spotify_trends.py` and `home_view.py`).
+- **Catalog Enrichment Across All 18 Categories:** Expanded all Spotify, SoundCloud, and Beatport categories with 20+ authentic curated tracks featuring metadata, BPM, Camelot keys, and high-res cover art URLs.
+- **Asynchronous Thumbnail Loading with Bounded Concurrency (`QSemaphore`):** Implemented 6-worker concurrency control in `AsyncThumbnailLoader` with in-memory pixmap caching (`_cache`), guaranteeing fluid 60 FPS scrolling and eliminating stutter during extensive catalog browsing.
+
+#### 🎛️ Clean Library Header & Elastic Control Expansion
+- **Removed Smart Crates Controls from Filter Bar:** Removed the crates combobox, *"Save Crate"*, and *"Export M3U8"* buttons from the top-right corner of the DJ Library (`live_filters.py`). Smart Crates are now managed exclusively in the dedicated embedded workspace.
+- **Elastic Space Reallocation:** Expanded search bar ($3\times$ stretch factor), Target BPM (`85px`), Tolerance (`72px`), BPM Min/Max (`75px`), Camelot Key (`140px`), harmonic wheel button (`70px`), Decade selector (`160px`), Audio Quality (`170px`), and quick tag pill buttons (`55-95px`), completely eliminating truncated labels.
+- **Direct Sidebar Crate Routing:** Clicking a crate item in the left sidebar tree navigates directly to the embedded Smart Crates workspace view (`select_crate_by_name`).
+
+#### 🗂️ Clean Drive Filesystem Explorer (Logical Drive Root)
+- **System Logical Root:** Set `QFileSystemModel` root to the system logical root (`""` on Windows, `/Volumes` on macOS) with all drives collapsed on startup (`collapseAll()`).
+- **Clean Drive Letters Display:** The sidebar explorer displays only top-level physical drive letters (`C:\`, `D:\`, `E:\`) cleanly collapsed at launch, avoiding messy auto-expanded directories.
+
+#### 🏷️ Mp3tag Workspace: Bulk Pattern Tagging (`BulkPatternTagDialog`) & Keyboard Shortcut
+- **Advanced Bulk Pattern Tagging Dialog:** Implemented `BulkPatternTagDialog` accessible via keyboard shortcuts (`Ctrl + Shift + P` and `Alt + F`) or the left sidebar button.
+- **Flexible Pattern Masks & Tokens:** Full support for customizable masks (e.g., `[%title%] - [%artist%]`, `[%artist%] - [%title%]`, `[%track%]. [%title%]`) with one-click insertion buttons for `[%title%]`, `[%artist%]`, `[%album%]`, `[%year%]`, `[%genre%]`, `[%track%]`.
+- **Live Before ➔ After Preview Table:** Real-time visual comparison with cyan/green diff highlighting and modification counter before applying changes.
+- **Direct Mutagen Disk Persistence & DB Sync:** Writes metadata directly to physical audio files via Mutagen (`AudioTagEditor.write_metadata`) and synchronizes SQLite database and editor grid in real time.
+- **Cleaned Toolbar:** Removed redundant case conversion buttons from the toolbar and left panel for a cleaner, focused workspace.
+
+---
+
 ## [1.4.0] - 2026-10-04
 
 ### 🚀 Visual Hardware Monitor (Dynamic Progress Bars), Advanced Mp3tag Toolset (Auto-Numbering & Live Patterns), Unified Dynamic Genre ComboBox & Fallback "Vario"

@@ -12,16 +12,16 @@ graph TD
     UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode] --> Navbar[Clean Top Navbar<br/>Analysis Home / Library / Tag Editor / Smart Crates / Similars / Organize / Settings]
     
     Navbar --> Stack[QStackedWidget 6 Embedded Workspaces]
-    Stack --> AnalysisHome[Index 0: Analysis / Home View<br/>Spotify/SoundCloud/Beatport Trends & Quality Diagnostics]
-    Stack --> DJLibrary[Index 1: DJ Library View<br/>RAM-Cached Table, 2-Row Filters & Drive Tree Explorer]
-    Stack --> Mp3tag[Index 2: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Live Pattern Engine]
+    Stack --> AnalysisHome[Index 0: Analysis / Home View<br/>Full-Scroll Trends & Async Semaphore Loader]
+    Stack --> DJLibrary[Index 1: DJ Library View<br/>RAM-Cached Table, Expanded Filter Bar & Clean Drive Explorer]
+    Stack --> Mp3tag[Index 2: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Bulk Pattern Tagging Dialog]
     Stack --> CratesBench[Index 3: Dedicated Smart Crates Workbench<br/>Interactive Rule Guide & Extended M3U8 Export]
     Stack --> Similars[Index 4: Similar Tracks Workspace<br/>Cosine Similarity Engine & Web Discovery]
     Stack --> Organize[Index 5: Embedded File Organizer<br/>Physical File Dispatcher & Collision Safety]
     Navbar --> Settings[Modular Settings Dialog]
 
-    DJLibrary --> DriveExplorer[Collapsible Drive & Folder Tree Explorer]
-    DJLibrary --> FilterBar[Live DJ 2-Row Filter Bar <15ms]
+    DJLibrary --> DriveExplorer[Clean Drive Root & Collapsed Explorer]
+    DJLibrary --> FilterBar[Live DJ Expanded 2-Row Filter Bar <15ms]
     FilterBar --> FilterEngine[LiveFilterEngine + In-Memory RAM Index]
     FilterEngine --> SearchFactory[Unified Search Engine Factory]
 
@@ -74,8 +74,16 @@ graph TD
     - **Index 4:** Trova Simili (`SimilarTracksView`)
     - **Index 5:** Organizza File (`OrganizerView` incorporato in-app)
   - Switching between views via top navbar is instantaneous (`view_stack.setCurrentIndex(...)`) while completely retaining active selections and playback state.
+- **Full-Scrolling Trends & Async Semaphore (`HomeTrendsView` & `TrendingTrackCard`):**
+  - Uncapped catalog scrolling (no arbitrary 4/5 track limit slices; loaded up to 100 tracks per category across Spotify, SoundCloud, Beatport).
+  - Synchronous in-memory pixmap cache verification prevents duplicate background work.
+  - Asynchronous thumbnail loading constrained by `QSemaphore(6)` prevents thread pool congestion and guarantees fluid 60 FPS scrolling.
 - **Collapsible Drive & Folder Tree Explorer (`DriveExplorerWidget`):**
-  - Built-in left sidebar within the Library view utilizing `QFileSystemModel` to provide quick drive navigation and 1-click folder-scoped library filtering.
+  - Configured with clean logical root (`""` on Windows, `"/Volumes"` on macOS) and initial `collapseAll()`.
+  - Displays exclusively top-level physical drive letters (`C:\`, `D:\`) at startup, avoiding cluttered directory dumps.
+- **Expanded Live 2-Row Filter Bar (`LiveFilterBar`):**
+  - Smart Crates controls removed from the library filter bar and consolidated exclusively inside Workspace Index 3 (`SmartCratesView`).
+  - Search bar expanded ($3\times$ stretch), Target BPM, Tolerance, Min/Max, Camelot Key, Decade, Audio Quality, and Quick Tag pill buttons widened for maximum legibility.
 - **Visual Hardware Progress Bars in Status Bar (`HardwareProgressBar`):**
   - Compact horizontal bars in the status bar for CPU and RAM utilization.
   - Three-tier dynamic color thresholding:
@@ -84,9 +92,9 @@ graph TD
     - **Red (`#DC3545`):** 85% – 100% (High stress/saturation).
   - Centered text display (`CPU XX%`, `RAM X.X / YY GB`) updated asynchronously every 1.5 seconds via `HardwareMonitor`.
 - **Advanced Mp3tag Workbench (`src/gui/mp3tag_workspace.py` & `src/tags/patterns.py`):**
+  - **Bulk Pattern Tagging (`BulkPatternTagDialog`):** Full Mp3tag-style pattern parsing (`[%title%] - [%artist%]`, `[%artist%] - [%title%]`, `[%track%]. [%title%]`, custom tokens), preset dropdown, live before/after diff table (`#00e5ff` / `#10b981`), Mutagen disk write and database synchronization. Triggered via sidebar button, menu action, or shortcuts `Ctrl + Shift + P` / `Alt + F`.
   - **Track Numbering Wizard (`TrackNumberingWizardDialog`):** Sequential track numbering with offset, leading zero padding (`01, 02...`), total track count suffix (`01/12`), folder/album reset, and live tabular preview.
   - **Live Bidirectional Pattern Converters (`FilenameToTagDialog` & `TagToFilenameDialog`):** Real-time pattern preview table with advanced token support including `$num(%track%,2)`.
-  - **1-Click Case Transformation:** Title Case, UPPERCASE, and lowercase one-click actions.
 - **Dynamic Unified Genre ComboBox & "Vario" Fallback:**
   - Single editable `QComboBox` with auto-completion, alphabetically ordered from the SQLite catalog.
   - Tracks lacking genre tags are automatically labeled and grouped under `"Vario"` in the table and filter queries.

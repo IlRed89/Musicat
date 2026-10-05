@@ -536,6 +536,15 @@ class SmartCratesView(QWidget):
             match = q in item.text().lower()
             item.setHidden(not match)
 
+    def select_crate_by_name(self, name: str) -> None:
+        """Selects a crate by its display name or ID."""
+        for i in range(self.list_crates.count()):
+            item = self.list_crates.item(i)
+            c_data = item.data(Qt.ItemDataRole.UserRole)
+            if c_data and (c_data.get("name") == name or c_data.get("id") == name):
+                self.list_crates.setCurrentRow(i)
+                break
+
     def _on_crate_selected(self, row: int) -> None:
         if row < 0 or row >= self.list_crates.count():
             return

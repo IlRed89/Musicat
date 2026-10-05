@@ -541,6 +541,235 @@ class TagToFilenameDialog(QDialog):
             self.tbl_preview.setItem(r, 2, item_status)
 
 
+class BulkPatternTagDialog(QDialog):
+    """
+    Advanced Mp3tag-style Bulk Pattern Tagging dialog.
+    Allows extracting and setting tags across multiple tracks using custom mask patterns
+    (e.g., '[%title%] - [%artist%]', '[%artist%] - [%title%]', '[%track%]. [%title%]').
+    Supports placeholders: [%title%], [%artist%], [%album%], [%year%], [%genre%], [%track%].
+    Includes a live Before/After comparison table with colored diff highlighting
+    before writing metadata to disk via Mutagen.
+    """
+
+    PRESETS = [
+        "[%artist%] - [%title%]",
+        "[%title%] - [%artist%]",
+        "[%track%]. [%title%]",
+        "[%track%] - [%title%]",
+        "[%track%] - [%artist%] - [%title%]",
+        "[%artist%] - [%album%] - [%track%] - [%title%]",
+        "[%artist%] - [%title%] ([%year%])",
+        "[%artist%] - [%title%] - [%genre%]",
+    ]
+
+    TOKENS = [
+        ("[%title%]", "Titolo"),
+        ("[%artist%]", "Artista"),
+        ("[%album%]", "Album"),
+        ("[%year%]", "Anno"),
+        ("[%genre%]", "Genere"),
+        ("[%track%]", "Traccia"),
+    ]
+
+    def __init__(self, tracks: List[Dict[str, Any]], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Tag da Maschera / Pattern (Mp3tag Style)")
+        self.resize(920, 600)
+        self.setMinimumSize(740, 460)
+        self.tracks = tracks
+        self._computed_changes: Dict[str, Dict[str, Any]] = {}
+
+        self._init_ui()
+        self._update_preview()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+
+        top_box = QVBoxLayout()
+        top_box.setSpacing(6)
+        top_box.addWidget(QLabel("<b>Maschera di formato (Pattern):</b>"))
+
+        h_input = QHBoxLayout()
+        self.txt_pattern = QLineEdit()
+        self.txt_pattern.setText("[%artist%] - [%title%]")
+        self.txt_pattern.setPlaceholderText("Es. [%artist%] - [%title%] oppure [%track%]. [%title%]")
+        self.txt_pattern.textChanged.connect(self._update_preview)
+        h_input.addWidget(self.txt_pattern, 1)
+
+        self.cmb_presets = QComboBox()
+        self.cmb_presets.addItem("Preset predefiniti...", "")
+        for p in self.PRESETS:
+            self.cmb_presets.addItem(p, p)
+        self.cmb_presets.currentIndexChanged.connect(self._on_preset_selected)
+        h_input.addWidget(self.cmb_presets)
+        top_box.addLayout(h_input)
+
+        h_tokens = QHBoxLayout()
+        h_tokens.setSpacing(6)
+        h_tokens.addWidget(QLabel("Segnaposto rapidi:"))
+        for tok, tip in self.TOKENS:
+            btn = QPushButton(tok)
+            btn.setToolTip(f"Inserisci {tok} ({tip})")
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #212529;
+                    color: #00d2ff;
+                    border: 1px solid #363c54;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #00d2ff;
+                    color: #000000;
+                }
+            """)
+            btn.clicked.connect(lambda _, t=tok: self._insert_token(t))
+            h_tokens.addWidget(btn)
+        h_tokens.addStretch()
+        top_box.addLayout(h_tokens)
+
+        layout.addLayout(top_box)
+
+        layout.addWidget(QLabel("<b>Anteprima Live: Prima ➔ Dopo (Preview):</b>"))
+        self.tbl_preview = QTableWidget()
+        self.tbl_preview.setColumnCount(8)
+        self.tbl_preview.setHorizontalHeaderLabels([
+            "Nome File",
+            "Titolo (Attuale ➔ Nuovo)",
+            "Artista (Attuale ➔ Nuovo)",
+            "Album (Attuale ➔ Nuovo)",
+            "Traccia (Attuale ➔ Nuova)",
+            "Anno (Attuale ➔ Nuovo)",
+            "Genere (Attuale ➔ Nuovo)",
+            "Stato",
+        ])
+        self.tbl_preview.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tbl_preview.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_preview.horizontalHeader().setStretchLastSection(True)
+        self.tbl_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        layout.addWidget(self.tbl_preview, 1)
+
+        self.lbl_summary = QLabel()
+        self.lbl_summary.setStyleSheet("color: #6c757d; font-size: 11px;")
+        layout.addWidget(self.lbl_summary)
+
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        self.btn_apply = QPushButton("💾 Salva Metadati su Disco (Mutagen)")
+        self.btn_apply.setStyleSheet("background-color: #0077b6; color: white; font-weight: bold; padding: 7px 18px; border-radius: 4px;")
+        self.btn_apply.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Annulla")
+        btn_cancel.clicked.connect(self.reject)
+        btn_box.addWidget(btn_cancel)
+        btn_box.addWidget(self.btn_apply)
+        layout.addLayout(btn_box)
+
+    def _insert_token(self, token: str) -> None:
+        self.txt_pattern.insert(token)
+        self.txt_pattern.setFocus()
+
+    def _on_preset_selected(self, idx: int) -> None:
+        val = self.cmb_presets.itemData(idx)
+        if val:
+            self.txt_pattern.setText(val)
+
+    def get_pattern(self) -> str:
+        return self.txt_pattern.text().strip()
+
+    def get_changes(self) -> Dict[str, Dict[str, Any]]:
+        return self._computed_changes
+
+    def _update_preview(self) -> None:
+        pattern = self.txt_pattern.text().strip()
+        self._computed_changes.clear()
+        self.tbl_preview.setRowCount(len(self.tracks))
+
+        matched_count = 0
+        changed_count = 0
+
+        target_fields = [
+            ("title", 1),
+            ("artist", 2),
+            ("album", 3),
+            ("track_num", 4),
+            ("year", 5),
+            ("genre", 6),
+        ]
+
+        for r, tr in enumerate(self.tracks):
+            fp = tr.get("filepath", "")
+            fn = tr.get("filename") or Path(fp).name
+            self.tbl_preview.setItem(r, 0, QTableWidgetItem(fn))
+
+            extracted = None
+            if pattern:
+                extracted = PatternEngine.parse_filename_to_tags(fn, pattern)
+                if extracted is None and "[%" in pattern:
+                    norm_pattern = re.sub(r"\[%([a-zA-Z0-9_\s]+)%\]", r"%\1%", pattern)
+                    extracted = PatternEngine.parse_filename_to_tags(fn, norm_pattern)
+            row_changes: Dict[str, Any] = {}
+
+            if extracted is not None:
+                matched_count += 1
+                for f_key, col_idx in target_fields:
+                    curr_val = tr.get(f_key)
+                    curr_str = str(curr_val) if curr_val is not None else ""
+
+                    if f_key in extracted and extracted[f_key] is not None:
+                        new_val = extracted[f_key]
+                        new_str = str(new_val)
+
+                        if new_str != curr_str:
+                            display_text = f"{curr_str or '—'} ➔ {new_str}"
+                            item = QTableWidgetItem(display_text)
+                            item.setForeground(QColor("#00e5ff"))
+                            item.setFont(QFont("", -1, QFont.Weight.Bold))
+                            self.tbl_preview.setItem(r, col_idx, item)
+                            row_changes[f_key] = new_val
+                        else:
+                            item = QTableWidgetItem(curr_str)
+                            item.setForeground(QColor("#6c757d"))
+                            self.tbl_preview.setItem(r, col_idx, item)
+                    else:
+                        item = QTableWidgetItem(curr_str)
+                        item.setForeground(QColor("#6c757d"))
+                        self.tbl_preview.setItem(r, col_idx, item)
+
+                if row_changes:
+                    changed_count += 1
+                    self._computed_changes[fp] = row_changes
+                    item_st = QTableWidgetItem(f"✓ {len(row_changes)} campo/i modificato/i")
+                    item_st.setForeground(QColor("#10b981"))
+                    item_st.setFont(QFont("", -1, QFont.Weight.Bold))
+                    self.tbl_preview.setItem(r, 7, item_st)
+                else:
+                    item_st = QTableWidgetItem("✓ Identico (Nessuna modifica)")
+                    item_st.setForeground(QColor("#6c757d"))
+                    self.tbl_preview.setItem(r, 7, item_st)
+
+            else:
+                for f_key, col_idx in target_fields:
+                    curr_val = tr.get(f_key)
+                    curr_str = str(curr_val) if curr_val is not None else ""
+                    item = QTableWidgetItem(curr_str)
+                    item.setForeground(QColor("#6c757d"))
+                    self.tbl_preview.setItem(r, col_idx, item)
+
+                item_st = QTableWidgetItem("— Nessun match")
+                item_st.setForeground(QColor("#f59e0b"))
+                self.tbl_preview.setItem(r, 7, item_st)
+
+        self.lbl_summary.setText(
+            f"Tracce selezionate: <b>{len(self.tracks)}</b> | "
+            f"Corrispondenze pattern: <b>{matched_count}</b> | "
+            f"Tracce con modifiche pronte al salvataggio: <b style='color: #10b981;'>{changed_count}</b>"
+        )
+
+
 class Mp3tagWorkspaceWindow(QMainWindow):
     """Full-featured Mp3tag-grade Tagging Workbench for Musicat."""
 
@@ -619,6 +848,10 @@ class Mp3tagWorkspaceWindow(QMainWindow):
 
         # 2. Convert Menu (Mp3tag Core)
         menu_conv = menubar.addMenu("&Convertitore")
+        act_bulk_pattern = menu_conv.addAction("🏷️ Tag da Pattern (Maschera)...")
+        act_bulk_pattern.setShortcuts([QKeySequence("Ctrl+Shift+P"), QKeySequence("Alt+F")])
+        act_bulk_pattern.triggered.connect(self._on_bulk_pattern_tagging)
+
         act_fn_tag = menu_conv.addAction("📝 Nome file ➔ Tag...")
         act_fn_tag.setShortcut(QKeySequence("Alt+1"))
         act_fn_tag.triggered.connect(self._on_conv_filename_to_tag)
@@ -665,16 +898,13 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         toolbar.setMovable(False)
         toolbar.addAction(act_save)
         toolbar.addSeparator()
+        toolbar.addAction(act_bulk_pattern)
         toolbar.addAction(act_fn_tag)
         toolbar.addAction(act_tag_fn)
         toolbar.addAction(act_tag_tag)
         toolbar.addAction(act_csv_tag)
         toolbar.addSeparator()
         toolbar.addAction(act_wizard)
-        toolbar.addSeparator()
-        toolbar.addAction(act_case_title)
-        toolbar.addAction(act_case_upper)
-        toolbar.addAction(act_case_lower)
         toolbar.addSeparator()
         toolbar.addAction(act_strip_promo)
         toolbar.addAction(act_pad_tracks)
@@ -780,23 +1010,11 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         btn_renum.clicked.connect(self._on_wizard_track_numbering)
         quick_layout.addWidget(btn_renum)
 
-        h_case = QHBoxLayout()
-        btn_case_title = QPushButton("🔤 Title Case")
-        btn_case_title.setToolTip("Maiuscole Iniziali (Formato Titolo)")
-        btn_case_title.clicked.connect(lambda: self._apply_case_action("title"))
-
-        btn_case_upper = QPushButton("🔠 UPPER")
-        btn_case_upper.setToolTip("TUTTO MAIUSCOLO")
-        btn_case_upper.clicked.connect(lambda: self._apply_case_action("upper"))
-
-        btn_case_lower = QPushButton("🔡 lower")
-        btn_case_lower.setToolTip("tutto minuscolo")
-        btn_case_lower.clicked.connect(lambda: self._apply_case_action("lower"))
-
-        h_case.addWidget(btn_case_title)
-        h_case.addWidget(btn_case_upper)
-        h_case.addWidget(btn_case_lower)
-        quick_layout.addLayout(h_case)
+        btn_bulk_pattern = QPushButton("🏷️ Tag da Pattern (Ctrl+Shift+P)...")
+        btn_bulk_pattern.setToolTip("Editor Massivo Tag da Maschera / Pattern (Ctrl+Shift+P / Alt+F)")
+        btn_bulk_pattern.setStyleSheet("background-color: #0d6efd; color: #ffffff; font-weight: bold; padding: 6px; border-radius: 4px;")
+        btn_bulk_pattern.clicked.connect(self._on_bulk_pattern_tagging)
+        quick_layout.addWidget(btn_bulk_pattern)
 
         left_layout.addWidget(grp_quick)
 
@@ -1063,6 +1281,70 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self.grid.blockSignals(False)
         self._on_grid_selection_changed()
         QMessageBox.information(self, "Completato", f"Rinumerate {len(selected)} tracce.")
+
+    def _on_bulk_pattern_tagging(self) -> None:
+        """Mp3tag Bulk Pattern Tagging with live preview and direct Mutagen disk write."""
+        selected = self._get_selected_tracks_data()
+        if not selected:
+            selected = list(enumerate(self.tracks))
+
+        if not selected:
+            QMessageBox.information(self, "Nessuna traccia", "Nessuna traccia caricata nel workspace.")
+            return
+
+        tracks_subset = [tr for _, tr in selected]
+        dlg = BulkPatternTagDialog(tracks_subset, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        changes_by_fp = dlg.get_changes()
+        if not changes_by_fp:
+            QMessageBox.information(self, "Nessuna modifica", "Nessun metadato modificato rispetto ai file correnti.")
+            return
+
+        self.grid.blockSignals(True)
+        saved_count = 0
+
+        for row_idx, tr in selected:
+            fp = tr.get("filepath", "")
+            if fp in changes_by_fp:
+                updates = changes_by_fp[fp]
+                for k, v in updates.items():
+                    tr[k] = v
+
+                # 1. Direct Mutagen write to disk
+                try:
+                    AudioTagEditor.write_metadata(fp, updates)
+                except Exception as exc:
+                    MusicatLogger.warning("BULK_PATTERN", f"Errore scrittura tag per {fp}: {exc}")
+
+                # 2. Synchronize with SQLite database
+                try:
+                    self.db.update_track_tags(fp, updates)
+                    saved_count += 1
+                except Exception as exc:
+                    MusicatLogger.warning("BULK_PATTERN", f"Errore update DB per {fp}: {exc}")
+
+                # 3. Update workspace grid cells
+                for col_idx, (col_id, _) in enumerate(self.COLUMNS):
+                    if col_id in updates:
+                        item = self.grid.item(row_idx, col_idx)
+                        if item:
+                            item.setText(str(updates[col_id] if updates[col_id] is not None else ""))
+                            item.setForeground(QColor("#10b981"))
+
+                # Clear from dirty_files since already saved to disk
+                self.dirty_files.discard(fp)
+
+        self.grid.blockSignals(False)
+        self._on_grid_selection_changed()
+        self.tags_updated.emit()
+        self.statusBar().showMessage(f"💾 Salvati su disco con successo {saved_count} file.", 5000)
+        QMessageBox.information(
+            self,
+            "Operazione Completata",
+            f"Salvati su disco e aggiornati nel database con successo i metadati di {saved_count} file."
+        )
 
     def _on_conv_filename_to_tag(self, pattern: Optional[str] = None) -> None:
         """Mp3tag Converter 1: Filename -> Tag with interactive live preview."""

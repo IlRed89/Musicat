@@ -7,6 +7,7 @@ reconciliation, and libVLC mini-player.
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
@@ -319,16 +320,18 @@ class MainWindow(QMainWindow):
         sb_header.addWidget(self.btn_collapse_sidebar)
         sb_layout.addLayout(sb_header)
 
+        logical_root = "/Volumes" if sys.platform == "darwin" else ""
         self.folder_model = QFileSystemModel(self)
-        self.folder_model.setRootPath(QDir.rootPath())
+        self.folder_model.setRootPath(logical_root)
         self.folder_model.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot | QDir.Filter.Drives)
 
         self.folder_tree = QTreeView(self.sidebar_widget)
         self.folder_tree.setModel(self.folder_model)
-        self.folder_tree.setRootIndex(self.folder_model.index(QDir.rootPath()))
+        self.folder_tree.setRootIndex(self.folder_model.index(logical_root))
         self.folder_tree.setHeaderHidden(True)
         for col in range(1, 4):
             self.folder_tree.setColumnHidden(col, True)
+        self.folder_tree.collapseAll()
         self.folder_tree.clicked.connect(self._on_folder_tree_clicked)
         sb_layout.addWidget(self.folder_tree, 1)
 
@@ -988,11 +991,9 @@ class MainWindow(QMainWindow):
                     return
                 self.filter_bar.genre_widget.set_genres([val])
             elif itype == "crate" and val:
-                idx = self.filter_bar.cmb_crates.findData(val)
-                if idx < 0:
-                    idx = self.filter_bar.cmb_crates.findText(val)
-                if idx >= 0:
-                    self.filter_bar.cmb_crates.setCurrentIndex(idx)
+                self._on_nav_btn_clicked(3)
+                if hasattr(self, "crates_view"):
+                    self.crates_view.select_crate_by_name(val)
             elif itype == "camelot" and val:
                 idx = self.filter_bar.cmb_camelot.findData(val)
                 if idx >= 0:

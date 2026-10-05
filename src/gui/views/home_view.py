@@ -21,7 +21,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QPoint, QRect, QSemaphore, QSize, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -75,10 +75,11 @@ CATEGORY_TO_GENRE: Dict[str, str] = {
 
 
 class AsyncThumbnailLoader(QThread):
-    """Asynchronously loads cover art thumbnails with in-memory caching and thread-safe cancellation."""
+    """Asynchronously loads cover art thumbnails with in-memory caching and bounded thread concurrency."""
 
     loaded = Signal(str, QPixmap)  # url, pixmap
     _cache: Dict[str, QPixmap] = {}
+    _semaphore = QSemaphore(6)
 
     def __init__(self, url: str) -> None:
         super().__init__()
@@ -92,22 +93,28 @@ class AsyncThumbnailLoader(QThread):
                 self.loaded.emit(self.url, self._cache[self.url])
             return
 
-        pix = QPixmap()
+        self._semaphore.acquire()
         try:
-            if self.url.startswith("http://") or self.url.startswith("https://"):
-                resp = requests.get(self.url, timeout=3.5)
-                if self.isInterruptionRequested():
-                    return
-                if resp.status_code == 200:
-                    pix.loadFromData(resp.content)
-            elif os.path.exists(self.url):
-                pix.load(self.url)
-        except Exception:
-            pass
+            if self.isInterruptionRequested():
+                return
+            pix = QPixmap()
+            try:
+                if self.url.startswith("http://") or self.url.startswith("https://"):
+                    resp = requests.get(self.url, timeout=3.5)
+                    if self.isInterruptionRequested():
+                        return
+                    if resp.status_code == 200:
+                        pix.loadFromData(resp.content)
+                elif os.path.exists(self.url):
+                    pix.load(self.url)
+            except Exception:
+                pass
 
-        if not pix.isNull() and not self.isInterruptionRequested():
-            self._cache[self.url] = pix
-            self.loaded.emit(self.url, pix)
+            if not pix.isNull() and not self.isInterruptionRequested():
+                self._cache[self.url] = pix
+                self.loaded.emit(self.url, pix)
+        finally:
+            self._semaphore.release()
 
 
 class TrendsFetchWorker(QThread):
@@ -167,9 +174,13 @@ class TrendingTrackCard(QFrame):
         self.update_theme(self.theme_id)
 
         if self.track.cover_url:
-            self._thumb_loader = AsyncThumbnailLoader(self.track.cover_url)
-            self._thumb_loader.loaded.connect(self._on_thumbnail_loaded)
-            self._thumb_loader.start()
+            cached_pix = AsyncThumbnailLoader._cache.get(self.track.cover_url)
+            if cached_pix and not cached_pix.isNull():
+                self._on_thumbnail_loaded(self.track.cover_url, cached_pix)
+            else:
+                self._thumb_loader = AsyncThumbnailLoader(self.track.cover_url)
+                self._thumb_loader.loaded.connect(self._on_thumbnail_loaded)
+                self._thumb_loader.start()
 
     def cleanup(self) -> None:
         """Safely stops the thumbnail loader thread before widget deletion to prevent C++ crashes."""
