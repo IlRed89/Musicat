@@ -146,11 +146,13 @@ class BackgroundScanWorker(QThread):
         self.scanner.cancel()
 
 
-class BackgroundAnalysisWorker(QThread):
-    """Background worker thread for bulk acoustic analysis (BPM & Camelot Key)."""
+class AsyncAnalysisWorker(QThread):
+    """Background worker thread for bulk acoustic analysis (BPM & Camelot Key) and physical tag persistence."""
 
     progress = Signal(int, int, str)
-    finished = Signal(int)
+    track_completed = Signal(dict)
+    finished = Signal(int, list)
+    cancelled = Signal()
 
     def __init__(self, tracks: List[Dict[str, Any]], db: Database) -> None:
         super().__init__()
@@ -158,35 +160,78 @@ class BackgroundAnalysisWorker(QThread):
         self.db = db
         self._is_cancelled = False
 
+    def cancel(self) -> None:
+        self._is_cancelled = True
+
     def run(self) -> None:
         total = len(self.tracks)
-        success = 0
+        success_count = 0
+        updated_tracks: List[Dict[str, Any]] = []
+
+        from ..audio.analyzer import AcousticAnalyzer
         from ..tags.editor import AudioTagEditor
+        from ..core.logger import MusicatLogger
 
         for idx, tr in enumerate(self.tracks):
             if self._is_cancelled:
-                break
+                self.cancelled.emit()
+                return
+
             fp = tr.get("filepath", "")
-            self.progress.emit(idx + 1, total, Path(fp).name)
+            filename = Path(fp).name
+            self.progress.emit(idx + 1, total, filename)
+
             try:
+                # 1. Acoustic extraction (BPM, Key, Camelot)
                 profile = AcousticAnalyzer.analyze_file(fp)
-                updates = {
+                updates: Dict[str, Any] = {
                     "bpm": profile.bpm,
                     "musical_key": profile.musical_key,
                     "camelot_key": profile.camelot_key,
+                    "initial_key": profile.camelot_key,
                 }
-                # Write to physical tags
+
+                # 2. Clean separation: If Artist is empty and Title or stem contains " - ", split cleanly
+                cur_title = tr.get("title") or Path(fp).stem
+                cur_artist = tr.get("artist") or ""
+
+                if not cur_artist or cur_artist.strip() == "" or cur_artist.lower() in ("various", "unknown"):
+                    if " - " in cur_title:
+                        parts = cur_title.split(" - ", 1)
+                        clean_artist = parts[0].strip()
+                        clean_title = parts[1].strip()
+                        if clean_artist and clean_title:
+                            updates["artist"] = clean_artist
+                            updates["title"] = clean_title
+                    else:
+                        stem = Path(fp).stem
+                        if " - " in stem:
+                            parts = stem.split(" - ", 1)
+                            clean_artist = parts[0].strip()
+                            clean_title = parts[1].strip()
+                            if clean_artist and clean_title:
+                                updates["artist"] = clean_artist
+                                updates["title"] = clean_title
+
+                # 3. Write physical tags with Mutagen
                 AudioTagEditor.write_metadata(fp, updates)
-                # Write to SQLite
+
+                # 4. Write to SQLite database
                 self.db.update_track_tags(fp, updates)
-                success += 1
-            except Exception:
-                pass
 
-        self.finished.emit(success)
+                full_updated = dict(tr)
+                full_updated.update(updates)
+                updated_tracks.append(full_updated)
+                self.track_completed.emit(full_updated)
+                success_count += 1
+            except Exception as exc:
+                MusicatLogger.warning("ASYNC_ANALYSIS", f"Error analyzing '{filename}': {exc}")
 
-    def cancel(self) -> None:
-        self._is_cancelled = True
+        self.finished.emit(success_count, updated_tracks)
+
+
+# Backwards compatibility alias
+BackgroundAnalysisWorker = AsyncAnalysisWorker
 
 
 class MainWindow(QMainWindow):
@@ -204,6 +249,7 @@ class MainWindow(QMainWindow):
         self.all_tracks: List[Dict[str, Any]] = []
         self._mp3tag_window: Optional[Mp3tagWorkspaceWindow] = None
         self._custom_columns_active: bool = False
+        self.analysis_worker: Optional[AsyncAnalysisWorker] = None
 
         self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
         self.resize(1300, 820)
@@ -285,6 +331,7 @@ class MainWindow(QMainWindow):
         self.filter_bar = LiveFilterBar(self.db, self)
         self.filter_bar.filter_changed.connect(self._on_live_filter_changed)
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
+        self.filter_bar.analyze_requested.connect(self._on_toolbar_analyze_clicked)
         lib_layout.addWidget(self.filter_bar)
 
         # Horizontal Splitter: Left Sidebar (Tree) and Right Table
@@ -426,6 +473,25 @@ class MainWindow(QMainWindow):
         self.progress_bar.setMaximumWidth(200)
         self.status_bar.addPermanentWidget(self.progress_bar)
 
+        self.btn_cancel_task = QPushButton(_t("btn_cancel_task", "✕ Annulla"))
+        self.btn_cancel_task.setVisible(False)
+        self.btn_cancel_task.setToolTip("Interrompi elaborazione in corso")
+        self.btn_cancel_task.setStyleSheet("""
+            QPushButton {
+                background-color: #dc2626;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #b91c1c;
+            }
+        """)
+        self.btn_cancel_task.clicked.connect(self._on_cancel_current_task)
+        self.status_bar.addPermanentWidget(self.btn_cancel_task)
+
         self.hw_container = QWidget(self)
         hw_layout = QHBoxLayout(self.hw_container)
         hw_layout.setContentsMargins(0, 0, 4, 0)
@@ -550,6 +616,8 @@ class MainWindow(QMainWindow):
 
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(True)
         self.status_bar.showMessage(f"Scansione automatica: {folder_path}...")
 
         self.scan_worker = BackgroundScanWorker(folder_path, self.db)
@@ -560,6 +628,8 @@ class MainWindow(QMainWindow):
     def _on_auto_scan_finished(self, result: Dict[str, Any], folder_path: str) -> None:
         """Handles completion of automatic folder indexing."""
         self.progress_bar.setVisible(False)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(False)
         self._refresh_library()
         self.filter_bar.set_folder_filter(folder_path)
         self.status_bar.showMessage(
@@ -899,6 +969,8 @@ class MainWindow(QMainWindow):
 
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(True)
         self.status_bar.showMessage(f"Scanning {folder}...")
 
         self.scan_worker = BackgroundScanWorker(folder, self.db)
@@ -914,6 +986,8 @@ class MainWindow(QMainWindow):
 
     def _on_scan_finished(self, result: Dict[str, Any]) -> None:
         self.progress_bar.setVisible(False)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(False)
         self._refresh_library()
         QMessageBox.information(
             self,
@@ -949,28 +1023,129 @@ class MainWindow(QMainWindow):
     def _on_open_reconciler(self) -> None:
         selected = self._get_selected_tracks()
         if not selected:
-            QMessageBox.information(self, "Selection", "Please select a track to reconcile.")
+            QMessageBox.information(self, "Selezione", "Seleziona almeno una traccia da revisionare.")
             return
 
-        dlg = ReconcilerDialog(selected[0], self)
-        dlg.metadata_reconciled.connect(lambda updated: [self.db.update_track_tags(updated["filepath"], updated), self._refresh_library()])
+        self._open_reconciler_for_track(selected[0])
+
+    def _open_reconciler_for_track(self, track: Dict[str, Any]) -> None:
+        dlg = ReconcilerDialog(track, self)
+        dlg.metadata_reconciled.connect(
+            lambda updated: [self.db.update_track_tags(updated["filepath"], updated), self._refresh_library()]
+        )
         dlg.exec()
+
+    def _on_cancel_current_task(self) -> None:
+        if self.analysis_worker and self.analysis_worker.isRunning():
+            self.analysis_worker.cancel()
+            self.status_bar.showMessage("Annullamento analisi in corso...")
+        if hasattr(self, "scan_worker") and self.scan_worker and self.scan_worker.isRunning():
+            self.scan_worker.cancel()
+            self.status_bar.showMessage("Annullamento scansione in corso...")
+
+    def _on_toolbar_analyze_clicked(self) -> None:
+        """Dedicated toolbar action to analyze selected tracks or current folder/view."""
+        selected = self._get_selected_tracks()
+        if selected:
+            tracks_to_analyze = selected
+        else:
+            tracks_to_analyze = [t for t in self.table_model._tracks] if self.table_model._tracks else self.all_tracks
+
+        if not tracks_to_analyze:
+            self.status_bar.showMessage(
+                _t("msg_select_track_or_folder", "⚠️ Seleziona almeno una traccia o una cartella da analizzare."),
+                5000,
+            )
+            return
+
+        self._start_async_analysis(tracks_to_analyze)
+
+    def _start_async_analysis(self, tracks: List[Dict[str, Any]]) -> None:
+        """Launches non-blocking background analysis on the given tracks."""
+        if not tracks:
+            return
+
+        if self.analysis_worker and self.analysis_worker.isRunning():
+            QMessageBox.warning(
+                self,
+                "Analisi in Corso",
+                "Un'analisi è già in esecuzione in background. Attendi il completamento o clicca [Annulla].",
+            )
+            return
+
+        total = len(tracks)
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.btn_cancel_task.setVisible(True)
+        self.status_bar.showMessage(f"⚡ Analisi in background avviata per {total} tracce...")
+
+        self.analysis_worker = AsyncAnalysisWorker(tracks, self.db)
+        self.analysis_worker.progress.connect(self._on_analysis_progress)
+        self.analysis_worker.track_completed.connect(self._on_analysis_track_completed)
+        self.analysis_worker.finished.connect(self._on_analysis_finished)
+        self.analysis_worker.cancelled.connect(self._on_analysis_cancelled)
+        self.analysis_worker.start()
+
+    def _on_analysis_progress(self, cur: int, total: int, filename: str) -> None:
+        self.progress_bar.setValue(cur)
+        self.status_bar.showMessage(f"⚡ Analisi in corso ({cur}/{total}): {filename}")
+
+    def _on_analysis_track_completed(self, track_dict: Dict[str, Any]) -> None:
+        fp = track_dict.get("filepath", "")
+        for idx, t in enumerate(self.table_model._tracks):
+            if t.get("filepath") == fp:
+                t.update(track_dict)
+                top_left = self.table_model.index(idx, 0)
+                bottom_right = self.table_model.index(idx, self.table_model.columnCount() - 1)
+                self.table_model.dataChanged.emit(top_left, bottom_right)
+                break
+
+    def _on_analysis_finished(self, success_count: int, updated_tracks: List[Dict[str, Any]]) -> None:
+        self.progress_bar.setVisible(False)
+        self.btn_cancel_task.setVisible(False)
+        self._refresh_library()
+
+        total = len(updated_tracks)
+        if total == 1 and updated_tracks:
+            tr = updated_tracks[0]
+            title = tr.get("title") or Path(tr.get("filepath", "")).name
+            bpm = f"{tr.get('bpm', 0.0):.1f}" if tr.get("bpm") else "-"
+            key = tr.get("camelot_key") or tr.get("musical_key") or "-"
+            self.status_bar.showMessage(f"✅ Analisi completata per '{title}' (BPM: {bpm}, Key: {key})", 7000)
+
+            reply = QMessageBox.question(
+                self,
+                _t("analysis_done_title", "Analisi Completata"),
+                _t(
+                    "analysis_done_review_prompt",
+                    "Analisi completata con successo!\nBPM: {bpm} | Chiave: {key}\nVuoi aprire la revisione online per cercare etichetta, anno e copertina HD?",
+                    bpm=bpm,
+                    key=key,
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._open_reconciler_for_track(tr)
+        else:
+            self.status_bar.showMessage(
+                f"✅ Analisi completata: {success_count}/{total} tracce analizzate e tag salvati con successo.",
+                8000,
+            )
+
+    def _on_analysis_cancelled(self) -> None:
+        self.progress_bar.setVisible(False)
+        self.btn_cancel_task.setVisible(False)
+        self.status_bar.showMessage("Analisi interrotta dall'utente.", 5000)
+        self._refresh_library()
 
     def _on_open_sorter(self) -> None:
         """Switches to integrated File Organizer workspace."""
         self._switch_view(5)
 
     def _on_batch_acoustic_analysis(self) -> None:
-        selected = self._get_selected_tracks()
-        tracks_to_analyze = selected if selected else self.all_tracks
-
-        if not tracks_to_analyze:
-            QMessageBox.information(self, "Libreria Vuota", "Nessuna traccia disponibile da analizzare.")
-            return
-
-        dlg = AcousticAnalysisDialog(tracks_to_analyze, self.db, self)
-        dlg.exec()
-        self._refresh_library()
+        self._on_toolbar_analyze_clicked()
 
     def _on_show_stats(self) -> None:
         stats = self.db.get_library_statistics()

@@ -10,6 +10,36 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.7.0] - 2026-10-05
+
+### ⚡ Pulsante Esplicito di Analisi Toolbar, Worker Asincrono Non Bloccante, Revisione Metadati & Scrittura Fisica con Mutagen
+
+#### ⚡ Tasto Dedicato "Analizza Tracce" nella Toolbar
+- **Pulsante Principale `[⚡ Analizza Selezionate]`:** Aggiunto direttamente nella riga comandi superiore della Libreria DJ con styling accent visibile.
+- **Logica di Analisi Flessibile:** Se l'utente seleziona una o più tracce nella tabella, analizza solo quelle; se nessuna traccia è selezionata ma è aperta una cartella nell'esplora risorse, analizza tutte le tracce caricate; se non c'è nulla, mostra notifica discreta nella barra di stato (`⚠️ Seleziona almeno una traccia o una cartella da analizzare.`).
+- **Eliminazione Obbligo Menu Contestuale:** L'analisi e la riconciliazione non richiedono più l'accesso al tasto destro del mouse.
+
+#### 🔄 Elaborazione Asincrona in Background (`AsyncAnalysisWorker`)
+- **Zero Freeze dell'Interfaccia Grafica:** L'intero processo di calcolo acustico (BPM, Chiave Camelot/Musicale), separazione dei metadati e scrittura dei tag è delegato a un worker `QThread` dedicato. La finestra principale rimane reattiva durante l'elaborazione (riproduzione VLC, scorrimento tabella, navigazione viste).
+- **Feedback Discreto con Annullamento Immediato:** Barra di avanzamento discreta e messaggio traccia per traccia nella barra di stato in basso con pulsante rosso `[✕ Annulla]` per interrompere l'elaborazione in qualsiasi momento.
+- **Aggiornamento Fluido della Tabella:** Emette segnali Qt per aggiornare istantaneamente la riga senza ricaricamenti a scatti o riavvii del modello.
+
+#### 📐 Fix Layout & Responsive del Dialog Metadati (`ReconcilerDialog` & `ScraperDialog`)
+- **Quattro Colonne Chiare ed Elastiche:** `Campo`, `Valore Attuale`, `Valore Rilevato (Online)`, `Valore da Applicare`. Le colonne informative usano `ResizeToContents` mentre il valore da applicare e il riepilogo fonti usano `Stretch`.
+- **Altezza Righe & Padding Generoso:** Aumentata l'altezza riga predefinita a 36px con padding per evitare testi tagliati, etichette sovrapposte o menu a tendina compressi.
+- **Finestra Ridimensionabile con Size Grip:** Dimensione minima impostata a 920x620 px con grip di ridimensionamento libero attivo.
+- **Ricerca Online Asincrona (`ReconcilerSearchWorker`):** Lo scraping simultaneo su Beatport, Discogs, Traxsource, MusicBrainz e Apple Music HD viene eseguito in background, aprendo istantaneamente il dialog senza bloccare il thread principale.
+
+#### 🇮🇹 Localizzazione Completa in Italiano del Dialog Metadati
+- Tutte le etichette, intestazioni e pulsanti sono tradotti in lingua italiana: *"Revisione e Conferma Metadati"*, *"Campo"*, *"Valore Attuale"*, *"Valore Rilevato (Online)"*, *"Valore da Applicare"*, *"Salva Modifiche nei File"*, *"Annulla"*, *"Query di Ricerca"*, *"Avvia Ricerca Online"*.
+
+#### 💾 Persistenza Fisica dei Tag con Mutagen & SQLite
+- **Separazione Netta Artista / Titolo:** Se il titolo o il nome file contiene il pattern `"Artista - Titolo"` e l'artista è vuoto, separa automaticamente i valori assegnando `artist = clean_artist` e `title = clean_title`.
+- **Prevenzione Conflitti File Lock su Windows:** Scrittura dei tag gestita con rilasci espliciti degli handle Mutagen (`del tags/audio`, `gc.collect()`) e gestione automatica con retry su `PermissionError`.
+- **Sincronizzazione Istantanea SQLite:** Scrittura atomica sia nei tag fisici del file che nel database SQLite con aggiornamento immediato della vista.
+
+---
+
 ## [1.6.0] - 2026-10-05
 
 ### 🚀 Riproduzione Streaming Top Charts, Login OAuth nel Browser, Avvio su Libreria & Sincronizzazione Cartelle Filesystem

@@ -10,6 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] - 2026-10-05
+
+### ⚡ Dedicated Toolbar Analysis Button, Non-Blocking Async Background Worker, Reconciler Dialog Fix & Mutagen Physical Persistence
+
+#### ⚡ Dedicated "Analyze Selected" Button in Toolbar
+- **Primary Toolbar Action `[⚡ Analizza Selezionate]`:** Integrated directly in the DJ Library command bar with distinct accent styling.
+- **Smart Target Selection:** If tracks are selected in the table, analyzes only those; if no tracks are selected but a folder is filtered/open, analyzes all tracks in that folder; if neither, displays a discrete status bar notice (`⚠️ Seleziona almeno una traccia o una cartella da analizzare.`).
+- **No Context Menu Requirement:** Eliminates the necessity of navigating through the right-click context menu.
+
+#### 🔄 Non-Blocking Async Background Processing (`AsyncAnalysisWorker`)
+- **Zero GUI Freezing:** Acoustic analysis (BPM, Camelot/Musical Key), pattern tag extraction, and physical tag writing run in a dedicated `QThread`. UI remains completely responsive (VLC playback, scrolling, navigation).
+- **Status Bar Progress & Instant Cancellation:** Real-time track progress and a prominent red `[✕ Annulla]` button allows cancelling the batch at any moment.
+- **Smooth Table Updates:** Emits Qt signals to update row data in-place without jarring full-model reloads.
+
+#### 📐 Reconciler & Scraper Dialog Layout Fix
+- **Four Elastic & Informative Columns:** `Campo` (Field), `Valore Attuale` (Current Value), `Valore Rilevato (Online)` (Found Online), and `Valore da Applicare` (Chosen Value). Informational columns use `ResizeToContents` while choices use `Stretch`.
+- **Generous Row Height & Cell Padding:** Default row height increased to 36px with spacious padding to prevent clipped text or cramped dropdown menus.
+- **Window Resizing with Size Grip:** Minimum size set to 920x620 px with free user resizing and visible size grip.
+- **Asynchronous Scraping Worker (`ReconcilerSearchWorker`):** Background queries to Beatport, Discogs, Traxsource, MusicBrainz, and Apple Music HD prevent dialog freezing.
+
+#### 🇮🇹 Complete Italian Localization for Reconciler Dialog
+- All dialog labels, headers, and actions are localized into Italian: *"Revisione e Conferma Metadati"*, *"Campo"*, *"Valore Attuale"*, *"Valore Rilevato (Online)"*, *"Valore da Applicare"*, *"Salva Modifiche nei File"*, *"Annulla"*, etc.
+
+#### 💾 Physical Tag Persistence with Mutagen & SQLite
+- **Clean Artist / Title Separation:** Automatically splits `"Artist - Title"` patterns when Artist is empty or generic, assigning `artist = clean_artist` and `title = clean_title`.
+- **Windows File Lock Resolution:** Explicitly closes Mutagen file descriptors (`del tags/audio`, `gc.collect()`) with retry backoff on `PermissionError`.
+- **Instant SQLite DB Sync:** Atomic updates in SQLite database and immediate reflection in the table model.
+
+---
+
 ## [1.6.0] - 2026-10-05
 
 ### 🚀 Top Charts Stream Playback, Browser OAuth Login, Default Library Startup & Folder Sync Fix

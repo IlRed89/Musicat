@@ -366,8 +366,11 @@ class AudioTagEditor:
         Updates tags on the given file.
         `tags_to_write` keys can be:
         title, artist, album, album_artist, year, genre, track_num, total_tracks,
-        bpm, musical_key, camelot_key, label, remixer, comment, energy_level
+        bpm, musical_key, camelot_key, initialkey, label, remixer, comment, energy_level
         """
+        import gc
+        import time
+
         path_obj = Path(filepath)
         if not path_obj.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
@@ -377,6 +380,26 @@ class AudioTagEditor:
             os.chmod(str(path_obj), 0o666)
         except Exception:
             pass
+
+        # Clean separation and copy
+        clean_tags = dict(tags_to_write)
+
+        # Check and map initialkey / camelot_key
+        if "initialkey" in clean_tags and "camelot_key" not in clean_tags:
+            clean_tags["camelot_key"] = clean_tags["initialkey"]
+        elif "camelot_key" in clean_tags and "initialkey" not in clean_tags:
+            clean_tags["initialkey"] = clean_tags["camelot_key"]
+
+        # Clean separation: If "Artist - Title" pattern is found in title while artist is empty/generic, cleanly separate them
+        t_val = str(clean_tags.get("title") or "").strip()
+        a_val = str(clean_tags.get("artist") or "").strip()
+        if " - " in t_val and (not a_val or a_val.lower() in ("various", "unknown")):
+            parts = t_val.split(" - ", 1)
+            clean_artist = parts[0].strip()
+            clean_title = parts[1].strip()
+            if clean_artist and clean_title:
+                clean_tags["artist"] = clean_artist
+                clean_tags["title"] = clean_title
 
         from ..core.logger import MusicatLogger
 
@@ -389,19 +412,34 @@ class AudioTagEditor:
 
         ext = path_obj.suffix.lower()
         success = False
+        max_retries = 3
 
-        if ext == ".mp3":
-            success = cls._write_mp3(path_obj, tags_to_write)
-        elif ext == ".flac":
-            success = cls._write_flac(path_obj, tags_to_write)
-        elif ext in (".m4a", ".aac"):
-            success = cls._write_mp4(path_obj, tags_to_write)
-        elif ext == ".wav":
-            success = cls._write_wav(path_obj, tags_to_write)
-        elif ext in (".aif", ".aiff"):
-            success = cls._write_aiff(path_obj, tags_to_write)
-        elif ext == ".ogg":
-            success = cls._write_ogg(path_obj, tags_to_write)
+        for attempt in range(max_retries):
+            try:
+                if ext == ".mp3":
+                    success = cls._write_mp3(path_obj, clean_tags)
+                elif ext == ".flac":
+                    success = cls._write_flac(path_obj, clean_tags)
+                elif ext in (".m4a", ".aac"):
+                    success = cls._write_mp4(path_obj, clean_tags)
+                elif ext == ".wav":
+                    success = cls._write_wav(path_obj, clean_tags)
+                elif ext in (".aif", ".aiff"):
+                    success = cls._write_aiff(path_obj, clean_tags)
+                elif ext == ".ogg":
+                    success = cls._write_ogg(path_obj, clean_tags)
+                break
+            except (PermissionError, OSError) as pe:
+                gc.collect()
+                if attempt < max_retries - 1:
+                    time.sleep(0.15)
+                else:
+                    MusicatLogger.error(f"[TAG:WRITE_LOCK] File locked or permission error on '{path_obj.name}': {pe}")
+            except Exception as exc:
+                MusicatLogger.error(f"[TAG:WRITE_ERROR] Exception writing '{path_obj.name}': {exc}")
+                break
+            finally:
+                gc.collect()
 
         # Post-modification dump and logging
         if success:
@@ -411,7 +449,7 @@ class AudioTagEditor:
                 post_meta = {}
             MusicatLogger.log_tag_edit(
                 str(path_obj),
-                list(tags_to_write.keys()),
+                list(clean_tags.keys()),
                 pre_dump=pre_meta,
                 post_dump=post_meta,
                 success=True,
@@ -419,7 +457,7 @@ class AudioTagEditor:
         else:
             MusicatLogger.log_tag_edit(
                 str(path_obj),
-                list(tags_to_write.keys()),
+                list(clean_tags.keys()),
                 success=False,
                 error="Unsupported format or write handler failure",
             )
@@ -461,9 +499,10 @@ class AudioTagEditor:
             tags.setall("TBPM", [TBPM(encoding=3, text=[f"{bpm_val:.1f}" if isinstance(bpm_val, float) else str(bpm_val)])])
         if "musical_key" in tags_dict:
             tags.setall("TKEY", [TKEY(encoding=3, text=[str(tags_dict["musical_key"])])])
-        if "camelot_key" in tags_dict:
+        if "camelot_key" in tags_dict or "initialkey" in tags_dict:
+            k_val = str(tags_dict.get("camelot_key") or tags_dict.get("initialkey"))
             tags.delall("TXXX:INITIALKEY")
-            tags.add(TXXX(encoding=3, desc="INITIALKEY", text=[str(tags_dict["camelot_key"])]))
+            tags.add(TXXX(encoding=3, desc="INITIALKEY", text=[k_val]))
         if "remixer" in tags_dict:
             tags.setall("TPE4", [TPE4(encoding=3, text=[str(tags_dict["remixer"])])])
         if "label" in tags_dict:
@@ -475,6 +514,7 @@ class AudioTagEditor:
             tags.setall("COMM", [COMM(encoding=3, lang="eng", desc="", text=[str(tags_dict["comment"])])])
 
         tags.save(str(path_obj), v2_version=3)
+        del tags
         return True
 
     @classmethod
@@ -505,6 +545,7 @@ class AudioTagEditor:
                 audio[flac_key] = [str(v)]
 
         audio.save()
+        del audio
         return True
 
     @classmethod
@@ -545,6 +586,7 @@ class AudioTagEditor:
             audio["----:com.apple.iTunes:ENERGYLEVEL"] = [str(tags_dict["energy_level"]).encode("utf-8")]
 
         audio.save()
+        del audio
         return True
 
     @classmethod
@@ -555,6 +597,7 @@ class AudioTagEditor:
         # WAV with ID3 chunk uses ID3 tags
         cls._write_id3_to_mutagen_object(audio.tags, tags_dict)
         audio.save()
+        del audio
         return True
 
     @classmethod
@@ -564,6 +607,7 @@ class AudioTagEditor:
             audio.add_tags()
         cls._write_id3_to_mutagen_object(audio.tags, tags_dict)
         audio.save()
+        del audio
         return True
 
     @classmethod
@@ -685,43 +729,61 @@ class AudioTagEditor:
         ext = path_obj.suffix.lower()
         success = False
 
-        try:
-            if ext in (".mp3", ".wav", ".aif", ".aiff"):
-                try:
-                    tags = ID3(str(path_obj))
-                except ID3NoHeaderError:
-                    tags = ID3()
-                tags.delall("APIC")
-                tags.add(
-                    APIC(
-                        encoding=3,
-                        mime=mime_type,
-                        type=PictureType.COVER_FRONT,
-                        desc=description,
-                        data=image_bytes,
+        import gc
+        import time
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if ext in (".mp3", ".wav", ".aif", ".aiff"):
+                    try:
+                        tags = ID3(str(path_obj))
+                    except ID3NoHeaderError:
+                        tags = ID3()
+                    tags.delall("APIC")
+                    tags.add(
+                        APIC(
+                            encoding=3,
+                            mime=mime_type,
+                            type=PictureType.COVER_FRONT,
+                            desc=description,
+                            data=image_bytes,
+                        )
                     )
-                )
-                tags.save(str(path_obj), v2_version=3)
-                success = True
-            elif ext == ".flac":
-                audio = FLAC(str(path_obj))
-                pic = Picture()
-                pic.data = image_bytes
-                pic.type = PictureType.COVER_FRONT
-                pic.mime = mime_type
-                pic.desc = description
-                audio.clear_pictures()
-                audio.add_picture(pic)
-                audio.save()
-                success = True
-            elif ext in (".m4a", ".aac"):
-                audio = MP4(str(path_obj))
-                fmt = MP4Cover.FORMAT_PNG if "png" in mime_type.lower() else MP4Cover.FORMAT_JPEG
-                audio["covr"] = [MP4Cover(image_bytes, imageformat=fmt)]
-                audio.save()
-                success = True
-        except Exception:
-            success = False
+                    tags.save(str(path_obj), v2_version=3)
+                    del tags
+                    success = True
+                elif ext == ".flac":
+                    audio = FLAC(str(path_obj))
+                    pic = Picture()
+                    pic.data = image_bytes
+                    pic.type = PictureType.COVER_FRONT
+                    pic.mime = mime_type
+                    pic.desc = description
+                    audio.clear_pictures()
+                    audio.add_picture(pic)
+                    audio.save()
+                    del audio
+                    success = True
+                elif ext in (".m4a", ".aac"):
+                    audio = MP4(str(path_obj))
+                    fmt = MP4Cover.FORMAT_PNG if "png" in mime_type.lower() else MP4Cover.FORMAT_JPEG
+                    audio["covr"] = [MP4Cover(image_bytes, imageformat=fmt)]
+                    audio.save()
+                    del audio
+                    success = True
+                break
+            except (PermissionError, OSError):
+                gc.collect()
+                if attempt < max_retries - 1:
+                    time.sleep(0.15)
+                else:
+                    success = False
+            except Exception:
+                success = False
+                break
+            finally:
+                gc.collect()
 
         if success and write_folder_copy:
             try:
@@ -734,6 +796,7 @@ class AudioTagEditor:
     @classmethod
     def remove_artwork(cls, filepath: Union[str, Path]) -> bool:
         """Removes embedded cover artwork from audio file."""
+        import gc
         path_obj = Path(filepath)
         ext = path_obj.suffix.lower()
 
@@ -742,18 +805,23 @@ class AudioTagEditor:
                 tags = ID3(str(path_obj))
                 tags.delall("APIC")
                 tags.save(str(path_obj), v2_version=3)
+                del tags
                 return True
             elif ext == ".flac":
                 audio = FLAC(str(path_obj))
                 audio.clear_pictures()
                 audio.save()
+                del audio
                 return True
             elif ext in (".m4a", ".aac"):
                 audio = MP4(str(path_obj))
                 if "covr" in audio:
                     del audio["covr"]
                     audio.save()
-                    return True
+                del audio
+                return True
         except Exception:
             pass
+        finally:
+            gc.collect()
         return False

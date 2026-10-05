@@ -57,7 +57,9 @@ class ScraperDialog(QDialog):
         self.downloaded_art_bytes: Optional[bytes] = None
 
         self.setWindowTitle(_t("scraper_title", "Musicat — Ricerca Metadati Online - {filename}", filename=self.track.get("filename")))
-        self.resize(860, 650)
+        self.setMinimumSize(920, 620)
+        self.resize(1020, 700)
+        self.setSizeGripEnabled(True)
 
         self._init_ui()
         self._initial_search()
@@ -123,6 +125,7 @@ class ScraperDialog(QDialog):
         self.table_candidates.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.table_candidates.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table_candidates.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        self.table_candidates.verticalHeader().setDefaultSectionSize(32)
         self.table_candidates.itemSelectionChanged.connect(self._on_candidate_selected)
 
         cand_layout.addWidget(self.table_candidates)
@@ -142,6 +145,7 @@ class ScraperDialog(QDialog):
         self.table_diff.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table_diff.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table_diff.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table_diff.verticalHeader().setDefaultSectionSize(32)
         diff_layout.addWidget(self.table_diff, 3)
 
         # Artwork Diff Panel
@@ -282,6 +286,14 @@ class ScraperDialog(QDialog):
         # Clean non-tag keys
         for k in ("source", "url", "artwork_url", "mix_name", "catalog_number"):
             updates.pop(k, None)
+
+        # Clean separation: If title contains " - " and artist is empty, separate cleanly
+        t_val = str(updates.get("title") or self.track.get("title") or "").strip()
+        a_val = str(updates.get("artist") or self.track.get("artist") or "").strip()
+        if " - " in t_val and (not a_val or a_val.lower() in ("various", "unknown")):
+            parts = t_val.split(" - ", 1)
+            updates["artist"] = parts[0].strip()
+            updates["title"] = parts[1].strip()
 
         try:
             AudioTagEditor.write_metadata(fp, updates)

@@ -241,13 +241,31 @@ class Database:
             cur.executemany(sql, normalized_records)
             return cur.rowcount
 
+    VALID_TRACK_COLUMNS = {
+        "title", "artist", "album", "album_artist", "year", "genre",
+        "track_num", "total_tracks", "disc_num", "bpm", "musical_key",
+        "camelot_key", "initial_key", "energy_level", "rating", "label",
+        "remixer", "comment", "has_cover", "waveform_peaks", "analyzed_at"
+    }
+
     def update_track_tags(self, filepath: str, updates: Dict[str, Any]) -> bool:
         """Updates specific tag fields for a given filepath."""
         if not updates:
             return False
 
-        set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-        params = list(updates.values()) + [filepath]
+        up = dict(updates)
+        if "initialkey" in up:
+            if "camelot_key" not in up:
+                up["camelot_key"] = up["initialkey"]
+            if "initial_key" not in up:
+                up["initial_key"] = up["initialkey"]
+
+        clean_updates = {k: v for k, v in up.items() if k in self.VALID_TRACK_COLUMNS}
+        if not clean_updates:
+            return False
+
+        set_clause = ", ".join([f"{k} = ?" for k in clean_updates.keys()])
+        params = list(clean_updates.values()) + [filepath]
 
         sql = f"UPDATE tracks SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE filepath = ?"
         with self.get_connection() as conn:
@@ -260,8 +278,19 @@ class Database:
         if not filepaths or not updates:
             return 0
 
-        set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-        params = list(updates.values())
+        up = dict(updates)
+        if "initialkey" in up:
+            if "camelot_key" not in up:
+                up["camelot_key"] = up["initialkey"]
+            if "initial_key" not in up:
+                up["initial_key"] = up["initialkey"]
+
+        clean_updates = {k: v for k, v in up.items() if k in self.VALID_TRACK_COLUMNS}
+        if not clean_updates:
+            return 0
+
+        set_clause = ", ".join([f"{k} = ?" for k in clean_updates.keys()])
+        params = list(clean_updates.values())
 
         in_clause = ",".join("?" for _ in filepaths)
         sql = f"UPDATE tracks SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE filepath IN ({in_clause})"

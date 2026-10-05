@@ -408,6 +408,7 @@ class LiveFilterBar(QFrame):
     crate_selected = Signal(str)  # crate name
     crate_saved = Signal(str)     # crate name
     export_playlist_requested = Signal()
+    analyze_requested = Signal()
 
     def __init__(self, db: Database, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -471,7 +472,31 @@ class LiveFilterBar(QFrame):
         cover_box.addWidget(self.lbl_cover)
         cover_box.addWidget(self.cmb_cover)
 
-        # 4. Instant Reset Button (ESC)
+        # 4. Explicit Dedicated Analysis Button [⚡ Analizza Selezionate]
+        self.btn_analyze = QPushButton(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
+        self.btn_analyze.setObjectName("AnalyzeButton")
+        self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
+        self.btn_analyze.setMinimumWidth(160)
+        self.btn_analyze.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 4px 12px;
+                border-radius: 4px;
+                border: 1px solid #0369a1;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+            QPushButton:pressed {
+                background-color: #075985;
+            }
+        """)
+        self.btn_analyze.clicked.connect(self.analyze_requested.emit)
+
+        # 5. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
         self.btn_reset.setMinimumWidth(115)
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
@@ -481,6 +506,7 @@ class LiveFilterBar(QFrame):
         row1.addWidget(self.txt_search, 4)
         row1.addWidget(self.genre_widget, 2)
         row1.addLayout(cover_box)
+        row1.addWidget(self.btn_analyze)
         row1.addWidget(self.btn_reset)
         main_layout.addLayout(row1)
 
@@ -648,6 +674,9 @@ class LiveFilterBar(QFrame):
         """Dynamically updates filter bar text in response to language change."""
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
         self.txt_search.setPlaceholderText(_t("filter_search_placeholder", "🔍 Ricerca Rapida / {engine} (Ctrl+F)...", engine=fast_engine))
+        if hasattr(self, "btn_analyze"):
+            self.btn_analyze.setText(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
+            self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
         self.btn_reset.setText(_t("filter_reset", "✕ Ripristina (ESC)"))
         self.btn_wheel_popup.setText(_t("filter_wheel_btn", "🎡 Ruota"))
         self.chk_harmonic_only.setText(_t("filter_harmonic_only", "Solo Armonici"))
