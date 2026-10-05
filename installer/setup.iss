@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "Musicat"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "IlRed89"
 #define MyAppURL "https://github.com/IlRed89/Musicat"
 #define MyAppExeName "Musicat.exe"

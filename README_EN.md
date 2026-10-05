@@ -12,7 +12,7 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Lingua-Italiano-green.svg" alt="Lingua: Italiano"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/tests-165%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-188%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="License"></a>
 </p>
@@ -36,10 +36,10 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 +----------------------------------------------------------------------------------------------------+
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
-| [🏠 Home]       | [📁 Library]   | [🏷️ Mp3tag]     | [📦 Crates]    | [🔍 Similar]    | [📂 Organize]  |
-| - Startup Home  | - 2-Row Filters| - Number Wizard | - Workbench    | - Cosine.club   | - In-App Stack |
-| - Multi-Platform| - Drive Tree   | - Pattern %tag% | - Guide & M3U8 | - Web Vectors   | - Collision    |
-| - EBU Loudness  | - 1A-12B Wheel | - $num() Live   | - Dynamic Crate| - Hard Drive    | - Dry Run      |
+| [📁 Library]   | [🏠 Home]       | [🏷️ Mp3tag]     | [📦 Crates]    | [🔍 Similar]    | [📂 Organize]  |
+| - Startup View | - Multi-Platform| - Number Wizard | - Workbench    | - Cosine.club   | - In-App Stack |
+| - 2-Row Filters| - Stream Preview| - Pattern %tag% | - Guide & M3U8 | - Web Vectors   | - Collision    |
+| - Drag & Drop  | - EBU Loudness  | - $num() Live   | - Dynamic Crate| - Hard Drive    | - Dry Run      |
 +----------------------------------------------------------------------------------------------------+
 |           Unified Search Engine (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)         |
 +----------------------------------------------------------------------------------------------------+
@@ -55,11 +55,11 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 
 ### 1. ⚪ Modern Light Theme Default, Embedded Workspaces & Modular Top Bar
 - **6 Embedded Workspaces Architecture (`QStackedWidget`):** Key modules no longer open detached modal dialogs; they are cleanly integrated within the central view stack preserving selection state:
-  - **Index 0: [🏠 Home / Analysis]** (Default startup view featuring Spotify/SoundCloud/Beatport charts and high-contrast white cards)
-  - **Index 1: [📁 Library]** (High-performance DJ catalog with 2-row filter bar, right-click column customizer, and drive tree explorer)
+  - **Index 0: [📁 Library] (Default Startup View)** (High-performance DJ catalog with 2-row filter bar, drag & drop column reordering, dedicated `[⚡ Analizza Selezionate]` toolbar action, and drive tree explorer)
+  - **Index 1: [🏠 Home / Analysis]** (Trending charts dashboard across Spotify/SoundCloud/Beatport with 30s stream audio previews and high-contrast white cards)
   - **Index 2: [🏷️ Tag Editor (Mp3tag)]** (Full-featured spreadsheet tagging workspace with numbering wizard, pattern engine, and case transformations)
-  - **Index 3: [📦 Smart Crates]** (Rule-based crate builder with interactive user guide and extended M3U8 playlist export)
-  - **Index 4: [🔍 Find Similars]** (Local acoustic matching and Cosine.club web discovery with harmonic key transitions)
+  - **Index 3: [📦 Smart Crates]** (Rule-based crate builder with interactive user guide and extended M3U8 playlist export for Serato, Rekordbox, Traktor, and Engine DJ)
+  - **Index 4: [🔍 Find Similars]** (Local acoustic matching and Cosine.club / Chosic web discovery with harmonic key transitions)
   - **Index 5: [📂 Organize Files]** (Physical disk re-organization tool integrated in-app with collision safety and dry-run preview)
 - **High-Contrast Light Theme:** Modern crisp palette (`#FFFFFF` / `#F8F9FA`, text `#212529`, accents `#0D6EFD`) with instant Dark Mode switch available in Settings.
 - **Native Taskbar Icon:** Windows `AppUserModelID` registration ensures high-resolution application branding on the taskbar even when running portably from USB drives.
@@ -72,10 +72,13 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
   - **Red (`#DC3545`):** High stress or memory/compute saturation (85% – 100%).
 - **64-bit Memory Transparency:** No artificial 2 GB memory ceilings; Musicat queries total physical installed RAM and reports `RAM X.X / YY GB` asynchronously every 1.5 seconds.
 
-### 3. 🗂️ Collapsible Drive Tree Explorer, Right-Click Column Customizer & 2-Row Filters
+### 3. 🗂️ Collapsible Drive Explorer, Drag & Drop Column Customizer & 2-Row Filters
 - **Collapsible Drive & Folder Explorer:** Integrated left sidebar (`QFileSystemModel`) in the Library view offering instant volume discovery and 1-click directory filtering.
-- **Context-Menu Column Customization (Right Click):** Right-clicking any column header displays a popup checklist to toggle any of the 19 library columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`), automatically saving visibility and column widths to `config.json`.
-- **Dynamic Unified Genre ComboBox & "Vario" Fallback:** Single editable dropdown with instant auto-completion and alphabetical sorting; untagged tracks are cleanly grouped under `"Vario"`.
+- **Interactive Drag & Drop Column Reordering:** Movable table header (`setSectionsMovable(True)`, `setDragEnabled(True)`) for instant drag & drop sequence customization.
+- **Hexadecimal State Persistence:** Column order, visibility, and widths are serialized via `saveState()` into hex strings in `config.json` (`ui.header_state`), restored automatically at startup via `restoreState()`.
+- **Streamlined Default DJ Table:** Internal calculation fields (`energy_level`, `lufs`, `true_peak`, `audio_status`) are hidden by default, providing clean layout across the 12 core DJ columns. Right-clicking any column header allows toggling any of the 19 columns with a single click.
+- **Dedicated Toolbar Button `[⚡ Analizza Selezionate]`:** Launches asynchronous background processing (`AsyncAnalysisWorker`) for acoustic DSP, metadata enrichment, and tag persistence with discrete status bar progress and instant cancellation.
+- **Dynamic Genre ComboBox with Chevron Indicator:** Strictly populated from actual SQLite records (`SELECT DISTINCT genre FROM tracks`) with `"🏷️ Tutti i Generi"` at the top, alphabetical sorting, and `"Vario"` at the bottom. Features explicit CSS subcontrols (`QComboBox::drop-down` and `QComboBox::down-arrow`) for visible arrows in both light and dark themes.
 - **Two-Row Ergonomic Filter Bar (<15ms):** Target BPM with fine steppers (`±2%`, `±4%`, `±6%`, `±8%`), 12-position interactive Camelot Wheel with harmonic paths ($\pm 1$, Relative Key, $+2$ Energy Boost, $+7$ Semitone Lift), decade, energy, and rating filters.
 
 ### 4. 🏷️ Advanced Mp3tag Workspace: Track Numbering Wizard & Live Patterns
@@ -103,20 +106,22 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 
 ### 7. 🔊 Audio Quality Normalizer & Loudnorm Plugin (EBU R128)
 - **EBU R128 / ITU-R BS.1770-4 Standards:** Integrated Loudness (LUFS), Loudness Range (LRA), and True Peak (dBTP) with 4x oversampling interpolation.
-- **Anomaly Detection:** Flags clipped tracks ($>0$ dBTP), quiet tracks ($<-18$ LUFS), and squashed brickwall masters ($\text{LRA} < 3$ LU).
-- **Dual Correction:**
-  - *Non-destructive:* ReplayGain metadata tagging (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
-  - *Physical re-encode:* Physical re-encoding with FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP).
+- **Loudness Meter Deactivated on Unanalyzed Tracks:** Replaces dummy `-70 LUFS / -100 dBTP` readings with a neutral deactivated placeholder `"— LUFS | TP: — dBTP (Non analizzato)"`.
+- **Native Light Theme "Correggi Audio" Dialog:** Crisp `#ffffff` canvas, dark text `#212529`, and an educational callout explaining metadata ReplayGain versus physical FFmpeg loudnorm re-encoding (-1.0 dBTP headroom) with interactive target sliders (-9/-10 LUFS for club, -14 LUFS for streaming).
 
 ### 8. 🏠 Multi-Platform Trends Dashboard & Smart Recommendations
-- **Multi-Source Charts:** Dedicated tabs for `Top Spotify`, `Top SoundCloud / Hype`, and `Top Beatport / Discogs` with category switching, rich offline fallbacks, and isolated caching.
+- **Multi-Source Charts:** Dedicated tabs for `Top Spotify`, `Top SoundCloud / Hype`, and `Top Beatport / Discogs` with category switching, rich offline fallbacks, and 30-second in-app audio preview playback.
 - **Collection Cross-Check:** Instant visual badge indicating whether a trending track is owned locally (`✓ In Library`) or missing (`+ Missing`).
 - **Cosine Similarity Engine:** Deep discovery via Cosine.club, Chosic, and Last.fm matching acoustic vectors against your local library files.
 
-### 9. ⚖️ Multi-Source Scraping, Discogs Authority & Live API Connection Tests
-- **Discogs Metadata Priority:** Metadata reconciler configured with Discogs as top authority for year, label, catalog number, format, and artist.
-- **Live API Connection Tests:** Dedicated credentials fields and live test buttons for Spotify, SoundCloud, YouTube Data API v3, Discogs, and Beatport with instant visual status feedback (green/red).
-- **Conflict Reconciliation Matrix:** Interactive table for resolving discrepancies across multiple web sources before writing tags to physical files.
+### 9. ⚖️ Cascading Multi-Source Scraping & Genre Normalization
+- **Multi-Provider Fallback Cascade:**
+  - **Discogs API:** Identifies original Master Release year and prioritizes granular electronic `styles` (e.g. Tech House, Melodic Techno, Afro House) over generic "Electronic".
+  - **MusicBrainz / AcousticBrainz:** Retrieves earliest original release date and community-curated genre tags.
+  - **Beatport & Traxsource:** Targets precise dance and club subgenres for accurate DJ classification.
+  - **WebEnricher (Wikipedia & YouTube Search Fallback):** Queries `"[Artist] - [Title] genre year"` when music databases return no match.
+- **Strict Genre Normalization:** Rejection of generic labels (*Other*, *Unknown*, *Soundtrack*, *Music*, *Various*, *General*), favoring specific subgenres and assigning `"Vario"` strictly as the last resort.
+- **Conflict Reconciliation Dialog (`ReconcilerDialog`):** Clear four-column layout with generous 36px row height and asynchronous search execution.
 
 ### 10. 💾 Dual-Mode Installation & Drive Migration
 - **Standard Mode:** Installs into `Program Files`, adds Start Menu shortcuts, and stores data in `%APPDATA%\Musicat`.
@@ -206,7 +211,7 @@ Ready-to-use binaries are built on every GitHub tag via automated GitHub Actions
 | **macOS Universal** | `Musicat-macOS.dmg` | Native Drag & Drop Applications installer DMG |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Standalone portable archive for APFS/HFS+ external SSDs |
 
-👉 **[Download the Latest Official Release (v1.5.0)](https://github.com/IlRed89/Musicat/releases/latest)**
+👉 **[Download the Latest Official Release (v1.1.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 

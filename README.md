@@ -12,7 +12,7 @@
   <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Piattaforma">
-  <img src="https://img.shields.io/badge/tests-165%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-188%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository Ufficiale"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licenza-MIT-purple.svg" alt="Licenza"></a>
 </p>
@@ -55,11 +55,11 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 
 ### 1. ⚪ Tema Chiaro Predefinito, Workspaces Incorporati & Navbar Modulare
 - **Architettura a 6 Workspaces Incorporati (`QStackedWidget`):** I moduli principali non aprono finestre modali esterne ma sono completamente integrati nella finestra principale senza interruzioni di flusso:
-  - **Indice 0: [🏠 Analisi / Home]** (Dashboard iniziale con classifiche multi-piattaforma Spotify/SoundCloud/Beatport e card bianche ad alto contrasto)
-  - **Indice 1: [📁 Libreria]** (Catalogo DJ ad altissime prestazioni con barra filtri a due righe, menu contestuale colonne e albero cartelle)
+  - **Indice 0: [📁 Libreria] (Schermata Predefinita all'Avvio)** (Catalogo DJ ad altissime prestazioni con barra filtri a due righe, riordino colonne drag & drop, tasto toolbar `[⚡ Analizza Selezionate]` e albero cartelle)
+  - **Indice 1: [🏠 Analisi / Home]** (Dashboard di tendenze multi-piattaforma Spotify/SoundCloud/Beatport con preascolto streaming 30s e card ad alto contrasto)
   - **Indice 2: [🏷️ Tag Editor (Mp3tag)]** (Workspace tabellare completo con autonumerazione, pattern live e conversione case)
-  - **Indice 3: [📦 Smart Crates]** (Workbench con guida interattiva, logiche booleane avanzate ed esportazione M3U8)
-  - **Indice 4: [🔍 Trova Simili]** (Ricerca vettoriale locale e web discovery su Cosine.club con affinità armonica DJ)
+  - **Indice 3: [📦 Smart Crates]** (Workbench con guida interattiva, logiche booleane avanzate ed esportazione M3U8 per Serato, Rekordbox, Traktor ed Engine DJ)
+  - **Indice 4: [🔍 Trova Simili]** (Ricerca vettoriale locale e web discovery su Cosine.club / Chosic con affinità armonica DJ)
   - **Indice 5: [📂 Organizza File]** (Smistamento fisico su disco integrato in-app con gestione collisioni e dry run)
 - **Stile Visivo Moderno:** Palette chiara predefinita (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) con card bordate e Dark Mode attivabile a caldo nelle Preferenze.
 - **Icona Taskbar Nativa:** Configurazione esplicita di `AppUserModelID` su Windows per garantire l'icona Musicat ad alta risoluzione nella barra delle applicazioni anche in versione portabile su qualsiasi PC.
@@ -72,10 +72,13 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
   - **Rosso (`#DC3545`):** Stress elevato o saturazione hardware (85% – 100%).
 - **Trasparenza RAM a 64-bit:** Nessun limite artificiale di 2 GB; Musicat rileva la memoria fisica totale e visualizza `RAM X.X / YY GB` con aggiornamento asincrono continuo ogni 1.5 secondi.
 
-### 3. 🗂️ Albero Drive & Cartelle a Sinistra, Gestione Colonne (Tasto Destro) & Filtri 2-Row
+### 3. 🗂️ Albero Drive a Sinistra, Riordino Colonne Drag & Drop & Filtri 2-Row
 - **Explorer Cartelle/Unità a Sinistra Collassabile:** Pannello laterale integrato nella Libreria (`QFileSystemModel`) con rilevamento rapido di dischi rigidi, memorie USB e percorsi preferiti a 1-click.
-- **Selezione e Personalizzazione Colonne (Tasto Destro):** Cliccando con il tasto destro su una qualsiasi intestazione della tabella, compare il menu contestuale per mostrare o nascondere ciascuna delle 19 colonne (`#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Album`, `Etichetta`, `Durata`, `Bitrate`, `Energia`, `LUFS`, `True Peak`, `Qualità Audio`, `Percorso`), con memorizzazione automatica di visibilità e larghezze in `config.json`.
-- **ComboBox Generi Dinamica Unificata & Fallback "Vario":** Controllo unico editabile con completamento automatico in tempo reale e ordinamento alfabetico; le tracce prive di genere vengono raggruppate coerentemente sotto la voce `"Vario"`.
+- **Riordino Interattivo Colonne Drag & Drop:** Header della tabella mobile (`setSectionsMovable(True)`, `setDragEnabled(True)`) con riorganizzazione libera della sequenza colonne tramite trascinamento diretto.
+- **Persistenza Layout Esadecimale:** Lo stato visivo, l'ordinamento e le larghezze delle colonne vengono memorizzati in formato esadecimale (`saveState()`) in `config.json` (`ui.header_state`) e ripristinati istantaneamente a ogni lancio con `restoreState()`.
+- **Vista DJ Ottimizzata & Menu Contestuale:** Nascoste di default le colonne di calcolo interno (`energy_level`, `lufs`, `true_peak`, `audio_status`), focalizzando lo spazio sulle 12 colonne essenziali. Cliccando con il tasto destro su un'intestazione qualsiasi, è sempre possibile attivare o disattivare ciascuna delle 19 colonne totali.
+- **Pulsante Toolbar Dedicato `[⚡ Analizza Selezionate]`:** Elaborazione asincrona non bloccante (`AsyncAnalysisWorker`) per calcolo BPM, chiave Camelot, arricchimento metadati e scrittura tag con Mutagen senza alcun freeze dell'interfaccia.
+- **ComboBox Generi Dinamica con Freccia Vettoriale:** Popolamento esclusivo dal database SQLite (`SELECT DISTINCT genre FROM tracks`), con voce iniziale `"🏷️ Tutti i Generi"`, ordinamento alfabetico e voce `"Vario"` in fondo. Freccia a tendina sempre visibile grazie a sottocontrolli CSS dedicati (`QComboBox::drop-down` e `QComboBox::down-arrow`).
 - **Barra Filtri Multi-Riga Ergonomica (<15ms):** Target BPM con stepping fine (`±2%`, `±4%`, `±6%`, `±8%`), ruota Camelot a 12 posizioni con percorsi armonici ($\pm 1$, Relativa, $+2$ Energy Boost, $+7$ Semitone Lift), filtri decennio, rating ed energia.
 
 ### 4. 🏷️ Workspace Mp3tag Avanzato: Autonumerazione & Pattern Live
@@ -103,20 +106,25 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 
 ### 7. 🔊 Plugin Qualità Audio, Clipping Detector & Loudnorm (EBU R128)
 - **Conformità Standard EBU R128 / ITU-R BS.1770-4:** Misurazione Integrated Loudness (LUFS), True Peak (dBTP) con oversampling 4x sinc/spline e Loudness Range (LRA).
-- **Diagnosi Anomalie:** Segnalazione visiva di tracce con clipping inter-sample ($>0$ dBTP), volume troppo basso ($<-18$ LUFS) o dinamica compressa tipo brickwall ($\text{LRA} < 3$ LU).
-- **Doppia Correzione:**
-  - *Non distruttiva:* Tag metadati ReplayGain (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
-  - *Fisica con FFmpeg:* Re-encoding a 2 passaggi con filtro `loudnorm` (target: $-14$ LUFS, $-1.0$ dBTP).
+- **Loudness Meter Disattivato su Brani Non Analizzati:** Eliminata l'indicazione fittizia `-70 LUFS / -100 dBTP`; i brani non ancora analizzati mostrano il placeholder neutro `"— LUFS | TP: — dBTP (Non analizzato)"`.
+- **Dialog "Correggi Audio" Nativo in Tema Chiaro:** Ridisegnato con palette nativa bianca `#ffffff`, testi scuri `#212529` e box informativo *"Tips & Spiegazioni Operative"*:
+  - *Normalizzazione non distruttiva (ReplayGain):* scrittura tag metadati senza alterare il file audio.
+  - *Normalizzazione fisica con FFmpeg (`loudnorm`):* ricodifica audio precisa a 2 passaggi con margine True Peak di sicurezza di -1.0 dBTP.
+  - *Cursori target configurabili:* target Loudness (-9/-10 LUFS per club/DJ, -14 LUFS per streaming) e target True Peak con indicazioni contestuali.
 
 ### 8. 🏠 Dashboard Trends Multi-Piattaforma & Motore Tracce Simili
-- **Classifiche Multi-Sorgente:** Schede dedicate per `Top Spotify`, `Top SoundCloud / Hype` e `Top Beatport / Discogs`. Categorie musicali contestuali, dataset offline estesi e navigazione ad alta reattività.
+- **Classifiche Multi-Sorgente:** Schede dedicate per `Top Spotify`, `Top SoundCloud / Hype` e `Top Beatport / Discogs`. Categorie musicali contestuali, dataset offline estesi e navigazione ad alta reattività con preascolto audio 30s integrato nel player libVLC.
 - **Riconciliazione Istantanea con la Collezione:** Badge visivo per verificare al volo se la traccia in classifica è già presente nel proprio hard disk (`✓ In Libreria`) o mancante (`+ Mancante`).
 - **Motore di Similarità (Cosine.club):** Ricerca vettoriale su database online e matching acustico diretto contro la propria libreria locale.
 
-### 9. ⚖️ Scraping Multi-Fonte, Discogs Priority & Test Connessione Live
-- **Discogs come Autorità Prioritaria:** Riconciliatore di metadati ottimizzato per dare precedenza autorevole a Discogs per anno, etichetta discografica, catalog number, formato vinile/digitale e artisti.
-- **Integrazioni API Complete:** Campi credenziali persistenti per Spotify, SoundCloud, YouTube Data API v3, Discogs e Beatport con pulsanti di **Test Connessione Live** e riscontro visivo istantaneo (verde/rosso).
-- **Tabella di Riconciliazione Conflitti:** Matrice visuale per risolvere punto per punto le discrepanze tra le varie fonti online prima dell'applicazione ai file fisici.
+### 9. ⚖️ Cascata Multi-Provider di Scraping & Normalizzazione Generi
+- **Cascata Multi-Fonte a Fallback:**
+  - **Discogs API:** Identificazione della Master Release per l'anno di prima pubblicazione originale e prioritizzazione del campo `styles` (es. Tech House, Melodic Techno, Afro House) per evitare l'etichettatura generica "Electronic".
+  - **MusicBrainz / AcousticBrainz:** Recupero release date e tag di stile della community.
+  - **Beatport & Traxsource:** Sottogeneri mirati per musica da club.
+  - **WebEnricher (Wikipedia & YouTube Fallback):** Query mirata `"[Artista] - [Titolo] genre year"` per estrarre data ufficiale e genere musicale qualora i database musicali non abbiano corrispondenze.
+- **Normalizzazione Rigorosa dei Generi:** Rifiuto automatico delle etichette vaghe (*Other*, *Unknown*, *Soundtrack*, *Music*, *Various*, *General*) e assegnazione di `"Vario"` solo come ultima risorsa estrema.
+- **Tabella di Riconciliazione Conflitti (`ReconcilerDialog`):** Layout chiaro a quattro colonne con altezza ottimizzata (36px), ridimensionamento libero e ricerca asincrona non bloccante.
 
 ### 10. 💾 Installazione Dual-Mode & Portabilità Totale (`portable.lock`)
 - **Modalità Standard:** Installazione guidata in `Program Files`, collegamenti di sistema e dati utente in `%APPDATA%\Musicat`.
@@ -206,7 +214,7 @@ Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actio
 | **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
 | **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
 
-👉 **[Scarica l'Ultima Release Ufficiale (v1.5.0)](https://github.com/IlRed89/Musicat/releases/latest)**
+👉 **[Scarica l'Ultima Release Ufficiale (v1.1.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 

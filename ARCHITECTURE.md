@@ -12,8 +12,8 @@ graph TD
     UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode] --> Navbar[Clean Top Navbar<br/>Analysis Home / Library / Tag Editor / Smart Crates / Similars / Organize / Settings]
     
     Navbar --> Stack[QStackedWidget 6 Embedded Workspaces]
-    Stack --> AnalysisHome[Index 0: Analysis / Home View<br/>Full-Scroll Trends & Async Semaphore Loader]
-    Stack --> DJLibrary[Index 1: DJ Library View<br/>RAM-Cached Table, Expanded Filter Bar & Clean Drive Explorer]
+    Stack --> DJLibrary[Index 0: DJ Library View (Default Startup)<br/>Hex Header State, Drag & Drop, Live Filters & Drive Explorer]
+    Stack --> AnalysisHome[Index 1: Analysis / Home View<br/>Full-Scroll Trends, Stream Preview & Async Semaphore Loader]
     Stack --> Mp3tag[Index 2: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Bulk Pattern Tagging Dialog]
     Stack --> CratesBench[Index 3: Dedicated Smart Crates Workbench<br/>Interactive Rule Guide & Extended M3U8 Export]
     Stack --> Similars[Index 4: Similar Tracks Workspace<br/>Cosine Similarity Engine & Web Discovery]
@@ -67,8 +67,8 @@ graph TD
   - Dark Theme toggle available via Settings dialog without restarting.
 - **6 Embedded Workspaces Architecture (`QStackedWidget` in `MainWindow`):**
   - Primary modules are hosted as embedded views in a central `QStackedWidget` rather than separate blocking popups:
-    - **Index 0:** Analisi / Home (`HomeTrendsView`)
-    - **Index 1:** Libreria DJ (`library_container` con tabella, filtri e albero cartelle)
+    - **Index 0:** Libreria DJ (`library_container` con tabella, filtri, riordino drag & drop e albero cartelle - **Schermata Predefinita all'Avvio**)
+    - **Index 1:** Analisi / Home (`HomeTrendsView` con classifiche multi-piattaforma e streaming preview 30s)
     - **Index 2:** Tag Editor Mp3tag (`Mp3tagWorkspaceWindow` incorporato in-app)
     - **Index 3:** Smart Crates (`SmartCratesView`)
     - **Index 4:** Trova Simili (`SimilarTracksView`)
@@ -78,10 +78,23 @@ graph TD
   - Uncapped catalog scrolling (no arbitrary 4/5 track limit slices; loaded up to 100 tracks per category across Spotify, SoundCloud, Beatport).
   - Synchronous in-memory pixmap cache verification prevents duplicate background work.
   - Asynchronous thumbnail loading constrained by `QSemaphore(6)` prevents thread pool congestion and guarantees fluid 60 FPS scrolling.
+  - In-app 30-second audio stream preview playback powered directly by the libVLC mini-player.
 - **Collapsible Drive & Folder Tree Explorer (`DriveExplorerWidget`):**
   - Configured with clean logical root (`""` on Windows, `"/Volumes"` on macOS) and initial `collapseAll()`.
   - Displays exclusively top-level physical drive letters (`C:\`, `D:\`) at startup, avoiding cluttered directory dumps.
-- **Expanded Live 2-Row Filter Bar (`LiveFilterBar`):**
+- **Interactive Drag & Drop Table Columns & Hex State Persistence (`src/gui/main_view.py`):**
+  - Movable table header (`setSectionsMovable(True)`, `setDragEnabled(True)`) for interactive column reordering.
+  - Serialized header layout persistence via `header.saveState().toHex()` stored in `config.json` (`ui.header_state`), restored automatically on application launch with `header.restoreState(...)`.
+  - Essential DJ default view: internal diagnostic fields (`energy_level`, `lufs`, `true_peak`, `audio_status`) are hidden by default, leaving maximum readable space for the 12 primary performance columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Duration`, `Bitrate`).
+  - Right-click context menu (`horizontalHeader`) provides complete user-configurable toggling for all 19 columns with 1-click restore.
+- **Dedicated Toolbar "Analyze Selected" Button & Async Worker (`AsyncAnalysisWorker`):**
+  - Direct toolbar action `[⚡ Analizza Selezionate]` executes non-blocking background DSP calculations (BPM, Camelot Key), pattern tag extraction, cascading scraping, and Mutagen physical tag writing without freezing the UI.
+  - Discrete status bar progress tracking and 1-click cancellation button `[✕ Annulla]`.
+- **Dynamic Genre ComboBox with Chevron Indicator (`src/gui/live_filters.py`):**
+  - Dynamically populated strictly from tracks in the SQLite database (`SELECT DISTINCT genre FROM tracks`), completely removing static genre presets.
+  - Sorted with `"🏷️ Tutti i Generi"` anchored at the top, database genres in alphabetical order, and `"Vario"` at the bottom.
+  - Pure CSS chevron subcontrols (`QComboBox::drop-down` and `QComboBox::down-arrow`) guaranteeing high-contrast visible dropdown arrows across both light and dark themes.
+- **Two-Row High-Performance Filter Bar (<15ms):**
   - Smart Crates controls removed from the library filter bar and consolidated exclusively inside Workspace Index 3 (`SmartCratesView`).
   - Search bar expanded ($3\times$ stretch), Target BPM, Tolerance, Min/Max, Camelot Key, Decade, Audio Quality, and Quick Tag pill buttons widened for maximum legibility.
 - **Visual Hardware Progress Bars in Status Bar (`HardwareProgressBar`):**
@@ -91,18 +104,11 @@ graph TD
     - **Yellow / Orange (`#FD7E14`):** 61% – 84% (Moderate/elevated load);
     - **Red (`#DC3545`):** 85% – 100% (High stress/saturation).
   - Centered text display (`CPU XX%`, `RAM X.X / YY GB`) updated asynchronously every 1.5 seconds via `HardwareMonitor`.
-- **Advanced Mp3tag Workbench (`src/gui/mp3tag_workspace.py` & `src/tags/patterns.py`):**
-  - **Bulk Pattern Tagging (`BulkPatternTagDialog`):** Full Mp3tag-style pattern parsing (`[%title%] - [%artist%]`, `[%artist%] - [%title%]`, `[%track%]. [%title%]`, custom tokens), preset dropdown, live before/after diff table (`#00e5ff` / `#10b981`), Mutagen disk write and database synchronization. Triggered via sidebar button, menu action, or shortcuts `Ctrl + Shift + P` / `Alt + F`.
-  - **Track Numbering Wizard (`TrackNumberingWizardDialog`):** Sequential track numbering with offset, leading zero padding (`01, 02...`), total track count suffix (`01/12`), folder/album reset, and live tabular preview.
-  - **Live Bidirectional Pattern Converters (`FilenameToTagDialog` & `TagToFilenameDialog`):** Real-time pattern preview table with advanced token support including `$num(%track%,2)`.
-- **Dynamic Unified Genre ComboBox & "Vario" Fallback:**
-  - Single editable `QComboBox` with auto-completion, alphabetically ordered from the SQLite catalog.
-  - Tracks lacking genre tags are automatically labeled and grouped under `"Vario"` in the table and filter queries.
-- **Dynamic Table Column Customization (`TrackTableModel` & `QTableView`):**
-  - Custom header context menu (`horizontalHeader`) providing user-configurable toggling for all 19 tracks columns (`#`, `Cover`, `Title`, `Artist`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genre`, `Year`, `Album`, `Label`, `Duration`, `Bitrate`, `Energy`, `LUFS`, `True Peak`, `Audio Quality`, `Path`).
-  - Persistent layout storage in `config.json` (`ui.visible_columns` and `ui.custom_columns_active`).
-- **Startup Sequence:**
-  - Applications initializes into the **Analysis / Home** view (Index 0) as the default landing view.
+- **Audio Quality Normalizer & Light-Themed Diagnosis Dialog (`src/gui/views/quality_view.py`):**
+  - Suppressed dummy `-70 LUFS / -100 dBTP` readings on unanalyzed tracks; renders a clean deactivated placeholder `"— LUFS | TP: — dBTP (Non analizzato)"`.
+  - Native Light Theme styling (`#ffffff` canvas, high-contrast dark text `#212529`).
+  - Educational callout detailing ReplayGain non-destructive metadata vs FFmpeg loudnorm physical re-encoding (-1.0 dBTP headroom).
+  - Interactive target sliders for Loudness (-9/-10 LUFS for club, -14 LUFS for streaming) and True Peak.
 
 ---
 
@@ -200,6 +206,19 @@ Adheres strictly to ITU-R BS.1770-4 and EBU R128 specifications:
 - Thread-safe singleton `I18n` with Qt signal `language_changed(str)`.
 - **Zero-restart hot switching:** Table column headers, filter bar text, player labels, context menus, and settings dialog re-render instantly upon receiving `language_changed`.
 - Dual-tier dictionary loading: embedded in-code dictionary guarantees zero crash if files are missing; external JSON (`locales/it.json`, `locales/en.json`) enables user extensibility.
+
+---
+
+### H. Cascading Metadata Scraping & Normalization (`src/scrapers/`)
+Musicat employs an intelligent multi-source cascading pipeline to resolve missing metadata, genres, and release years:
+1. **Multi-Source Hierarchy:**
+   - **Discogs:** Primary authority for vinyl/digital releases. Prioritizes granular `styles` (e.g. *Tech House*, *Deep House*, *Melodic Techno*) over generic *"Electronic"*, and queries *Master Releases* for original year.
+   - **MusicBrainz / AcousticBrainz:** Fallback for earliest release dates and community-curated tags.
+   - **Beatport & Traxsource:** Specialist dance/DJ scrapers extracting exact club subgenres.
+   - **`WebEnricher` Fallback (`src/scrapers/web_enricher.py`):** Queries Wikipedia Knowledge Graph and YouTube Search (`"[Artist] - [Title] genre year"`) when structured audio databases yield no results.
+2. **Genre Normalization:**
+   - Automatically cleans raw scraped genres, stripping unwanted tags and rejecting broad or placeholder terms (*Other*, *Unknown*, *Soundtrack*, *Music*, *Various*, *General*).
+   - Assigns `"Vario"` strictly as the last resort when all scraping providers return empty results.
 
 ---
 
