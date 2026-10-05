@@ -369,9 +369,13 @@ class MiniPlayerWidget(QFrame):
         """Loads and prepares track for playback."""
         self.current_track = track
         filepath = track.get("filepath", "")
-        self.breadcrumb_bar.set_path(filepath)
+        is_url = filepath.startswith("http://") or filepath.startswith("https://")
+        if is_url:
+            self.breadcrumb_bar.set_path("🌐 Streaming Online (Anteprima 30s)")
+        else:
+            self.breadcrumb_bar.set_path(filepath)
 
-        self.title_label.setText(track.get("title") or Path(filepath).stem)
+        self.title_label.setText(track.get("title") or (Path(filepath).stem if not is_url else "Online Track"))
         self.artist_label.setText(track.get("artist") or "Unknown Artist")
 
         bpm = track.get("bpm")
@@ -387,23 +391,29 @@ class MiniPlayerWidget(QFrame):
         if lufs is not None and tp is not None:
             self.meter_bar.set_metrics(float(lufs), float(tp), str(status))
         else:
-            self.meter_bar.set_metrics(-70.0, -100.0, "OK")
+            self.meter_bar.set_metrics(-14.0 if is_url else -70.0, -1.0 if is_url else -100.0, "OK")
 
         # Retrieve or generate waveform peak envelope
-        waveform_cache = WaveformMemoryCache.get_instance()
-        peaks = waveform_cache.get_waveform(filepath)
-        if not peaks:
-            raw_peaks = track.get("waveform_peaks")
-            if isinstance(raw_peaks, str) and raw_peaks:
-                peaks = WaveformGenerator.deserialize_peaks(raw_peaks)
-            elif isinstance(raw_peaks, list) and raw_peaks:
-                peaks = raw_peaks
+        peaks = None
+        if not is_url:
+            waveform_cache = WaveformMemoryCache.get_instance()
+            peaks = waveform_cache.get_waveform(filepath)
+            if not peaks:
+                raw_peaks = track.get("waveform_peaks")
+                if isinstance(raw_peaks, str) and raw_peaks:
+                    peaks = WaveformGenerator.deserialize_peaks(raw_peaks)
+                elif isinstance(raw_peaks, list) and raw_peaks:
+                    peaks = raw_peaks
 
-        if not peaks:
-            peaks = WaveformGenerator.generate_peaks(filepath, num_points=250)
+            if not peaks:
+                peaks = WaveformGenerator.generate_peaks(filepath, num_points=250)
 
-        if peaks:
-            waveform_cache.put_waveform(filepath, peaks)
+            if peaks:
+                waveform_cache.put_waveform(filepath, peaks)
+        else:
+            # Generate pleasant synthetic envelope for 30s preview
+            import math
+            peaks = [abs(math.sin(i * 0.08)) * 0.8 + 0.15 for i in range(250)]
 
         self.waveform_canvas.set_peaks(peaks or [])
         self.waveform_canvas.set_position_ratio(0.0)
@@ -412,7 +422,10 @@ class MiniPlayerWidget(QFrame):
         if self._is_using_vlc:
             self.vlc_player.load(filepath)
         else:
-            self.qt_player.setSource(QUrl.fromLocalFile(filepath))
+            if is_url:
+                self.qt_player.setSource(QUrl(filepath))
+            else:
+                self.qt_player.setSource(QUrl.fromLocalFile(filepath))
 
         self.btn_play.setText("▶")
 

@@ -223,30 +223,36 @@ class TrendingTrackCard(QFrame):
     play_requested = Signal(dict)
     find_similar_requested = Signal(dict)
     filter_genre_requested = Signal(str)
+    open_settings_requested = Signal(str)
 
     def __init__(self, track: TrendingTrack, parent: Optional[QWidget] = None, theme_id: str = "light") -> None:
         super().__init__(parent)
         self.track = track
         self.theme_id = theme_id
         self.setFixedSize(215, 305)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self._init_ui()
         self.update_theme(self.theme_id)
 
+        self._cover_connected = False
         if self.track.cover_url:
             cached_pix = TrendingCoverLoader.instance().get_cached_pixmap(self.track.cover_url)
             if cached_pix and not cached_pix.isNull():
                 self.lbl_cover.setPixmap(cached_pix)
             else:
                 TrendingCoverLoader.instance().cover_ready.connect(self._on_cover_loaded)
+                self._cover_connected = True
                 TrendingCoverLoader.instance().request_cover(self.track.cover_url)
 
     def cleanup(self) -> None:
         """Safely disconnects from central cover loader without blocking or terminating threads."""
-        try:
-            TrendingCoverLoader.instance().cover_ready.disconnect(self._on_cover_loaded)
-        except Exception:
-            pass
+        if getattr(self, "_cover_connected", False):
+            try:
+                TrendingCoverLoader.instance().cover_ready.disconnect(self._on_cover_loaded)
+            except Exception:
+                pass
+            self._cover_connected = False
 
     def _on_cover_loaded(self, url: str, img: QImage) -> None:
         if url == self.track.cover_url:
@@ -353,13 +359,19 @@ class TrendingTrackCard(QFrame):
         if self.track.in_library:
             self.btn_play = QPushButton(_t("home_card_play", "▶ Play"))
             self.btn_play.setFixedHeight(24)
-            self.btn_play.clicked.connect(self._on_play_clicked)
+            self.btn_play.clicked.connect(self._on_play_or_preview_clicked)
             actions_row.addWidget(self.btn_play, 1)
         else:
-            self.btn_stream = QPushButton(_t("home_card_web", "🌐 Web"))
-            self.btn_stream.setFixedHeight(24)
+            self.btn_play = QPushButton(_t("home_card_preview", "▶ Preview"))
+            self.btn_play.setFixedHeight(24)
+            self.btn_play.clicked.connect(self._on_play_or_preview_clicked)
+            actions_row.addWidget(self.btn_play, 1)
+
+            self.btn_stream = QPushButton("🌐")
+            self.btn_stream.setToolTip(_t("home_card_web_tooltip", "Apri sul web"))
+            self.btn_stream.setFixedSize(28, 24)
             self.btn_stream.clicked.connect(self._on_web_clicked)
-            actions_row.addWidget(self.btn_stream, 1)
+            actions_row.addWidget(self.btn_stream)
 
         self.btn_sim = QPushButton(_t("home_card_similar", "✨ Simili"))
         self.btn_sim.setFixedHeight(24)
@@ -474,8 +486,16 @@ class TrendingTrackCard(QFrame):
                     QPushButton:hover { background-color: #7c3aed; color: #fff; }
                 """)
 
-    def _on_play_clicked(self) -> None:
-        if self.track.local_filepath:
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            child = self.childAt(event.pos())
+            if not isinstance(child, QPushButton):
+                self._on_play_or_preview_clicked()
+        super().mousePressEvent(event)
+
+    def _on_play_or_preview_clicked(self) -> None:
+        """Plays local track or streams 30s preview; prompts for account login if necessary."""
+        if self.track.in_library and self.track.local_filepath:
             track_dict = {
                 "filepath": self.track.local_filepath,
                 "title": self.track.title,
@@ -485,6 +505,51 @@ class TrendingTrackCard(QFrame):
                 "camelot_key": self.track.camelot_key,
             }
             self.play_requested.emit(track_dict)
+            return
+
+        # Check if 30-second preview stream is available
+        preview = self.track.preview_url
+        if preview and (preview.startswith("http://") or preview.startswith("https://")):
+            track_dict = {
+                "filepath": preview,
+                "title": f"⚡ {self.track.title} [Preview 30s]",
+                "artist": self.track.artist,
+                "album": self.track.album,
+                "bpm": self.track.bpm,
+                "camelot_key": self.track.camelot_key,
+            }
+            self.play_requested.emit(track_dict)
+            return
+
+        # Check account connection status
+        from ...core.oauth_manager import OAuthManager
+        oauth = OAuthManager.get_instance()
+        service_id = (self.track.platform or "spotify").lower()
+        if oauth.is_connected(service_id):
+            QMessageBox.information(
+                self,
+                _t("home_preview_unavailable", "Anteprima Non Disponibile"),
+                _t(
+                    "home_preview_unavailable_msg",
+                    "Questa traccia non fornisce uno stream di anteprima pubblico. Puoi aprirla sul web tramite il tasto 🌐.",
+                ),
+            )
+            return
+
+        # Not connected: show login dialog redirecting to Settings > Account & Servizi
+        service_name = dict(TREND_PLATFORMS).get(service_id, service_id.capitalize())
+        reply = QMessageBox.question(
+            self,
+            _t("home_auth_required_title", "Accesso Account Richiesto"),
+            _t(
+                "home_auth_required_msg",
+                "Per ascoltare la traccia è necessario collegare il tuo account {service}.\n\nVuoi effettuare l'accesso ora?",
+                service=service_name,
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.open_settings_requested.emit("accounts")
 
     def _on_web_clicked(self) -> None:
         url = self.track.external_url or f"https://open.spotify.com/search/{self.track.artist}%20{self.track.title}"
@@ -515,6 +580,7 @@ class HomeTrendsView(QWidget):
     find_similar_requested = Signal(dict)
     navigate_to_library_requested = Signal()
     filter_genre_requested = Signal(str)
+    open_settings_requested = Signal(str)
 
     def __init__(self, db: Database, parent: Optional[QWidget] = None, auto_load: bool = False) -> None:
         super().__init__(parent)
@@ -996,6 +1062,7 @@ class HomeTrendsView(QWidget):
                 card.play_requested.connect(self.play_track_requested.emit)
                 card.find_similar_requested.connect(self.find_similar_requested.emit)
                 card.filter_genre_requested.connect(self.filter_genre_requested.emit)
+                card.open_settings_requested.connect(self.open_settings_requested.emit)
                 self.cards_layout.addWidget(card, idx // columns, idx % columns)
 
         except Exception as exc:

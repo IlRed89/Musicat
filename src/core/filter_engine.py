@@ -224,9 +224,11 @@ class LiveFilterQueryBuilder:
 
         # 10. Folder / Drive Filter
         if criteria.folder_path and criteria.folder_path.strip():
-            fp_clean = f"{criteria.folder_path.strip()}%"
-            where_clauses.append("(filepath LIKE ? OR directory LIKE ?)")
-            params.extend([fp_clean, fp_clean])
+            raw_fp = criteria.folder_path.strip()
+            fp_slash = raw_fp.replace("\\", "/").rstrip("/")
+            fp_back = raw_fp.replace("/", "\\").rstrip("\\")
+            where_clauses.append("(filepath LIKE ? OR filepath LIKE ? OR directory LIKE ? OR directory LIKE ?)")
+            params.extend([f"{fp_slash}%", f"{fp_back}%", f"{fp_slash}%", f"{fp_back}%"])
 
         # 11. Cover Art Filter
         if criteria.cover_filter:
@@ -440,9 +442,10 @@ class LiveFilterEngine:
 
             # 10. Folder / Drive Filter
             if folder_filter:
-                tr_dir = (tr.get("directory") or "").lower()
-                tr_fp = (tr.get("filepath") or "").lower()
-                if not (tr_fp.startswith(folder_filter) or tr_dir.startswith(folder_filter)):
+                f_norm = folder_filter.replace("\\", "/").rstrip("/").lower()
+                tr_dir_norm = (tr.get("directory") or "").replace("\\", "/").lower()
+                tr_fp_norm = (tr.get("filepath") or "").replace("\\", "/").lower()
+                if not (tr_fp_norm.startswith(f_norm) or tr_dir_norm.startswith(f_norm)):
                     continue
 
             # 11. Cover Art Filter

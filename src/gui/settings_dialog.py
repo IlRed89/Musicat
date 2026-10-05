@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 from src.core.gpu_detector import GpuDetector, GpuInfo
 from src.core.hardware_monitor import HardwareMonitor
 from src.core.i18n import I18n, _t
+from src.core.oauth_manager import OAuthManager
 from src.core.settings import SettingsManager
 from src.plugins.manager import PluginManager
 
@@ -64,6 +65,11 @@ class SettingsDialog(QDialog):
         self.plugin_manager = PluginManager.get_instance(self.settings)
         self.gpu_info: GpuInfo = GpuDetector.get_gpu_info()
         self._current_saved_lang = self.settings.get("ui", "language", "it")
+
+        self.oauth_manager = OAuthManager.get_instance()
+        self.oauth_manager.auth_completed.connect(self._on_auth_completed)
+        self.oauth_manager.auth_failed.connect(self._on_auth_failed)
+        self.account_widgets: Dict[str, Dict[str, Any]] = {}
 
         self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
         self.resize(860, 620)
@@ -87,7 +93,7 @@ class SettingsDialog(QDialog):
             ("🎨  Grafica & UI", 0),
             ("🎵  Audio & libVLC", 1),
             ("⚡  Prestazioni & Hardware", 2),
-            ("🌐  Scrapers & API Keys", 3),
+            ("🌐  Account & Servizi", 3),
             ("🧩  Plugin & Estensioni", 4),
         ]
 
@@ -529,7 +535,7 @@ class SettingsDialog(QDialog):
             QMessageBox.critical(self, "Errore", f"Impossibile creare il pacchetto log:\n{e}")
 
     # -------------------------------------------------------------
-    # Category 4: Scrapers & API Keys (Requirement 5: Complete Credentials & Testing)
+    # Category 4: Account & Servizi (One-Click Browser OAuth + Collapsible API Keys)
     # -------------------------------------------------------------
     def _create_scrapers_page(self) -> QWidget:
         scroll = QScrollArea()
@@ -537,6 +543,95 @@ class SettingsDialog(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setSpacing(12)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        # Header description
+        lbl_info = QLabel(
+            _t(
+                "settings_accounts_desc",
+                "Collega i tuoi account musicali con un click tramite autenticazione rapida nel browser.<br>"
+                "I servizi connessi consentono di accedere a playlist, cronologie, stream audio di anteprima e metadati completi.",
+            )
+        )
+        lbl_info.setWordWrap(True)
+        lbl_info.setStyleSheet("color: #495057; font-size: 12px; margin-bottom: 2px;")
+        layout.addWidget(lbl_info)
+
+        # 4 OAuth Account Cards
+        accounts_defs = [
+            ("spotify", "Spotify", "🟢", "Accedi al catalogo globale, top charts in tempo reale e anteprime audio HD."),
+            ("soundcloud", "SoundCloud", "🟠", "Ascolta remix, bootleg underground e set esclusivi della community DJ."),
+            ("youtube", "YouTube / YouTube Music", "🔴", "Estrai stream, video musicali ufficiali e release audio da Google Cloud."),
+            ("discogs", "Discogs", "💽", "Database primario per catalogazione vinili, numeri di catalogo, anno e crediti."),
+        ]
+
+        grp_accounts = QGroupBox(_t("settings_accounts_group", "Account Connessi (Accesso Rapido nel Browser)"))
+        accounts_layout = QVBoxLayout(grp_accounts)
+        accounts_layout.setSpacing(8)
+
+        for svc_id, name, icon, desc_text in accounts_defs:
+            card = QFrame()
+            card.setObjectName(f"card_{svc_id}")
+            card.setStyleSheet("""
+                QFrame {
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+            """)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(8, 6, 8, 6)
+            card_layout.setSpacing(10)
+
+            info_layout = QVBoxLayout()
+            info_layout.setSpacing(2)
+
+            lbl_title = QLabel(f"{icon}  <b>{name}</b>")
+            lbl_title.setStyleSheet("font-size: 13px; color: #212529;")
+            info_layout.addWidget(lbl_title)
+
+            lbl_desc = QLabel(desc_text)
+            lbl_desc.setStyleSheet("font-size: 11px; color: #6c757d;")
+            lbl_desc.setWordWrap(True)
+            info_layout.addWidget(lbl_desc)
+
+            lbl_status = QLabel()
+            lbl_status.setStyleSheet("font-size: 11px; margin-top: 1px;")
+            info_layout.addWidget(lbl_status)
+
+            card_layout.addLayout(info_layout, stretch=1)
+
+            btn_action = QPushButton()
+            btn_action.setFixedWidth(145)
+            btn_action.setFixedHeight(30)
+            btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_action.clicked.connect(lambda checked=False, s=svc_id: self._on_account_action_clicked(s))
+            card_layout.addWidget(btn_action)
+
+            accounts_layout.addWidget(card)
+
+            self.account_widgets[svc_id] = {
+                "card": card,
+                "status_lbl": lbl_status,
+                "action_btn": btn_action,
+                "name": name,
+            }
+
+        layout.addWidget(grp_accounts)
+
+        # Developer / Manual API Keys Collapsible Section
+        self.grp_dev = QGroupBox(_t("settings_dev_api_title", "🛠️ Opzioni Sviluppatore / API Custom & Token Manuali"))
+        self.grp_dev.setCheckable(True)
+        self.grp_dev.setChecked(False)  # Collapsed by default
+        dev_layout = QVBoxLayout(self.grp_dev)
+        dev_layout.setSpacing(10)
+
+        dev_desc = QLabel(
+            "Configura manualmente chiavi API dedicate per superare i limiti di quota o per integrazioni personalizzate."
+        )
+        dev_desc.setStyleSheet("color: #6c757d; font-size: 11px;")
+        dev_layout.addWidget(dev_desc)
 
         # 1. Spotify
         grp_spotify = QGroupBox("🟢 Spotify Developer API")
@@ -558,14 +653,14 @@ class SettingsDialog(QDialog):
         h_spot.addWidget(btn_test_spotify)
         h_spot.addWidget(self.lbl_spotify_status)
         form_spotify.addRow("Client Secret:", h_spot)
-        layout.addWidget(grp_spotify)
+        dev_layout.addWidget(grp_spotify)
 
         # 2. SoundCloud
         grp_sc = QGroupBox("🟠 SoundCloud API")
         form_sc = QFormLayout(grp_sc)
         self.txt_soundcloud_key = QLineEdit()
         self.txt_soundcloud_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_soundcloud_key.setPlaceholderText("Client ID / App Key da developers.soundcloud.com...")
+        self.txt_soundcloud_key.setPlaceholderText("Client ID / App Key...")
 
         btn_test_sc = QPushButton("Test Connessione")
         btn_test_sc.clicked.connect(self._on_test_soundcloud)
@@ -576,14 +671,14 @@ class SettingsDialog(QDialog):
         h_sc.addWidget(btn_test_sc)
         h_sc.addWidget(self.lbl_sc_status)
         form_sc.addRow("Client ID / Key:", h_sc)
-        layout.addWidget(grp_sc)
+        dev_layout.addWidget(grp_sc)
 
-        # 3. YouTube / YouTube Music
-        grp_yt = QGroupBox("🔴 YouTube / YouTube Music (Google Cloud)")
+        # 3. YouTube
+        grp_yt = QGroupBox("🔴 YouTube Data API v3 (Google Cloud)")
         form_yt = QFormLayout(grp_yt)
         self.txt_youtube_key = QLineEdit()
         self.txt_youtube_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_youtube_key.setPlaceholderText("Google Cloud API Key (Data API v3)...")
+        self.txt_youtube_key.setPlaceholderText("Google Cloud API Key...")
 
         btn_test_yt = QPushButton("Test Connessione")
         btn_test_yt.clicked.connect(self._on_test_youtube)
@@ -594,14 +689,14 @@ class SettingsDialog(QDialog):
         h_yt.addWidget(btn_test_yt)
         h_yt.addWidget(self.lbl_yt_status)
         form_yt.addRow("Google API Key:", h_yt)
-        layout.addWidget(grp_yt)
+        dev_layout.addWidget(grp_yt)
 
         # 4. Discogs
-        grp_discogs = QGroupBox("💽 Discogs API (Fonte Primaria per Release, Anno, Cat#)")
+        grp_discogs = QGroupBox("💽 Discogs Personal Access Token")
         form_discogs = QFormLayout(grp_discogs)
         self.txt_discogs_token = QLineEdit()
         self.txt_discogs_token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_discogs_token.setPlaceholderText("Personal Access Token da discogs.com/settings/developers...")
+        self.txt_discogs_token.setPlaceholderText("Personal Access Token...")
 
         btn_test_discogs = QPushButton("Test Connessione")
         btn_test_discogs.clicked.connect(self._on_test_discogs)
@@ -612,7 +707,7 @@ class SettingsDialog(QDialog):
         h_disc.addWidget(btn_test_discogs)
         h_disc.addWidget(self.lbl_discogs_status)
         form_discogs.addRow("Personal Token:", h_disc)
-        layout.addWidget(grp_discogs)
+        dev_layout.addWidget(grp_discogs)
 
         # 5. Beatport
         grp_beatport = QGroupBox("🎧 Beatport Access & Token")
@@ -628,7 +723,7 @@ class SettingsDialog(QDialog):
 
         self.txt_bp_token = QLineEdit()
         self.txt_bp_token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_bp_token.setPlaceholderText("Token API / Bearer Token opzionale...")
+        self.txt_bp_token.setPlaceholderText("Token API / Bearer Token...")
 
         btn_test_bp = QPushButton("Test Connessione")
         btn_test_bp.clicked.connect(self._on_test_beatport)
@@ -639,9 +734,11 @@ class SettingsDialog(QDialog):
         h_bp.addWidget(btn_test_bp)
         h_bp.addWidget(self.lbl_bp_status)
         form_beatport.addRow("API Token:", h_bp)
-        layout.addWidget(grp_beatport)
+        dev_layout.addWidget(grp_beatport)
 
+        layout.addWidget(self.grp_dev)
         layout.addStretch()
+
         scroll.setWidget(container)
         return scroll
 
@@ -777,6 +874,110 @@ class SettingsDialog(QDialog):
             self.lbl_bp_status.setStyleSheet("color: #198754; font-weight: bold;")
 
     # -------------------------------------------------------------
+    # OAuth Authentication Handlers & Card State Refresh
+    # -------------------------------------------------------------
+    def _on_account_action_clicked(self, service: str) -> None:
+        status = self.oauth_manager.get_account_status(service)
+        if status.get("connected"):
+            # Disconnect
+            self.oauth_manager.disconnect_account(service)
+            self._refresh_account_card(service)
+        else:
+            # Connect via browser
+            widgets = self.account_widgets.get(service)
+            if widgets:
+                widgets["action_btn"].setText("Connessione...")
+                widgets["action_btn"].setEnabled(False)
+                widgets["status_lbl"].setText("<span style='color: #0d6efd;'>Apertura browser in corso... Completa l'accesso nella finestra aperta.</span>")
+            self.oauth_manager.start_browser_login(service)
+
+    def _on_auth_completed(self, service: str, username: str, token: str) -> None:
+        self._refresh_account_card(service)
+        QMessageBox.information(
+            self,
+            "Account Connesso",
+            f"Account {service.capitalize()} collegato con successo come '{username}'!",
+        )
+
+    def _on_auth_failed(self, service: str, error: str) -> None:
+        self._refresh_account_card(service)
+        QMessageBox.warning(
+            self,
+            "Accesso Fallito",
+            f"Impossibile collegare l'account {service.capitalize()}:\n{error}",
+        )
+
+    def _refresh_account_card(self, service: str) -> None:
+        widgets = self.account_widgets.get(service)
+        if not widgets:
+            return
+        status = self.oauth_manager.get_account_status(service)
+        is_conn = status.get("connected", False)
+        username = status.get("username", "")
+
+        btn: QPushButton = widgets["action_btn"]
+        lbl: QLabel = widgets["status_lbl"]
+        btn.setEnabled(True)
+
+        if is_conn:
+            lbl.setText(f"<span style='color: #198754; font-weight: bold;'>✓ Connesso come: {username or 'Utente DJ'}</span>")
+            btn.setText(_t("settings_btn_disconnect", "Disconnetti"))
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #ffffff;
+                    border: 1px solid #dc3545;
+                    color: #dc3545;
+                    font-weight: 600;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #dc3545;
+                    color: #ffffff;
+                }
+            """)
+        else:
+            lbl.setText("<span style='color: #6c757d;'>Non connesso (Accesso limitato)</span>")
+            btn.setText(_t("settings_btn_connect", "Connetti Account"))
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #0d6efd;
+                    border: 1px solid #0d6efd;
+                    color: #ffffff;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #0b5ed7;
+                }
+            """)
+
+    def _refresh_all_account_cards(self) -> None:
+        for svc_id in self.account_widgets:
+            self._refresh_account_card(svc_id)
+
+    def set_active_category(self, category: str | int) -> None:
+        """Switches active category by index or string alias."""
+        if isinstance(category, int):
+            self.sidebar.setCurrentRow(max(0, min(self.sidebar.count() - 1, category)))
+        elif isinstance(category, str):
+            mapping = {
+                "ui": 0,
+                "graphics": 0,
+                "audio": 1,
+                "vlc": 1,
+                "perf": 2,
+                "performance": 2,
+                "hardware": 2,
+                "scrapers": 3,
+                "accounts": 3,
+                "services": 3,
+                "account": 3,
+                "plugins": 4,
+            }
+            row = mapping.get(category.lower(), 0)
+            self.sidebar.setCurrentRow(row)
+
+    # -------------------------------------------------------------
     # Category 5: Plugin & Estensioni
     # -------------------------------------------------------------
     def _create_plugins_page(self) -> QWidget:
@@ -895,6 +1096,9 @@ class SettingsDialog(QDialog):
         self.txt_bp_pass.setText(self.settings.get("scrapers", "beatport_password", ""))
         self.txt_bp_token.setText(self.settings.get("scrapers", "beatport_token", ""))
 
+        # Accounts & Services
+        self._refresh_all_account_cards()
+
     def _on_language_changed(self, index: int) -> None:
         """Applies language change dynamically across the application."""
         lang = self.cmb_language.currentData()
@@ -916,7 +1120,7 @@ class SettingsDialog(QDialog):
             _t("settings_tab_ui", "🎨  Grafica & UI"),
             _t("settings_tab_audio", "🎵  Audio & libVLC"),
             _t("settings_tab_perf", "⚡  Prestazioni & Hardware"),
-            _t("settings_tab_scrapers", "🌐  Scrapers & API Keys"),
+            _t("settings_tab_accounts", "🌐  Account & Servizi"),
             _t("settings_tab_plugins", "🧩  Plugin & Estensioni"),
         ]
         for i, text in enumerate(categories):

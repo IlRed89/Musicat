@@ -61,6 +61,12 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "beatport_token": "",
     },
     "plugins": {},
+    "accounts": {
+        "spotify": {"connected": False, "username": "", "token": ""},
+        "soundcloud": {"connected": False, "username": "", "token": ""},
+        "youtube": {"connected": False, "username": "", "token": ""},
+        "discogs": {"connected": False, "username": "", "token": ""},
+    },
 }
 
 
@@ -137,34 +143,53 @@ class SettingsManager:
                 return False
 
     def get(self, section_or_key: str, key_or_default: Any = None, default: Any = None) -> Any:
-        """Retrieves a configuration value using section+key or dot-notation."""
+        """Retrieves a configuration value using section+key, section, or dot-notation."""
         with self._lock:
             if "." in section_or_key:
                 sec, k = section_or_key.split(".", 1)
                 def_val = key_or_default if default is None else default
-                return self._settings.get(sec, {}).get(k, def_val)
+                sec_dict = self._settings.get(sec, {})
+                if isinstance(sec_dict, dict):
+                    return sec_dict.get(k, def_val)
+                return def_val
+            elif key_or_default is None and default is None:
+                if section_or_key in self._settings:
+                    val = self._settings[section_or_key]
+                    return dict(val) if isinstance(val, dict) else val
+                return None
+            elif not isinstance(key_or_default, str):
+                # E.g. get("accounts", {}) where second argument is fallback default for section
+                sec_dict = self._settings.get(section_or_key)
+                if sec_dict is not None:
+                    return dict(sec_dict) if isinstance(sec_dict, dict) else sec_dict
+                return key_or_default
             else:
                 sec = section_or_key
                 k = key_or_default
-                return self._settings.get(sec, {}).get(k, default)
+                sec_dict = self._settings.get(sec, {})
+                if isinstance(sec_dict, dict):
+                    return sec_dict.get(k, default)
+                return default
 
     def set(self, section_or_key: str, key_or_value: Any, value: Any = Ellipsis) -> None:
-        """Sets a configuration value using section+key or dot-notation, persisting to disk."""
+        """Sets a configuration value using section+key, section dict, or dot-notation, persisting to disk."""
         with self._lock:
             if value is Ellipsis:
                 if "." in section_or_key:
                     sec, k = section_or_key.split(".", 1)
+                    val = key_or_value
+                    if sec not in self._settings or not isinstance(self._settings[sec], dict):
+                        self._settings[sec] = {}
+                    self._settings[sec][k] = val
                 else:
-                    sec, k = section_or_key, ""
-                val = key_or_value
+                    self._settings[section_or_key] = key_or_value
             else:
                 sec = section_or_key
                 k = key_or_value
                 val = value
-
-            if sec not in self._settings or not isinstance(self._settings[sec], dict):
-                self._settings[sec] = {}
-            self._settings[sec][k] = val
+                if sec not in self._settings or not isinstance(self._settings[sec], dict):
+                    self._settings[sec] = {}
+                self._settings[sec][k] = val
             self.save()
 
     def get_section(self, section: str) -> Dict[str, Any]:

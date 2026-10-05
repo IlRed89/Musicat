@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] - 2026-10-05
+
+### 🚀 Top Charts Stream Playback, Browser OAuth Login, Default Library Startup & Folder Sync Fix
+
+#### 🎧 Audio Playback on Top Charts (Preview Streaming & Login Redirect)
+- **Instant Click Playback:** Clicking trending track cards or play action buttons launches 30-second audio stream previews directly in the internal libVLC player (`media_new_location` network playback).
+- **Protected Tracks & Login Redirect:** When a full stream requires account authorization, a dialog prompts the user and re-routes directly to **Settings > Accounts & Services**.
+- **Player Streaming Badge:** MiniPlayer shows clean `🌐 Streaming Online (Anteprima 30s)` without running unnecessary local waveform generation.
+
+#### 📁 Default Startup View: DJ Library (Index 0)
+- **Default Launch Experience:** Application boots directly to the DJ Library view instead of trending charts.
+- **Header Navigation Reordering:** The top navigation bar positions `📁 Libreria` as the primary workspace button, followed by `🔥 Top Charts` (renamed from Analisi).
+- **Keyboard Shortcuts:** `Alt+1` switches to Library, `Alt+2` switches to Top Charts.
+
+#### 🌐 One-Click Browser OAuth Account Management
+- **Single-Click Connection:** Revamped **Settings > Accounts & Services** with dedicated cards for Spotify, SoundCloud, YouTube, and Discogs featuring a `[Connetti Account]` button.
+- **Local Loopback Callback Listener:** Built `OAuthManager` running an ephemeral loopback HTTP server (`http://localhost:8888/callback`) to intercept authorization tokens from default system browsers.
+- **Live Connection Status:** Displays `✓ Connesso come: [Username]` and provides a `[Disconnetti]` button.
+- **Collapsible Developer Options:** Compact accordion at the bottom of the page retains manual API keys/secrets for advanced setups.
+
+#### 📂 Filesystem Explorer & Automatic Folder Indexing
+- **Cross-Platform Slash Normalization:** Fixed path discrepancies between Windows (`\`) and Unix (`/`) slashes in both SQLite queries and in-memory RAM caches, eliminating blank table displays when browsing folders.
+- **Background Auto-Scanning:** Selecting an unindexed folder from the left directory tree triggers an asynchronous audio scanner with discrete status bar progress, populating the track table in real time.
+- **Streamlined Library Header:** Permanently removed `"Live RAM Index (<15ms)"` badge and redundant `"Cartella"` text input, keeping directory navigation exclusively in the dedicated left tree explorer.
+
+---
+
 ## [1.5.1] - 2026-10-05
 
 ### 🛡️ Complete Home Trends Thread-Safety & Updated Standalone Binaries

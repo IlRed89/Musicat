@@ -162,9 +162,12 @@ class SpotifyTrendsManager:
         return self.cross_check_library(tracks, db)
 
     def has_credentials(self) -> bool:
-        """Checks if Spotify API credentials are configured."""
+        """Checks if Spotify API credentials or OAuth connected account is active."""
         cid, sec = self.get_client_credentials()
-        return bool(cid and sec)
+        if bool(cid and sec):
+            return True
+        acc = self.settings.get("accounts", {}).get("spotify", {})
+        return bool(acc.get("connected", False))
 
     def _authenticate_direct(self) -> Optional[str]:
         """Authenticates with Spotify Web API using Client Credentials flow."""

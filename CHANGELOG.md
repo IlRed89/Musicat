@@ -10,6 +10,33 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.6.0] - 2026-10-05
+
+### 🚀 Riproduzione Streaming Top Charts, Login OAuth nel Browser, Avvio su Libreria & Sincronizzazione Cartelle Filesystem
+
+#### 🎧 Riproduzione Audio su Top Charts (Streaming Preview & Prompt di Accesso)
+- **Ascolto Immediato su Click:** Cliccando sulle card dei brani o sul pulsante play nella schermata Top Charts, viene avviata la riproduzione dell'anteprima audio HD (stream a 30s) direttamente nel mini-player interno libVLC (`media_new_location` via rete).
+- **Gestione Tracce Protette & Redirect Login:** Se la traccia richiede un account connesso o il catalogo non fornisce un'anteprima pubblica, viene mostrato un dialog intuitivo che invita ad accedere e reindirizza direttamente su **Impostazioni > Account & Servizi**.
+- **Visualizzazione Mini-Player Dedicata:** Breadcrumb e indicatore di stato mostrano chiaramente l'etichetta `🌐 Streaming Online (Anteprima 30s)` senza tentare calcoli locali del waveform non necessari.
+
+#### 📁 Schermata Predefinita all'Avvio: Libreria DJ (No Top Charts)
+- **Apertura Istantanea su Libreria (Index 0):** All'avvio dell'applicazione la vista principale attiva è la Libreria DJ con tabella virtuale e albero delle cartelle.
+- **Riorganizzazione Macro-Navigazione:** La barra superiore posiziona `📁 Libreria` come primo pulsante a sinistra e `🔥 Top Charts` (precedentemente Analisi) come seconda tab secondaria.
+- **Scorciatoie Tastiera DJ Riorganizzate:** `Alt+1` attiva la Libreria, `Alt+2` attiva Top Charts, mantenendo continuità operativa.
+
+#### 🌐 Gestione Account OAuth con Login Diretto nel Browser
+- **Autenticazione Rapida a Singolo Click:** Ridisegnata la sezione **Impostazioni > Account & Servizi** con schede per Spotify, SoundCloud, YouTube e Discogs dotate di pulsante `[Connetti Account]`.
+- **Server Loopback Locale per Intercettazione Token:** Implementato `OAuthManager` con server HTTP effimero locale (`http://localhost:8888/callback`) che gestisce in background l'autorizzazione nel browser predefinito di sistema.
+- **Stato Account in Tempo Reale & Disconnessione:** Le schede mostrano lo stato `✓ Connesso come: [Nome Utente]` con pulsante `[Disconnetti]`.
+- **Sezione Sviluppatore Comprimibile:** Posizionata in calce alla pagina una sezione richiudibile per l'inserimento facoltativo di credenziali manuali o token API custom.
+
+#### 📂 Navigazione Filesystem & Auto-Scansione Cartelle dall'Albero
+- **Normalizzazione Percorsi Multi-Piattaforma:** Corretto il disallineamento tra barre Windows (`\`) e Unix (`/`) sia nelle query SQL SQLite che nella cache in memoria a 64-bit di `LiveFilterEngine`, eliminando le tabelle vuote su clic di cartelle già indicizzate.
+- **Scansione Automatica Cartelle Non Indicizzate:** Selezionando una cartella fisica non ancora presente nel database (es. `E:\Nuova cartella\Commerciale`), l'albero avvia istantaneamente una scansione asincrona in background dei soli file audio presenti con barra di avanzamento discreta nella status bar, popolando la tabella in tempo reale.
+- **Snellimento Header Libreria:** Rimosso definitivamente dall'header il badge `"Live RAM Index (<15ms)"` (ora monitorato esclusivamente nella barra di stato con barre graduate dinamiche) e rimosso il campo ridondante *"Cartella"*, demandando l'esplorazione gerarchica all'albero laterale dedicato.
+
+---
+
 ## [1.5.1] - 2026-10-05
 
 ### 🛡️ Risoluzione Completa Crash Thread-Safety Home Trends & Nuova Build Eseguibile

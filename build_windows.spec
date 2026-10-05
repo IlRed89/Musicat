@@ -40,6 +40,7 @@ hiddenimports = [
     'src.gui.views',
     'src.gui.views.crates_view',
     'src.core.boot_diagnostics',
+    'src.core.oauth_manager',
 ]
 
 datas = [

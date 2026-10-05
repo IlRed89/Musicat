@@ -92,12 +92,16 @@ class TestFiveCoreRequirements(unittest.TestCase):
             self.assertIsNotNone(window.btn_nav_organizer)
             self.assertIsNotNone(window.btn_nav_settings)
 
-            # Starts at View 0 (Analisi / Home Trends)
+            # Starts at View 0 (Libreria default per Requirement 3)
             self.assertEqual(window.view_stack.currentIndex(), 0)
 
-            # Switch to Library (View 1)
-            window.btn_nav_library.click()
+            # Switch to Top Charts (View 1)
+            window.btn_nav_trends.click()
             self.assertEqual(window.view_stack.currentIndex(), 1)
+
+            # Switch back to Library (View 0)
+            window.btn_nav_library.click()
+            self.assertEqual(window.view_stack.currentIndex(), 0)
 
             # Switch to Tag Editor (Mp3tag Workspace - View 2)
             window.btn_nav_mp3tag.click()
@@ -115,8 +119,12 @@ class TestFiveCoreRequirements(unittest.TestCase):
             window.btn_nav_organizer.click()
             self.assertEqual(window.view_stack.currentIndex(), 5)
 
-            # Switch back to Home / Trends (View 0)
+            # Switch to Top Charts (View 1)
             window.btn_nav_trends.click()
+            self.assertEqual(window.view_stack.currentIndex(), 1)
+
+            # Switch back to Library (View 0)
+            window.btn_nav_library.click()
             self.assertEqual(window.view_stack.currentIndex(), 0)
         finally:
             window.close()

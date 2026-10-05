@@ -108,30 +108,41 @@ class VLCAudioPlayer:
             self._finished_callback = finished_cb
 
     def load(self, filepath: str) -> bool:
-        """Loads an audio file into the player.
+        """Loads an audio file or HTTP/HTTPS stream URL into the player.
 
         Args:
-            filepath (str): Absolute path to audio track.
+            filepath (str): Absolute path to audio track or stream URL.
 
         Returns:
             bool: True if loaded successfully, False otherwise.
         """
-        if not filepath or not Path(filepath).exists():
+        if not filepath:
+            return False
+
+        is_network_url = filepath.startswith("http://") or filepath.startswith("https://")
+        if not is_network_url and not Path(filepath).exists():
             MusicatLogger.log_audio_engine("LOAD_FAIL", f"Audio file not found: '{filepath}'", level="error")
             return False
 
         with self._lock:
-            self._current_filepath = str(Path(filepath).resolve())
+            self._current_filepath = filepath if is_network_url else str(Path(filepath).resolve())
 
             if self.is_available():
-                media = self._instance.media_new(self._current_filepath)
-                self._player.set_media(media)
-                self._player.audio_set_volume(self._volume)
-                self._player.set_rate(self._pitch_rate)
-                # Parse media info
-                media.parse_with_options(vlc.MediaParseFlag.local, -1)
+                if is_network_url:
+                    media = self._instance.media_new_location(self._current_filepath)
+                    self._player.set_media(media)
+                    self._player.audio_set_volume(self._volume)
+                    self._player.set_rate(self._pitch_rate)
+                    media.parse_with_options(vlc.MediaParseFlag.network, -1)
+                else:
+                    media = self._instance.media_new(self._current_filepath)
+                    self._player.set_media(media)
+                    self._player.audio_set_volume(self._volume)
+                    self._player.set_rate(self._pitch_rate)
+                    media.parse_with_options(vlc.MediaParseFlag.local, -1)
 
-            MusicatLogger.log_audio_engine("LOAD", f"Loaded track: '{Path(filepath).name}'", {"filepath": self._current_filepath})
+            display_name = "Online Stream (30s Preview)" if is_network_url else Path(filepath).name
+            MusicatLogger.log_audio_engine("LOAD", f"Loaded track: '{display_name}'", {"filepath": self._current_filepath})
             return True
 
     def play(self) -> None:

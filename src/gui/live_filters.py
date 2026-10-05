@@ -443,28 +443,21 @@ class LiveFilterBar(QFrame):
         self.txt_search.setClearButtonEnabled(True)
         self.txt_search.setMinimumWidth(200)
 
-        # Search Engine Badge
+        # Search Engine Badge (Hidden - metrics centralized in bottom status bar)
         self.lbl_search_engine = QLabel(SearchEngine.get_engine_badge())
-        self.lbl_search_engine.setStyleSheet(
-            "color: #00d2ff; font-size: 10px; padding: 2px 5px; border: 1px solid #0284c7; border-radius: 3px;"
-        )
+        self.lbl_search_engine.setVisible(False)
 
-        # 2. Drive / Directory Folder Filter
-        folder_box = QHBoxLayout()
-        folder_box.setSpacing(4)
+        # Drive / Directory Folder Filter (Headless - controlled by Left Sidebar Tree)
         self.lbl_folder = QLabel("📁 Cartella:")
+        self.lbl_folder.setVisible(False)
         self.cmb_folder = QComboBox()
         self.cmb_folder.addItem("Tutte le Cartelle / Drive", "")
-        self.cmb_folder.setMinimumWidth(160)
-        self.cmb_folder.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.cmb_folder.setToolTip("Filtra per cartella o drive sorgente")
-        folder_box.addWidget(self.lbl_folder)
-        folder_box.addWidget(self.cmb_folder)
+        self.cmb_folder.setVisible(False)
 
-        # 3. Multi-Genre Selector (Ctrl+G)
+        # 2. Multi-Genre Selector (Ctrl+G)
         self.genre_widget = GenreMultiSelectWidget(self.db, self)
 
-        # 4. Cover Art Filter
+        # 3. Cover Art Filter
         cover_box = QHBoxLayout()
         cover_box.setSpacing(4)
         self.lbl_cover = QLabel("🖼️ Cover:")
@@ -478,16 +471,14 @@ class LiveFilterBar(QFrame):
         cover_box.addWidget(self.lbl_cover)
         cover_box.addWidget(self.cmb_cover)
 
-        # 5. Instant Reset Button (ESC)
+        # 4. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
         self.btn_reset.setMinimumWidth(115)
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
         self.btn_reset.clicked.connect(self.reset_filters)
 
-        # Assemble Row 1
-        row1.addWidget(self.txt_search, 3)
-        row1.addWidget(self.lbl_search_engine)
-        row1.addLayout(folder_box)
+        # Assemble Clean Streamlined Row 1
+        row1.addWidget(self.txt_search, 4)
         row1.addWidget(self.genre_widget, 2)
         row1.addLayout(cover_box)
         row1.addWidget(self.btn_reset)

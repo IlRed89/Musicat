@@ -12,7 +12,7 @@
   <a href="README.md"><img src="https://img.shields.io/badge/Lingua-Italiano-green.svg" alt="Lingua: Italiano"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/tests-151%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/tests-165%20passing-brightgreen.svg" alt="Test Suite">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg" alt="License"></a>
 </p>
