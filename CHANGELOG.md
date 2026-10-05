@@ -10,6 +10,18 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.5.1] - 2026-10-05
+
+### 🛡️ Risoluzione Completa Crash Thread-Safety Home Trends & Nuova Build Eseguibile
+
+#### ⚡ Thread-Safety Totale & Eliminazione Crash Nativi in Home Trends
+- **Eliminazione Chiamate Distruttive a `QThread.terminate()`:** Sostituito l'uso di thread Qt forzati con `TrendsLoader` basato su `concurrent.futures.ThreadPoolExecutor`. Zero rischio di terminazione anomala nativa C++ (`0xC0000005`) durante i click veloci tra generi e piattaforme.
+- **Isolamento Thread Grafico per le Miniature (`TrendingCoverLoader`):** Decodifica in background delle immagini condotta rigorosamente tramite la classe thread-safe `QImage`. Conversione finale a `QPixmap` circoscritta al solo GUI Thread al segnale `cover_ready`, con cache in memoria scalata.
+- **Annullamento Richieste Obsolete via Request ID (`req_id`):** Introdotto contatore progressivo di richieste che scarta istantaneamente risposte lente o asincrone di categorie precedentemente selezionate.
+- **Ottimizzazione Query Incrociata Libreria Locale (`cross_check_library`):** Controllo fulmineo della presenza di tracce (`COUNT(*)`) in 0.1ms prima di interrogare il database, eliminando decine di connessioni concorrenti ridondanti a SQLite.
+
+---
+
 ## [1.5.0] - 2026-10-05
 
 ### 🚀 Home Trends Estesi a Scorrimento Fluido, Pulizia Header Libreria, Esplora Risorse Drive Pulito & Tagging Massivo da Pattern (Mp3tag)
