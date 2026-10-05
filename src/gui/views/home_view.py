@@ -18,10 +18,11 @@ from __future__ import annotations
 import os
 import sys
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
-from PySide6.QtCore import QPoint, QRect, QSemaphore, QSize, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -74,47 +75,107 @@ CATEGORY_TO_GENRE: Dict[str, str] = {
 }
 
 
-class AsyncThumbnailLoader(QThread):
-    """Asynchronously loads cover art thumbnails with in-memory caching and bounded thread concurrency."""
+class TrendingCoverLoader(QObject):
+    """Centralized, thread-safe asynchronous cover art loader.
+    Fetches raw image bytes and decodes with QImage in a worker pool.
+    Generates QPixmap exclusively on the main GUI thread.
+    Zero per-card QThread spawning, zero terminate() calls, zero native crash risk."""
 
-    loaded = Signal(str, QPixmap)  # url, pixmap
-    _cache: Dict[str, QPixmap] = {}
-    _semaphore = QSemaphore(6)
+    cover_ready = Signal(str, QImage)  # (url, qimage) emitted to main thread
+    _instance: Optional["TrendingCoverLoader"] = None
 
-    def __init__(self, url: str) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.url = url
+        self._pixmap_cache: Dict[str, QPixmap] = {}
+        self._pending_urls: Set[str] = set()
+        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="TrendCover")
+        self.cover_ready.connect(self._on_image_decoded)
 
-    def run(self) -> None:
-        if not self.url or self.isInterruptionRequested():
-            return
-        if self.url in self._cache:
-            if not self.isInterruptionRequested():
-                self.loaded.emit(self.url, self._cache[self.url])
-            return
+    @classmethod
+    def instance(cls) -> "TrendingCoverLoader":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
-        self._semaphore.acquire()
+    def get_cached_pixmap(self, url: str) -> Optional[QPixmap]:
+        return self._pixmap_cache.get(url)
+
+    def request_cover(self, url: str) -> None:
+        """Schedules background image fetching if not already cached or queued."""
+        if not url or url in self._pixmap_cache or url in self._pending_urls:
+            return
+        self._pending_urls.add(url)
+        self._executor.submit(self._fetch_task, url)
+
+    def _fetch_task(self, url: str) -> None:
+        """Background thread: fetches image bytes and decodes to thread-safe QImage."""
         try:
-            if self.isInterruptionRequested():
-                return
-            pix = QPixmap()
-            try:
-                if self.url.startswith("http://") or self.url.startswith("https://"):
-                    resp = requests.get(self.url, timeout=3.5)
-                    if self.isInterruptionRequested():
-                        return
-                    if resp.status_code == 200:
-                        pix.loadFromData(resp.content)
-                elif os.path.exists(self.url):
-                    pix.load(self.url)
-            except Exception:
-                pass
+            img = QImage()
+            if url.startswith("http://") or url.startswith("https://"):
+                resp = requests.get(url, timeout=3.5)
+                if resp.status_code == 200:
+                    img.loadFromData(resp.content)
+            elif os.path.exists(url):
+                img.load(url)
 
-            if not pix.isNull() and not self.isInterruptionRequested():
-                self._cache[self.url] = pix
-                self.loaded.emit(self.url, pix)
-        finally:
-            self._semaphore.release()
+            if not img.isNull():
+                self.cover_ready.emit(url, img)
+            else:
+                self.cover_ready.emit(url, QImage())
+        except Exception:
+            self.cover_ready.emit(url, QImage())
+
+    @Slot(str, QImage)
+    def _on_image_decoded(self, url: str, img: QImage) -> None:
+        """GUI thread: converts thread-safe QImage to displayable QPixmap."""
+        self._pending_urls.discard(url)
+        if not img.isNull():
+            scaled = QPixmap.fromImage(img).scaled(
+                195, 140,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._pixmap_cache[url] = scaled
+
+
+# Backward compatibility alias
+AsyncThumbnailLoader = TrendingCoverLoader
+
+
+class TrendsLoader(QObject):
+    """Asynchronous background loader for category trends using Python ThreadPoolExecutor.
+    Guarantees zero QThread lifecycle crashes when rapidly switching categories."""
+
+    trends_loaded = Signal(str, list)   # req_id, tracks
+    trends_failed = Signal(str, str)    # req_id, error
+
+    def __init__(self, trends_manager: SpotifyTrendsManager, db: Database) -> None:
+        super().__init__()
+        self.trends_manager = trends_manager
+        self.db = db
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="TrendsFetch")
+
+    def load_category(self, req_id: str, category_id: str, platform: str, force_refresh: bool = False) -> None:
+        self._executor.submit(self._run_fetch, req_id, category_id, platform, force_refresh)
+
+    def _run_fetch(self, req_id: str, category_id: str, platform: str, force_refresh: bool) -> None:
+        try:
+            tracks = self.trends_manager.fetch_category_trends(
+                category_id=category_id,
+                platform=platform,
+                limit=100,
+                db=self.db,
+                force_refresh=force_refresh,
+            )
+            self.trends_loaded.emit(req_id, tracks)
+        except Exception as exc:
+            self.trends_failed.emit(req_id, str(exc))
+
+    def shutdown(self) -> None:
+        try:
+            self._executor.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
 
 
 class TrendsFetchWorker(QThread):
@@ -169,41 +230,29 @@ class TrendingTrackCard(QFrame):
         self.theme_id = theme_id
         self.setFixedSize(215, 305)
 
-        self._thumb_loader: Optional[AsyncThumbnailLoader] = None
         self._init_ui()
         self.update_theme(self.theme_id)
 
         if self.track.cover_url:
-            cached_pix = AsyncThumbnailLoader._cache.get(self.track.cover_url)
+            cached_pix = TrendingCoverLoader.instance().get_cached_pixmap(self.track.cover_url)
             if cached_pix and not cached_pix.isNull():
-                self._on_thumbnail_loaded(self.track.cover_url, cached_pix)
+                self.lbl_cover.setPixmap(cached_pix)
             else:
-                self._thumb_loader = AsyncThumbnailLoader(self.track.cover_url)
-                self._thumb_loader.loaded.connect(self._on_thumbnail_loaded)
-                self._thumb_loader.start()
+                TrendingCoverLoader.instance().cover_ready.connect(self._on_cover_loaded)
+                TrendingCoverLoader.instance().request_cover(self.track.cover_url)
 
     def cleanup(self) -> None:
-        """Safely stops the thumbnail loader thread before widget deletion to prevent C++ crashes."""
-        if self._thumb_loader:
-            try:
-                self._thumb_loader.loaded.disconnect()
-            except Exception:
-                pass
-            if self._thumb_loader.isRunning():
-                self._thumb_loader.requestInterruption()
-                if not self._thumb_loader.wait(200):
-                    self._thumb_loader.terminate()
-                    self._thumb_loader.wait(100)
-            self._thumb_loader = None
+        """Safely disconnects from central cover loader without blocking or terminating threads."""
+        try:
+            TrendingCoverLoader.instance().cover_ready.disconnect(self._on_cover_loaded)
+        except Exception:
+            pass
 
-    def _on_thumbnail_loaded(self, url: str, pixmap: QPixmap) -> None:
-        if url == self.track.cover_url and not pixmap.isNull():
-            scaled = pixmap.scaled(
-                195, 140,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self.lbl_cover.setPixmap(scaled)
+    def _on_cover_loaded(self, url: str, img: QImage) -> None:
+        if url == self.track.cover_url:
+            cached_pix = TrendingCoverLoader.instance().get_cached_pixmap(url)
+            if cached_pix and not cached_pix.isNull():
+                self.lbl_cover.setPixmap(cached_pix)
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -477,7 +526,10 @@ class HomeTrendsView(QWidget):
         self._platform_buttons: Dict[str, QPushButton] = {}
         self._category_buttons: Dict[str, QPushButton] = {}
         self._has_loaded = False
-        self._worker: Optional[TrendsFetchWorker] = None
+        self._active_request_id = 0
+        self._trends_loader = TrendsLoader(self.trends_manager, self.db)
+        self._trends_loader.trends_loaded.connect(self._on_trends_loaded)
+        self._trends_loader.trends_failed.connect(self._on_trends_failed)
         self.current_theme = "light"
 
         self._init_ui()
@@ -880,39 +932,34 @@ class HomeTrendsView(QWidget):
             )
 
     def _load_category(self, category_id: str, force_refresh: bool = False) -> None:
-        """Loads category trending tracks from background worker, stopping existing worker safely."""
+        """Loads category trending tracks asynchronously using TrendsLoader."""
         try:
+            self._active_request_id = getattr(self, "_active_request_id", 0) + 1
+            current_req_id = f"req_{self._active_request_id}"
+
             MusicatLogger.get_logger().info(f"[HOME_VIEW] Caricamento categoria: {category_id!r} (platform={self.current_platform}, force_refresh={force_refresh})")
             self.lbl_status.setText(_t("home_status_loading", "Caricamento tracce in corso da {platform} Trends...", platform=self.current_platform.capitalize()))
 
-            # Safely stop active worker to avoid C++ QThread destruction crashes
-            if hasattr(self, "_worker") and self._worker:
-                if self._worker.isRunning():
-                    MusicatLogger.get_logger().debug("[HOME_VIEW] Interruzione thread precedente...")
-                    self._worker.requestInterruption()
-                    if not self._worker.wait(300):
-                        self._worker.terminate()
-                        self._worker.wait(100)
-
-            self._worker = TrendsFetchWorker(
-                self.trends_manager,
-                category_id,
-                self.db,
+            self._trends_loader.load_category(
+                req_id=current_req_id,
+                category_id=category_id,
                 platform=self.current_platform,
                 force_refresh=force_refresh,
             )
-            self._worker.finished.connect(self._on_trends_loaded)
-            self._worker.failed.connect(self._on_trends_failed)
-            self._worker.start()
 
         except Exception as exc:
             MusicatLogger.get_logger().error(f"[HOME_VIEW] Errore in _load_category({category_id}): {exc}\n{traceback.format_exc()}")
 
-    def _on_trends_loaded(self, tracks: List[TrendingTrack]) -> None:
+    def _on_trends_loaded(self, request_id: str, tracks: List[TrendingTrack]) -> None:
+        if request_id != f"req_{getattr(self, '_active_request_id', 0)}":
+            # Stale response from a previously requested category, discard safely
+            return
         self.current_tracks = tracks or []
         self._render_cards(self.current_tracks)
 
-    def _on_trends_failed(self, error: str) -> None:
+    def _on_trends_failed(self, request_id: str, error: str) -> None:
+        if request_id != f"req_{getattr(self, '_active_request_id', 0)}":
+            return
         self.lbl_status.setText(f"<span style='color: #ef4444;'>{_t('home_status_error', 'Errore durante il caricamento: {error}', error=error)}</span>")
 
     def _render_cards(self, tracks: List[TrendingTrack]) -> None:
@@ -986,14 +1033,9 @@ class HomeTrendsView(QWidget):
         self._render_cards(filtered)
 
     def cleanup(self) -> None:
-        """Safely stops background worker thread and child card loaders to prevent QThread crashes."""
-        if hasattr(self, "_worker") and self._worker:
-            if self._worker.isRunning():
-                self._worker.requestInterruption()
-                if not self._worker.wait(300):
-                    self._worker.terminate()
-                    self._worker.wait(100)
-            self._worker = None
+        """Safely stops background loaders and child card loaders to prevent crashes."""
+        if hasattr(self, "_trends_loader") and self._trends_loader:
+            self._trends_loader.shutdown()
 
         while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)

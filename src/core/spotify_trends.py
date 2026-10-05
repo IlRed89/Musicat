@@ -356,24 +356,59 @@ class SpotifyTrendsManager:
         """Cross-checks trending tracks against user's local database (marks in_library)."""
         if not db or not tracks:
             return
-        for t in tracks:
-            try:
-                # Query by artist and title in database
-                matches = db.find_tracks_by_artist_title(t.artist, t.title)
-                if matches and isinstance(matches, list) and len(matches) > 0 and isinstance(matches[0], dict):
-                    t.in_library = True
-                    t.local_filepath = matches[0].get("filepath")
-                    # Also import BPM/Key from local match if available
-                    if not t.bpm and matches[0].get("bpm"):
-                        t.bpm = matches[0].get("bpm")
-                    if not t.camelot_key and matches[0].get("camelot_key"):
-                        t.camelot_key = matches[0].get("camelot_key")
-                else:
+        try:
+            with db.get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM tracks")
+                count_row = cur.fetchone()
+                if not count_row or count_row[0] == 0:
+                    for t in tracks:
+                        t.in_library = False
+                        t.local_filepath = None
+                    return
+
+                for t in tracks:
+                    try:
+                        clean_a = t.artist.strip()
+                        clean_t = t.title.strip()
+                        cur.execute("""
+                            SELECT * FROM tracks
+                            WHERE (artist LIKE ? OR ? LIKE '%' || artist || '%' OR remixer LIKE ?)
+                              AND (title LIKE ? OR ? LIKE '%' || title || '%')
+                            LIMIT 1
+                        """, (f"%{clean_a}%", clean_a, f"%{clean_a}%", f"%{clean_t}%", clean_t))
+                        row = cur.fetchone()
+                        if row:
+                            row_dict = dict(row)
+                            t.in_library = True
+                            t.local_filepath = row_dict.get("filepath")
+                            if not t.bpm and row_dict.get("bpm"):
+                                t.bpm = row_dict.get("bpm")
+                            if not t.camelot_key and row_dict.get("camelot_key"):
+                                t.camelot_key = row_dict.get("camelot_key")
+                        else:
+                            t.in_library = False
+                            t.local_filepath = None
+                    except Exception:
+                        t.in_library = False
+                        t.local_filepath = None
+        except Exception:
+            for t in tracks:
+                try:
+                    matches = db.find_tracks_by_artist_title(t.artist, t.title)
+                    if matches and isinstance(matches, list) and len(matches) > 0 and isinstance(matches[0], dict):
+                        t.in_library = True
+                        t.local_filepath = matches[0].get("filepath")
+                        if not t.bpm and matches[0].get("bpm"):
+                            t.bpm = matches[0].get("bpm")
+                        if not t.camelot_key and matches[0].get("camelot_key"):
+                            t.camelot_key = matches[0].get("camelot_key")
+                    else:
+                        t.in_library = False
+                        t.local_filepath = None
+                except Exception:
                     t.in_library = False
                     t.local_filepath = None
-            except Exception:
-                t.in_library = False
-                t.local_filepath = None
 
     def _read_cache(self, cache_key: str) -> Optional[List[TrendingTrack]]:
         """Reads category tracks from disk cache if fresh."""

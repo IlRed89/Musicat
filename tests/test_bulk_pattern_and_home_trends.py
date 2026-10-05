@@ -80,6 +80,21 @@ class TestBulkPatternAndHomeTrends(unittest.TestCase):
         """Verifies select_crate_by_name exists and functions on SmartCratesView."""
         self.assertTrue(hasattr(SmartCratesView, "select_crate_by_name"))
 
+    def test_rapid_category_switching_no_crash(self):
+        """Simulates rapid clicking across categories in HomeTrendsView ensuring zero crash or deadlock."""
+        from src.gui.views.home_view import HomeTrendsView
+        db = Database()
+        view = HomeTrendsView(db, auto_load=False)
+        # Rapid category switching
+        categories = ["dance_electro", "tech_house", "global_50", "pop_commercial", "techno", "dance_electro"]
+        for cat in categories:
+            view.on_genre_clicked(cat)
+            QApplication.processEvents()
+
+        # Clean up view
+        view.cleanup()
+        self.assertTrue(True)
+
 
 if __name__ == "__main__":
     unittest.main()
