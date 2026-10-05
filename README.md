@@ -259,6 +259,30 @@ pyinstaller --clean build_mac.spec
 
 ---
 
+## 🍏 Diagnostica di Avvio & Debug Rapido su macOS
+
+Per analizzare problemi di boot, compatibilità Apple Silicon / Intel o crash nativi Cocoa/libVLC su macOS, è disponibile un launcher diagnostico dedicato:
+
+```bash
+# Avvio diagnostico con tracciamento completo a terminale e su desktop
+chmod +x run_mac_debug.sh
+./run_mac_debug.sh
+
+# Modalità deep debug Qt (con tracing dei plugin Cocoa)
+./run_mac_debug.sh --qt-debug
+```
+
+### Log Generati Automaticamente al Primissimo Istante di Boot:
+1. **Live Terminal Log (`~/Desktop/musicat_terminal.log`):** Stream completo di `stdout` e `stderr`.
+2. **Desktop Debug Log (`~/Desktop/musicat_debug.log`):** Copia immediata flushato riga per riga per rapida consultazione.
+3. **Boot System Log (`~/Library/Application Support/Musicat/logs/musicat_boot.log`):** Tracciamento precoce con:
+   - Architettura host e rilevamento stato emulazione **Rosetta 2** (`sysctl.proc_translated`).
+   - Probe diagnostico della libreria dinamica **libVLC** (`dlopen` su candidati con cattura esatta di `OSError`).
+   - Permessi sandbox filesystem (`/Volumes`, `~/Music`, `~/Desktop`).
+   - Trap per crash nativi C/C++ e segmentation fault tramite `faulthandler.enable()`.
+
+---
+
 ## 📄 Licenza
 
 Musicat è distribuito sotto licenza open-source **MIT**.  

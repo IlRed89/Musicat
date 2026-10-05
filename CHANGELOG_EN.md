@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Direct Mutagen Disk Persistence & DB Sync:** Writes metadata directly to physical audio files via Mutagen (`AudioTagEditor.write_metadata`) and synchronizes SQLite database and editor grid in real time.
 - **Cleaned Toolbar:** Removed redundant case conversion buttons from the toolbar and left panel for a cleaner, focused workspace.
 
+#### 🍏 Pre-Bootstrap Early Logging & macOS Diagnostics Suite
+- **Zero-Dependency Early Bootstrap Logger:** Reorganized `main.py` to initialize file logging as the absolute first instruction prior to importing PySide6, libVLC, or Mutagen, with physical line-by-line disk flush (`flush()` and `fsync()`).
+- **Simultaneous Multi-Target Output on macOS:** Mirrors logs concurrently to `~/Library/Application Support/Musicat/logs/musicat_boot.log` and `~/Desktop/musicat_debug.log` (or local folder when portable).
+- **Hardware, OS & Rosetta 2 Telemetry:** Traces macOS version (`mac_ver()`), CPU architecture, **Rosetta 2** translation status (`sysctl.proc_translated`), Python executable, PID, argv, and critical environment variables (`DYLD_*`, `PATH`, `QT_*`, `VLC_*`).
+- **Dynamic libVLC Probe & dlopen Error Interception:** Diagnostic probing across candidate paths (`/Applications/VLC.app`, Homebrew, bundle Frameworks) with exact `OSError` and architecture mismatch capture.
+- **Native C/C++ Segfault Trap:** Standard library `faulthandler` enabled across all threads (`faulthandler.enable()`) and `sys.excepthook` installed to catch segmentation faults and unhandled exceptions.
+- **Fast Diagnostic Terminal Launcher (`run_mac_debug.sh`):** Bash script in repository root launching Musicat with live stdout/stderr capture to `~/Desktop/musicat_terminal.log` and `--qt-debug` support.
+
 ---
 
 ## [1.4.0] - 2026-10-04

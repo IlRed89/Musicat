@@ -35,6 +35,14 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 - **Scrittura Diretta su Disco via Mutagen & Sincronizzazione DB:** Salvataggio effettivo immediato nei file fisici con Mutagen (`AudioTagEditor.write_metadata`) e sincronizzazione con il database SQLite e la griglia dell'editor.
 - **Pulizia Toolbar e Azioni Rapide:** Rimossi i pulsanti ridondanti per conversione maiuscole/minuscole dalla toolbar e dal pannello laterale, snellendo l'area di lavoro.
 
+#### 🍏 Diagnostica di Avvio Precoce & Tracciamento macOS (Pre-Bootstrap Logging Suite)
+- **Logging Pre-Bootstrap a Dipendenza Zero:** Riorganizzato `main.py` per inizializzare il logging su file come primissima istruzione assoluta prima di importare PySide6, libVLC o Mutagen, con flush immediato riga per riga (`flush()` e `fsync()`).
+- **Scrittura Multipla su macOS:** Salvataggio simultaneo in `~/Library/Application Support/Musicat/logs/musicat_boot.log` e su `~/Desktop/musicat_debug.log` (o nella cartella locale se in modalità portabile).
+- **Rilevamento Hardware, OS & Rosetta 2:** Tracciamento dettagliato di versione macOS (`mac_ver()`), architettura CPU e stato di emulazione Rosetta 2 (`sysctl.proc_translated`), eseguibile, PID, argv e variabili d'ambiente critiche (`DYLD_*`, `PATH`, `QT_*`, `VLC_*`).
+- **Probe Dinamico libVLC & Intercettazione Errori dlopen:** Test diagnostico automatico di tutti i percorsi candidati (`/Applications/VLC.app`, Homebrew, bundle Frameworks) con cattura esatta di `OSError` e architetture incompatibili senza crash silenziosi.
+- **Trap Crash Nativi C/C++ (Segfault):** Integrazione del modulo standard `faulthandler` su tutti i thread (`faulthandler.enable()`) e hook globale `sys.excepthook` per intercettare qualsiasi segmentation fault a livello C++ o eccezione non gestita.
+- **Script di Lancio per Debug Rapido (`run_mac_debug.sh`):** Creato script bash eseguibile nella root del repository per lanciare Musicat con cattura live di stdout/stderr su `~/Desktop/musicat_terminal.log` e supporto al flag `--qt-debug`.
+
 ---
 
 ## [1.4.0] - 2026-10-04

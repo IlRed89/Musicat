@@ -259,6 +259,30 @@ pyinstaller --clean build_mac.spec
 
 ---
 
+## 🍏 macOS Launch Diagnostics & Fast Debugging
+
+To diagnose startup bottlenecks, Apple Silicon / Intel architecture compatibility, or native Cocoa/libVLC crashes on macOS, a dedicated diagnostic runner is provided:
+
+```bash
+# Diagnostic launch capturing full terminal stream and desktop debug logs
+chmod +x run_mac_debug.sh
+./run_mac_debug.sh
+
+# Deep Qt Cocoa plugin debug mode
+./run_mac_debug.sh --qt-debug
+```
+
+### Logs Automatically Generated at Pre-Bootstrap:
+1. **Live Terminal Log (`~/Desktop/musicat_terminal.log`):** Complete stream of `stdout` and `stderr`.
+2. **Desktop Debug Log (`~/Desktop/musicat_debug.log`):** Line-by-line flushed mirror for instant access.
+3. **Boot System Log (`~/Library/Application Support/Musicat/logs/musicat_boot.log`):** Early diagnostic record featuring:
+   - Host architecture and **Rosetta 2** translation detection (`sysctl.proc_translated`).
+   - Diagnostic dynamic probing for **libVLC** (`dlopen` validation capturing exact `OSError`).
+   - macOS sandbox & filesystem permissions check (`/Volumes`, `~/Music`, `~/Desktop`).
+   - Native C/C++ Segfault trap via Python `faulthandler.enable()`.
+
+---
+
 ## 📄 License
 
 Musicat is open-source software licensed under the **MIT** License.  

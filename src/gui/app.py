@@ -27,9 +27,30 @@ def run_app() -> int:
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
 
+    from ..core.boot_diagnostics import boot_log, get_qt_display_diagnostics
+
+    boot_log("[QT:INIT] Initializing QApplication instance...", level="QT")
     app = QApplication(sys.argv)
     app.setApplicationName("Musicat")
     app.setOrganizationName("IlRed89")
+
+    platform_name = app.platformName()
+    boot_log(f"[QT:PLATFORM] Active Qt platform plugin: '{platform_name}'", level="QT")
+    if sys.platform == "darwin":
+        if platform_name == "cocoa":
+            boot_log("[COCOA:OK] QCocoaIntegrationPlugin active. Native Apple Cocoa display pipeline engaged.", level="COCOA")
+        else:
+            boot_log(f"[COCOA:WARN] Unexpected platform plugin '{platform_name}' on macOS (expected 'cocoa').", level="WARNING")
+
+    # Display & Screen Telemetry
+    disp_diag = get_qt_display_diagnostics(app)
+    boot_log(f"[QT:DISPLAY] Detected {disp_diag['screens_count']} active display screen(s):", level="QT")
+    for scr in disp_diag.get("screens", []):
+        boot_log(
+            f"  Display #{scr['index']} ('{scr['name']}'): {scr['resolution']} | "
+            f"Scale: {scr['device_pixel_ratio']}x | DPI: {scr['dpi']}",
+            level="QT",
+        )
 
     # Load persistent settings
     from ..core.settings import SettingsManager
@@ -38,6 +59,7 @@ def run_app() -> int:
 
     settings = SettingsManager.get_instance()
     saved_theme = settings.get("ui", "theme", "light") or "light"
+    boot_log(f"[QT:THEME] Applying '{saved_theme}' stylesheet.", level="QT")
     app.setStyleSheet(get_theme_stylesheet(saved_theme))
 
     # Set Application Icon
@@ -46,20 +68,30 @@ def run_app() -> int:
 
     icon_path = PathResolver.get_icon_path()
     if icon_path and icon_path.exists():
+        boot_log(f"[QT:ICON] Window icon loaded from: {icon_path}", level="QT")
         app.setWindowIcon(QIcon(str(icon_path)))
+    else:
+        boot_log("[QT:ICON] Default window icon not found on disk, using system fallback.", level="WARNING")
 
     # Initialize localization (Default: Italian)
     saved_lang = settings.get("ui", "language", "it") or "it"
+    boot_log(f"[I18N:INIT] Initializing localization bus (language='{saved_lang}').", level="I18N")
     i18n = I18n.get_instance(saved_lang)
     i18n.set_language(saved_lang)
 
+    boot_log("[DB:INIT] Connecting to SQLite database...", level="DB")
     db = Database()
+    boot_log("[GUI:MAIN] Instantiating MainWindow embedded workspaces...", level="GUI")
     window = MainWindow(db=db)
     if icon_path and icon_path.exists():
         window.setWindowIcon(QIcon(str(icon_path)))
+    boot_log("[GUI:MAIN] Showing main application window.", level="GUI")
     window.show()
 
-    return app.exec()
+    boot_log("[QT:LOOP] Entering QApplication event loop (app.exec).", level="QT")
+    ret_code = app.exec()
+    boot_log(f"[QT:EXIT] QApplication event loop terminated with exit code: {ret_code}.", level="QT")
+    return ret_code
 
 
 if __name__ == "__main__":

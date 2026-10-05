@@ -149,6 +149,14 @@ flowchart LR
    - `MusicatLogger.log_file_op(...)`: File operations with `SRC -> DEST` and collision handling (`RENAME`, `OVERWRITE`, `SKIP`).
 4. **Diagnostic Support Bundle:**
    - One-click export generates an anonymized `.zip` archive containing hardware metrics, SQLite database integrity stats, sanitized configuration, and recent logs.
+5. **Pre-Bootstrap Early Logging & macOS Diagnostics (`src/core/boot_diagnostics.py`):**
+   - Active at the first instruction of `main.py` before any GUI, VLC or Mutagen imports.
+   - Dual-file line-by-line flushed logging on macOS: `~/Library/Application Support/Musicat/logs/musicat_boot.log` and `~/Desktop/musicat_debug.log`.
+   - Native C/C++ Segfault trap via `faulthandler.enable(file=primary, all_threads=True)`.
+   - Deep host telemetry: Apple Silicon vs Intel detection, **Rosetta 2** translation status (`sysctl.proc_translated`), and critical environment variable capture.
+   - Diagnostic dynamic probing of **libVLC** with candidate testing and dlopen `OSError` interception.
+   - Verification of macOS sandbox & filesystem permissions (`/Volumes`, `~/Music`, `~/Desktop`).
+   - Terminal diagnostic runner: `run_mac_debug.sh` with live terminal and desktop log capture.
 
 ---
 

@@ -39,6 +39,7 @@ hiddenimports = [
     'vlc',
     'src.gui.views',
     'src.gui.views.crates_view',
+    'src.core.boot_diagnostics',
 ]
 
 datas = [

@@ -10,62 +10,41 @@ import os
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from ..core.logger import MusicatLogger
 
-# Try importing vlc module
+# Try importing vlc module with detailed diagnostics
 _VLC_AVAILABLE = False
+_VLC_INIT_ERROR: Optional[str] = None
+_VLC_LOADED_LIB: Optional[str] = None
+
 try:
-    app_dir = Path(__file__).resolve().parent.parent.parent
-
-    # Check potential VLC locations on Windows before importing
-    if sys.platform == "win32":
-        vlc_search_dirs = [
-            app_dir / "vlc",
-            app_dir,
-            Path(os.environ.get("PROGRAMFILES", "C:\\Program Files")) / "VideoLAN" / "VLC",
-            Path(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")) / "VideoLAN" / "VLC",
-        ]
-        for vdir in vlc_search_dirs:
-            dll_cand = vdir / "libvlc.dll"
-            if dll_cand.exists():
-                os.environ["PYTHON_VLC_LIB_PATH"] = str(dll_cand)
-                if hasattr(os, "add_dll_directory"):
-                    try:
-                        os.add_dll_directory(str(vdir))
-                    except Exception:
-                        pass
-                break
-
-    # Check potential VLC locations on macOS (Apple Silicon & Intel)
-    elif sys.platform == "darwin":
-        mac_vlc_candidates = [
-            # Inside PyInstaller / macOS .app bundle
-            app_dir / "Contents" / "Frameworks" / "libvlc.dylib",
-            app_dir / "Contents" / "MacOS" / "lib" / "libvlc.dylib",
-            app_dir / "libvlc.dylib",
-            # Standard VLC.app installation
-            Path("/Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib"),
-            Path.home() / "Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib",
-            # Homebrew on Apple Silicon (ARM64)
-            Path("/opt/homebrew/lib/libvlc.dylib"),
-            # Homebrew on Intel (x86_64)
-            Path("/usr/local/lib/libvlc.dylib"),
-        ]
-        for dylib_cand in mac_vlc_candidates:
-            if dylib_cand.exists():
-                os.environ["PYTHON_VLC_LIB_PATH"] = str(dylib_cand)
-                plugins_dir = dylib_cand.parent / "vlc" / "plugins"
-                if plugins_dir.exists():
-                    os.environ["VLC_PLUGIN_PATH"] = str(plugins_dir)
-                break
+    from ..core.boot_diagnostics import boot_log, probe_vlc_libraries
+    vlc_probe = probe_vlc_libraries()
+    if vlc_probe.get("verified_path"):
+        _VLC_LOADED_LIB = vlc_probe["verified_path"]
+        boot_log(f"[PLAYER:VLC] Verified libVLC dynamic library at: {_VLC_LOADED_LIB}")
+        if vlc_probe.get("plugins_path"):
+            boot_log(f"[PLAYER:VLC] Verified VLC plugins directory at: {vlc_probe['plugins_path']}")
+    else:
+        boot_log("[PLAYER:VLC] No verified libVLC dynamic library found during candidate probing.", level="WARNING")
 
     import vlc
     _VLC_AVAILABLE = True
+    vlc_ver = getattr(vlc, "__version__", "unknown")
+    boot_log(f"[PLAYER:VLC] 'vlc' module imported successfully (version: {vlc_ver}).")
 except Exception as e:
     _VLC_AVAILABLE = False
+    _VLC_INIT_ERROR = f"{type(e).__name__}: {e}"
+    try:
+        from ..core.boot_diagnostics import boot_log
+        boot_log(f"[PLAYER:VLC] Failed to load libVLC bindings: {_VLC_INIT_ERROR}", level="WARNING")
+        boot_log(f"[PLAYER:VLC] Traceback:\n{traceback.format_exc()}", level="WARNING")
+    except Exception:
+        pass
 
 
 class VLCAudioPlayer:
