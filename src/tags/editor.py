@@ -132,6 +132,32 @@ class AudioTagEditor:
             # Return partial info if tagging header parsing encountered minor issues
             pass
 
+        # Robust fallbacks for missing or untagged title, artist, and genre
+        if not meta.title or not meta.title.strip():
+            stem = path_obj.stem
+            if " - " in stem:
+                parts = stem.split(" - ", 1)
+                meta.title = parts[1].strip()
+                if not meta.artist or not meta.artist.strip():
+                    meta.artist = parts[0].strip()
+            else:
+                meta.title = stem
+
+        if not meta.artist or not meta.artist.strip():
+            stem = path_obj.stem
+            if " - " in stem:
+                parts = stem.split(" - ", 1)
+                meta.artist = parts[0].strip()
+            else:
+                parent_name = path_obj.parent.name
+                if parent_name and parent_name not in ("Music", "Desktop", "Downloads", "Audio", "Musicat"):
+                    meta.artist = parent_name
+                else:
+                    meta.artist = "-"
+
+        if not meta.genre or not meta.genre.strip():
+            meta.genre = "Vario"
+
         return meta
 
     @classmethod

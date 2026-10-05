@@ -421,6 +421,7 @@ class LiveFilterBar(QFrame):
     crate_saved = Signal(str)     # crate name
     export_playlist_requested = Signal()
     analyze_requested = Signal()
+    refresh_requested = Signal()
 
     def __init__(self, db: Database, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -508,7 +509,15 @@ class LiveFilterBar(QFrame):
         """)
         self.btn_analyze.clicked.connect(self.analyze_requested.emit)
 
-        # 5. Instant Reset Button (ESC)
+        # 5. Dedicated Refresh Button
+        self.btn_refresh = QPushButton(_t("filter_btn_refresh", "🔄 Aggiorna"))
+        self.btn_refresh.setObjectName("btnRefresh")
+        self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
+        self.btn_refresh.setMinimumWidth(105)
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh.clicked.connect(self.refresh_requested.emit)
+
+        # 6. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
         self.btn_reset.setMinimumWidth(115)
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
@@ -518,6 +527,7 @@ class LiveFilterBar(QFrame):
         row1.addWidget(self.txt_search, 4)
         row1.addWidget(self.genre_widget, 2)
         row1.addLayout(cover_box)
+        row1.addWidget(self.btn_refresh)
         row1.addWidget(self.btn_analyze)
         row1.addWidget(self.btn_reset)
         main_layout.addLayout(row1)
@@ -686,6 +696,9 @@ class LiveFilterBar(QFrame):
         """Dynamically updates filter bar text in response to language change."""
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
         self.txt_search.setPlaceholderText(_t("filter_search_placeholder", "🔍 Ricerca Rapida / {engine} (Ctrl+F)...", engine=fast_engine))
+        if hasattr(self, "btn_refresh"):
+            self.btn_refresh.setText(_t("filter_btn_refresh", "🔄 Aggiorna"))
+            self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o riesegui la query dal database"))
         if hasattr(self, "btn_analyze"):
             self.btn_analyze.setText(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
             self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
@@ -839,8 +852,52 @@ class LiveFilterBar(QFrame):
                 "color: #00d2ff; font-size: 10px; padding: 2px 5px; border: 1px solid #0284c7; border-radius: 3px;"
             )
 
+        if hasattr(self, "btn_refresh"):
+            if is_light:
+                self.btn_refresh.setStyleSheet("""
+                    QPushButton#btnRefresh {
+                        background-color: #10b981;
+                        color: #ffffff;
+                        font-weight: bold;
+                        padding: 4px 10px;
+                        border-radius: 4px;
+                        border: 1px solid #059669;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnRefresh:hover {
+                        background-color: #059669;
+                    }
+                    QPushButton#btnRefresh:pressed {
+                        background-color: #047857;
+                    }
+                """)
+            else:
+                self.btn_refresh.setStyleSheet("""
+                    QPushButton#btnRefresh {
+                        background-color: #065f46;
+                        color: #6ee7b7;
+                        font-weight: bold;
+                        padding: 4px 10px;
+                        border-radius: 4px;
+                        border: 1px solid #10b981;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnRefresh:hover {
+                        background-color: #047857;
+                        color: #ffffff;
+                    }
+                    QPushButton#btnRefresh:pressed {
+                        background-color: #064e3b;
+                    }
+                """)
+
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setStyleSheet(tag_style)
+
+    def get_active_folder(self) -> Optional[str]:
+        """Returns the currently active folder path filter, or None."""
+        val = self.cmb_folder.currentData()
+        return str(val) if val else None
 
     def _connect_signals(self) -> None:
         self.txt_search.textChanged.connect(self._trigger_debounce)

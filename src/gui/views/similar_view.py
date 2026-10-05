@@ -284,7 +284,7 @@ class SimilarTracksView(QWidget):
         self.loading_bar.setVisible(False)
         self.similarity_result = result
         self._populate_local_table(result.local_similar_tracks)
-        self._populate_online_table(result.online_recommendations)
+        self._populate_online_table(result.discovery_tracks)
 
     def _populate_local_table(self, items: List[SimilarTrackRecommendation]) -> None:
         self.table_local.setRowCount(len(items))
@@ -293,7 +293,7 @@ class SimilarTracksView(QWidget):
 
         for row, rec in enumerate(items):
             self.table_local.setItem(row, 0, QTableWidgetItem(str(row + 1)))
-            self.table_local.setCellWidget(row, 1, AffinityBadgeWidget(rec.affinity_score))
+            self.table_local.setCellWidget(row, 1, AffinityBadgeWidget(rec.similarity_pct))
             self.table_local.setItem(row, 2, QTableWidgetItem(rec.title))
             self.table_local.setItem(row, 3, QTableWidgetItem(rec.artist))
 
@@ -301,7 +301,8 @@ class SimilarTracksView(QWidget):
             self.table_local.setItem(row, 4, QTableWidgetItem(bpm_str))
             self.table_local.setItem(row, 5, QTableWidgetItem(rec.camelot_key or "--"))
             self.table_local.setItem(row, 6, QTableWidgetItem(rec.genre or "--"))
-            self.table_local.setItem(row, 7, QTableWidgetItem(rec.reason))
+            reasons_str = " • ".join(rec.affinity_reasons) if rec.affinity_reasons else "Compatibilità generale"
+            self.table_local.setItem(row, 7, QTableWidgetItem(reasons_str))
 
     def _populate_online_table(self, items: List[SimilarTrackRecommendation]) -> None:
         import os
@@ -311,13 +312,13 @@ class SimilarTracksView(QWidget):
 
         for row, rec in enumerate(items):
             self.table_online.setItem(row, 0, QTableWidgetItem(rec.source.capitalize()))
-            self.table_online.setCellWidget(row, 1, AffinityBadgeWidget(rec.affinity_score))
+            self.table_online.setCellWidget(row, 1, AffinityBadgeWidget(rec.similarity_pct))
             self.table_online.setItem(row, 2, QTableWidgetItem(rec.title))
             self.table_online.setItem(row, 3, QTableWidgetItem(rec.artist))
 
-            in_lib_str = "✓ Presente in Libreria" if rec.in_local_library else "Mancante"
+            in_lib_str = "✓ Presente in Libreria" if rec.in_library else "Mancante"
             item_status = QTableWidgetItem(in_lib_str)
-            if rec.in_local_library:
+            if rec.in_library:
                 item_status.setForeground(QColor("#198754"))
             self.table_online.setItem(row, 4, item_status)
 

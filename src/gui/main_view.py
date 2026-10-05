@@ -425,6 +425,7 @@ class MainWindow(QMainWindow):
         self.filter_bar.filter_changed.connect(self._on_live_filter_changed)
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
         self.filter_bar.analyze_requested.connect(self._on_toolbar_analyze_clicked)
+        self.filter_bar.refresh_requested.connect(self._on_toolbar_refresh_clicked)
         lib_layout.addWidget(self.filter_bar)
 
         # Horizontal Splitter: Left Sidebar (Tree) and Right Table
@@ -1155,6 +1156,16 @@ class MainWindow(QMainWindow):
         if hasattr(self, "scan_worker") and self.scan_worker and self.scan_worker.isRunning():
             self.scan_worker.cancel()
             self.status_bar.showMessage("Annullamento scansione in corso...")
+
+    def _on_toolbar_refresh_clicked(self) -> None:
+        """Dedicated toolbar action to instantly reload the active directory or re-query SQLite library."""
+        active_folder = self.filter_bar.get_active_folder() if hasattr(self.filter_bar, "get_active_folder") else None
+        if active_folder and os.path.exists(active_folder) and os.path.isdir(active_folder):
+            self.status_bar.showMessage(f"🔄 Aggiornamento e scansione cartella: {active_folder}...")
+            self._start_folder_auto_scan(active_folder)
+        else:
+            self._refresh_library()
+            self.status_bar.showMessage("🔄 Libreria aggiornata con successo.", 3000)
 
     def _on_toolbar_analyze_clicked(self) -> None:
         """Dedicated toolbar action to analyze selected tracks or current folder/view."""

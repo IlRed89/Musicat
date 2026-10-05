@@ -41,6 +41,42 @@ class LibraryScanner:
         self._is_cancelled = True
         MusicatLogger.warning("SCAN", "Library indexing scan cancelled by user.")
 
+    def scan_file(self, file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """Scans a single audio file and synchronizes its record into SQLite immediately.
+
+        Args:
+            file_path: Path to the target audio file.
+
+        Returns:
+            Dictionary containing the indexed track record if successful, None otherwise.
+        """
+        p = Path(file_path).resolve()
+        if not p.exists() or not p.is_file():
+            MusicatLogger.warning("SCAN", f"File does not exist or is not a file: {file_path}")
+            return None
+
+        ext = p.suffix.lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            MusicatLogger.warning("SCAN", f"Unsupported extension: {ext}")
+            return None
+
+        try:
+            meta = AudioTagEditor.read_metadata(p)
+            portable_path, vol_id = PathResolver.to_portable_path(str(p))
+
+            rec = meta.to_dict()
+            rec["portable_path"] = portable_path
+            rec["volume_id"] = vol_id
+            rec["directory"] = str(p.parent)
+            rec["has_cover"] = 1 if meta.has_cover else 0
+
+            self.db.bulk_insert_or_update([rec])
+            MusicatLogger.info("SCAN", f"Single track indexed into SQLite: '{p.name}'")
+            return rec
+        except Exception as exc:
+            MusicatLogger.error("SCAN", f"Failed scanning single file '{p}': {exc}")
+            return None
+
     def scan_directory(
         self,
         folder_path: Union[str, Path],

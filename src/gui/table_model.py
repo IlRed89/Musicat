@@ -3,6 +3,7 @@ High-Performance Virtual Table Model for Musicat.
 Subclasses QAbstractTableModel to render 50,000+ tracks effortlessly with instantaneous sorting.
 """
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
@@ -69,18 +70,46 @@ class TrackTableModel(QAbstractTableModel):
                 return str(index.row() + 1)
             elif col_key == "has_cover":
                 return "🖼️" if val else ""
+            elif col_key == "title":
+                if val and str(val).strip():
+                    return str(val).strip()
+                filepath = track.get("filepath") or track.get("filename") or ""
+                if filepath:
+                    stem = Path(filepath).stem
+                    if " - " in stem:
+                        parts = stem.split(" - ", 1)
+                        if len(parts) == 2 and parts[1].strip():
+                            return parts[1].strip()
+                    return stem
+                return "Sconosciuto"
+            elif col_key == "artist":
+                if val and str(val).strip() and str(val).strip() not in ("-", "Various", "Unknown", "Sconosciuto"):
+                    return str(val).strip()
+                filepath = track.get("filepath") or track.get("filename") or ""
+                if filepath:
+                    stem = Path(filepath).stem
+                    if " - " in stem:
+                        parts = stem.split(" - ", 1)
+                        if len(parts) == 2 and parts[0].strip():
+                            return parts[0].strip()
+                    p_name = Path(filepath).parent.name
+                    if p_name and p_name not in ("Music", "Desktop", "Downloads", "Audio", "Musicat"):
+                        return p_name
+                return str(val).strip() if (val and str(val).strip()) else "-"
             elif col_key == "bpm":
-                return f"{val:.1f}" if (val is not None and val > 0) else ""
+                return f"{val:.1f}" if (val is not None and float(val) > 0) else "--"
+            elif col_key in ("camelot_key", "musical_key", "initial_key"):
+                return str(val).strip() if (val and str(val).strip()) else "--"
             elif col_key == "duration":
-                if val:
+                if val and float(val) > 0:
                     mins = int(val // 60)
                     secs = int(val % 60)
                     return f"{mins}:{secs:02d}"
-                return ""
+                return "--:--"
             elif col_key == "bitrate":
-                return f"{val}k" if val else ""
+                return f"{val}k" if (val and int(val) > 0) else "--"
             elif col_key == "year":
-                return str(val) if val else ""
+                return str(val) if (val and int(val) > 0) else "--"
             elif col_key == "genre":
                 return str(val).strip() if (val is not None and str(val).strip()) else "Vario"
             elif col_key == "energy_level":

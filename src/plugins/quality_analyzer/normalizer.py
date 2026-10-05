@@ -187,8 +187,9 @@ class VolumeNormalizer:
         target_lra: float = DEFAULT_TARGET_LRA,
         create_backup: bool = True,
         save_as_fixed: bool = False,
+        output_filepath: Optional[str] = None,
     ) -> NormalizationResult:
-        """Applies physical Two-Pass EBU R128 loudnorm filtering via FFmpeg.
+        """Applies physical Two-Pass EBU R128 loudnorm filtering via FFmpeg, encoding to MP3 320kbps.
 
         Args:
             filepath: Path to the audio file.
@@ -196,7 +197,8 @@ class VolumeNormalizer:
             max_true_peak: Maximum true peak safety ceiling (default -1.0 dBTP).
             target_lra: Target loudness range (default 7.0 LU).
             create_backup: If True, copies original file to '_original/' when overwriting.
-            save_as_fixed: If True, saves to 'filename_fixed.ext' instead of overwriting.
+            save_as_fixed: If True, saves to 'filename_normalized.mp3' instead of overwriting.
+            output_filepath: Optional explicit path for exported file.
 
         Returns:
             NormalizationResult with output file path and status.
@@ -219,15 +221,18 @@ class VolumeNormalizer:
         if not ffmpeg_bin:
             # Fallback to pure Python linear peak limiter
             return self._apply_python_pcm_normalizer(
-                filepath, target_lufs, max_true_peak, save_as_fixed, create_backup
+                filepath, target_lufs, max_true_peak, save_as_fixed, create_backup, output_filepath
             )
 
-        # Output target determination
-        if save_as_fixed:
-            out_path = src_path.parent / f"{src_path.stem}_fixed{src_path.suffix}"
+        # Output target determination: physical normalization exports as MP3
+        if output_filepath:
+            out_path = Path(output_filepath).resolve()
+            backup_path = None
+        elif save_as_fixed:
+            out_path = src_path.parent / f"{src_path.stem}_normalized.mp3"
             backup_path = None
         else:
-            out_path = src_path.parent / f"{src_path.stem}_tmp_norm{src_path.suffix}"
+            out_path = src_path.parent / f"{src_path.stem}_tmp_norm.mp3"
             backup_path = src_path.parent / "_original" / src_path.name if create_backup else None
 
         try:
@@ -266,7 +271,12 @@ class VolumeNormalizer:
             else:
                 filter_str = f"loudnorm=I={target_lufs}:TP={max_true_peak}:LRA={target_lra}"
 
-            codec_args = self._get_codec_arguments(src_path.suffix.lower())
+            # Encode directly to MP3 320k (libmp3lame) or match explicit extension
+            if out_path.suffix.lower() == ".mp3":
+                codec_args = ["-c:a", "libmp3lame", "-b:a", "320k", "-ar", "44100"]
+            else:
+                codec_args = self._get_codec_arguments(out_path.suffix.lower())
+
             cmd_pass2 = [
                 ffmpeg_bin,
                 "-y",
@@ -284,14 +294,35 @@ class VolumeNormalizer:
             final_output = str(out_path)
 
             # Overwrite logic with safety backup
-            if not save_as_fixed:
+            if not save_as_fixed and not output_filepath:
                 if create_backup and backup_path:
                     backup_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(str(src_path), str(backup_path))
 
-                # Replace original file with normalized temp file
-                out_path.replace(src_path)
-                final_output = str(src_path)
+                if src_path.suffix.lower() == ".mp3":
+                    out_path.replace(src_path)
+                    final_output = str(src_path)
+                else:
+                    target_mp3 = src_path.with_suffix(".mp3")
+                    out_path.replace(target_mp3)
+                    try:
+                        if target_mp3 != src_path and src_path.exists():
+                            src_path.unlink()
+                    except Exception:
+                        pass
+                    final_output = str(target_mp3)
+
+            # Preserve and copy original ID3 tags and cover artwork
+            self._copy_tags_and_artwork(src_path, Path(final_output))
+
+            # Auto-index into SQLite database immediately so table has full metadata
+            if self.db:
+                try:
+                    from ...core.scanner import LibraryScanner
+                    scanner = LibraryScanner(self.db)
+                    scanner.scan_file(final_output)
+                except Exception:
+                    pass
 
             # Analyze normalized file to get post-loudnorm metrics
             post_report = AcousticQualityAnalyzer.analyze_file(final_output, target_lufs=target_lufs)
@@ -320,7 +351,7 @@ class VolumeNormalizer:
 
         except Exception as exc:
             # Clean up temp file on failure
-            if not save_as_fixed and out_path.exists():
+            if not save_as_fixed and not output_filepath and out_path.exists():
                 try:
                     out_path.unlink()
                 except Exception:
@@ -337,6 +368,42 @@ class VolumeNormalizer:
                 error_message=str(exc),
             )
 
+    def _copy_tags_and_artwork(self, src_path: Path, dst_path: Path) -> None:
+        """Transfers all metadata tags and album cover art intact from source audio to exported MP3."""
+        try:
+            # 1. Read metadata from source
+            meta = AudioTagEditor.read_metadata(src_path)
+            tags_dict = meta.to_dict()
+
+            # Ensure essential fallback fields are populated
+            if not tags_dict.get("title") or not str(tags_dict.get("title")).strip():
+                stem = src_path.stem
+                if " - " in stem:
+                    parts = stem.split(" - ", 1)
+                    tags_dict["title"] = parts[1].strip()
+                    if not tags_dict.get("artist") or not str(tags_dict.get("artist")).strip():
+                        tags_dict["artist"] = parts[0].strip()
+                else:
+                    tags_dict["title"] = stem
+
+            if not tags_dict.get("artist") or not str(tags_dict.get("artist")).strip():
+                tags_dict["artist"] = "-"
+
+            # Write tags to destination
+            AudioTagEditor.write_metadata(dst_path, tags_dict)
+
+            # 2. Extract and write album cover art
+            cover = AudioTagEditor.get_artwork(src_path)
+            if cover and cover.data:
+                AudioTagEditor.set_artwork(
+                    dst_path,
+                    cover.data,
+                    mime_type=cover.mime_type or "image/jpeg",
+                    description=cover.description or "Front Cover",
+                )
+        except Exception:
+            pass
+
     def _find_ffmpeg_executable(self) -> Optional[str]:
         """Resolves path to working ffmpeg executable."""
         # 1. Custom path configured
@@ -348,14 +415,37 @@ class VolumeNormalizer:
         if found:
             return found
 
-        # 3. Common Windows locations
+        # 3. Application directory / bundled / portable bin
+        try:
+            from ...core.path_resolver import PathResolver
+            app_root = PathResolver.get_app_root()
+            app_candidates = [
+                app_root / "bin" / "ffmpeg.exe",
+                app_root / "ffmpeg.exe",
+                Path(sys.executable).parent / "bin" / "ffmpeg.exe",
+                Path(sys.executable).parent / "ffmpeg.exe",
+            ]
+            for c in app_candidates:
+                if c.exists():
+                    return str(c)
+        except Exception:
+            pass
+
+        # 4. Common Windows locations & Winget Packages
         if sys.platform == "win32":
             candidates = [
+                Path(__file__).resolve().parents[3] / "bin" / "ffmpeg.exe",
                 Path("C:/ffmpeg/bin/ffmpeg.exe"),
                 Path("C:/Program Files/ffmpeg/bin/ffmpeg.exe"),
                 Path.home() / "scoop/shims/ffmpeg.exe",
                 Path.home() / "AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe",
             ]
+            winget_pkgs = Path.home() / "AppData/Local/Microsoft/WinGet/Packages"
+            if winget_pkgs.exists():
+                for found_ff in winget_pkgs.glob("**/ffmpeg.exe"):
+                    candidates.append(found_ff)
+                    break
+
             for c in candidates:
                 if c.exists():
                     return str(c)
@@ -385,7 +475,7 @@ class VolumeNormalizer:
             return ["-c:a", "aac", "-b:a", "320k"]
         elif ext == ".ogg":
             return ["-c:a", "libvorbis", "-qscale:a", "8"]
-        return ["-c:a", "libmp3lame", "-b:a", "320k"]
+        return ["-c:a", "libmp3lame", "-b:a", "320k", "-ar", "44100"]
 
     def _apply_python_pcm_normalizer(
         self,
@@ -394,6 +484,7 @@ class VolumeNormalizer:
         max_true_peak: float = DEFAULT_MAX_TRUE_PEAK,
         save_as_fixed: bool = True,
         create_backup: bool = True,
+        output_filepath: Optional[str] = None,
     ) -> NormalizationResult:
         """Pure Python fallback for volume normalization if FFmpeg is not installed."""
         try:
@@ -418,23 +509,49 @@ class VolumeNormalizer:
             if max_val > ceiling_linear:
                 scaled = np.tanh(scaled / ceiling_linear) * ceiling_linear
 
-            # Save as WAV or fixed file
-            if save_as_fixed:
+            # Save as normalized file
+            if output_filepath:
+                out_path = Path(output_filepath).resolve()
+            elif save_as_fixed:
                 out_path = src_path.parent / f"{src_path.stem}_fixed.wav"
             else:
                 out_path = src_path.parent / f"{src_path.stem}_tmp.wav"
 
             # Convert to int16 for WAV storage
             int16_audio = (scaled * 32767.0).astype(np.int16)
-            wavfile.write(str(out_path), sr, int16_audio)
 
-            if not save_as_fixed:
+            # If out_path is .mp3 and we have ffmpeg, write temp wav and encode
+            ffmpeg_bin = self._find_ffmpeg_executable()
+            if out_path.suffix.lower() == ".mp3" and ffmpeg_bin:
+                tmp_wav = src_path.parent / f"{src_path.stem}_tmp_encode.wav"
+                wavfile.write(str(tmp_wav), sr, int16_audio)
+                subprocess.run([ffmpeg_bin, "-y", "-i", str(tmp_wav), "-c:a", "libmp3lame", "-b:a", "320k", str(out_path)], capture_output=True)
+                try:
+                    tmp_wav.unlink()
+                except Exception:
+                    pass
+            else:
+                # If mp3 cannot be encoded without ffmpeg, write wav
+                if out_path.suffix.lower() == ".mp3":
+                    out_path = out_path.with_suffix(".wav")
+                wavfile.write(str(out_path), sr, int16_audio)
+
+            if not save_as_fixed and not output_filepath:
                 if create_backup:
                     backup_path = src_path.parent / "_original" / src_path.name
                     backup_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(str(src_path), str(backup_path))
-                out_path.replace(src_path.with_suffix(".wav"))
-                out_path = src_path.with_suffix(".wav")
+                out_path.replace(src_path)
+                out_path = src_path
+
+            self._copy_tags_and_artwork(src_path, Path(out_path))
+
+            if self.db:
+                try:
+                    from ...core.scanner import LibraryScanner
+                    LibraryScanner(self.db).scan_file(str(out_path))
+                except Exception:
+                    pass
 
             return NormalizationResult(
                 filepath=filepath,
