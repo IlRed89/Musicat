@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from PySide6.QtCore import QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QByteArray, QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -207,16 +207,82 @@ class AsyncAnalysisWorker(QThread):
                         stem = Path(fp).stem
                         if " - " in stem:
                             parts = stem.split(" - ", 1)
-                            clean_artist = parts[0].strip()
-                            clean_title = parts[1].strip()
                             if clean_artist and clean_title:
                                 updates["artist"] = clean_artist
                                 updates["title"] = clean_title
 
-                # 3. Write physical tags with Mutagen
+                # 3. Cascading metadata enrichment (Genre & Year fallback) if missing or generic
+                cur_genre = tr.get("genre") or ""
+                cur_year = tr.get("year")
+                need_genre = not cur_genre or cur_genre.strip() == "" or cur_genre.lower() in ("vario", "other", "unknown")
+                need_year = not cur_year or not str(cur_year).isdigit()
+
+                if need_genre or need_year:
+                    search_artist = updates.get("artist") or cur_artist
+                    search_title = updates.get("title") or cur_title
+                    query = f"{search_artist} - {search_title}" if search_artist else search_title
+
+                    found_genre = None
+                    found_year = None
+
+                    from ..scrapers.discogs import DiscogsClient
+                    from ..scrapers.musicbrainz import MusicBrainzClient
+                    from ..scrapers.reconciler import MetadataReconciler
+                    from ..scrapers.web_enricher import WebEnricher
+
+                    # 1. Discogs API
+                    try:
+                        disc_results = DiscogsClient().search_releases(query, limit=2)
+                        for d in disc_results:
+                            if not found_year and d.get("year"):
+                                found_year = d["year"]
+                            if not found_genre and d.get("genre"):
+                                cleaned = MetadataReconciler.clean_and_normalize_genre(d["genre"])
+                                if cleaned and cleaned.lower() not in MetadataReconciler.BROAD_GENRES:
+                                    found_genre = cleaned
+                    except Exception:
+                        pass
+
+                    # 2. MusicBrainz API
+                    if not found_genre or not found_year:
+                        try:
+                            mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
+                            for m in mb_results:
+                                if not found_year and m.get("year"):
+                                    found_year = m["year"]
+                                if not found_genre and m.get("genre"):
+                                    cleaned = MetadataReconciler.clean_and_normalize_genre(m["genre"])
+                                    if cleaned:
+                                        found_genre = cleaned
+                        except Exception:
+                            pass
+
+                    # 3. Web & YouTube fallback
+                    if not found_genre or not found_year:
+                        try:
+                            web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
+                            if web_res:
+                                if not found_year and web_res.get("year"):
+                                    found_year = web_res["year"]
+                                if not found_genre and web_res.get("genre"):
+                                    cleaned = MetadataReconciler.clean_and_normalize_genre(web_res["genre"])
+                                    if cleaned:
+                                        found_genre = cleaned
+                        except Exception:
+                            pass
+
+                    if found_genre:
+                        updates["genre"] = found_genre
+                    elif need_genre and not tr.get("genre"):
+                        updates["genre"] = "Vario"
+
+                    if found_year:
+                        updates["year"] = int(found_year)
+
+                # 4. Write physical tags with Mutagen
                 AudioTagEditor.write_metadata(fp, updates)
 
-                # 4. Write to SQLite database
+                # 5. Write to SQLite database
                 self.db.update_track_tags(fp, updates)
 
                 full_updated = dict(tr)
@@ -232,6 +298,33 @@ class AsyncAnalysisWorker(QThread):
 
 # Backwards compatibility alias
 BackgroundAnalysisWorker = AsyncAnalysisWorker
+
+DEFAULT_VISIBLE_COLUMN_IDS = [
+    "id", "has_cover", "title", "artist", "remixer", "bpm",
+    "camelot_key", "musical_key", "genre", "year", "duration", "bitrate"
+]
+
+DEFAULT_COLUMN_WIDTHS = {
+    "id": 40,
+    "has_cover": 45,
+    "title": 220,
+    "artist": 180,
+    "remixer": 130,
+    "bpm": 65,
+    "camelot_key": 70,
+    "musical_key": 65,
+    "genre": 120,
+    "year": 60,
+    "duration": 65,
+    "bitrate": 65,
+    "album": 140,
+    "label": 120,
+    "energy_level": 70,
+    "lufs": 80,
+    "true_peak": 80,
+    "audio_status": 80,
+    "filepath": 200,
+}
 
 
 class MainWindow(QMainWindow):
@@ -390,7 +483,10 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self.table_view.setSortingEnabled(True)
+        self.table_view.setDragEnabled(True)
         self.table_header = self.table_view.horizontalHeader()
+        self.table_header.setSectionsMovable(True)
+        self.table_header.setDragEnabled(True)
         self.table_header.setStretchLastSection(True)
         self.table_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -402,17 +498,34 @@ class MainWindow(QMainWindow):
         self.table_view.activated.connect(self._on_row_double_clicked)  # Enter key loads/plays track!
         self.main_splitter.addWidget(self.table_view)
 
-        # Restore custom visible columns if user configured them
-        self._custom_columns_active = bool(self.settings_manager.get("ui.custom_columns_active", False))
-        if self._custom_columns_active:
-            saved_cols = self.settings_manager.get("ui.visible_columns", [])
-            if saved_cols and isinstance(saved_cols, list):
-                self._apply_saved_column_visibility(saved_cols)
+        # Restore saved table header state (order, visibility & widths) if saved
+        saved_header_state = self.settings_manager.get("ui.header_state", "")
+        self._header_state_restored = False
+        if saved_header_state and isinstance(saved_header_state, str):
+            try:
+                state_bytes = QByteArray.fromHex(saved_header_state.encode("ascii"))
+                if self.table_header.restoreState(state_bytes):
+                    self._header_state_restored = True
+            except Exception:
+                self._header_state_restored = False
 
-        # Restore saved column widths if configured
-        saved_widths = self.settings_manager.get("ui.column_widths", {})
-        if saved_widths and isinstance(saved_widths, dict):
-            self._apply_saved_column_widths(saved_widths)
+        if not self._header_state_restored:
+            # Restore custom visible columns if user configured them
+            self._custom_columns_active = bool(self.settings_manager.get("ui.custom_columns_active", False))
+            if self._custom_columns_active:
+                saved_cols = self.settings_manager.get("ui.visible_columns", [])
+                if saved_cols and isinstance(saved_cols, list):
+                    self._apply_saved_column_visibility(saved_cols)
+            else:
+                self._apply_default_columns()
+
+            # Restore saved column widths if configured
+            saved_widths = self.settings_manager.get("ui.column_widths", {})
+            if saved_widths and isinstance(saved_widths, dict):
+                self._apply_saved_column_widths(saved_widths)
+
+        # Connect signals for interactive reordering and resizing persistence
+        self.table_header.sectionMoved.connect(self._on_table_section_moved)
         self.table_header.sectionResized.connect(self._on_table_section_resized)
 
         self.main_splitter.setStretchFactor(0, 1)  # Left Sidebar
@@ -1169,29 +1282,38 @@ class MainWindow(QMainWindow):
 
     def _apply_responsive_columns(self, width: int) -> None:
         """Adapts table column visibility dynamically based on viewport width if user hasn't set custom columns."""
-        if getattr(self, "_custom_columns_active", False):
+        if getattr(self, "_custom_columns_active", False) or getattr(self, "_header_state_restored", False):
             return
         header = getattr(self, "table_header", self.table_view.horizontalHeader())
+
+        # Ensure non-essential/superfluous columns remain hidden by default
+        hidden_by_default = {"energy_level", "lufs", "true_peak", "audio_status", "album", "label", "filepath"}
+        for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
+            if col_id in hidden_by_default and idx < header.count():
+                header.setSectionHidden(idx, True)
+
+        # Essential columns: id(0), cover(1), title(2), artist(3), remixer(4), bpm(5), camelot(6), key(7), genre(8), year(9), duration(12), bitrate(13)
         if width < 1100:
-            # Compact view (< 1100px): hide secondary columns (Remixer, Key, Label, Bitrate, Energy, LUFS, True Peak, Path)
-            for col_idx in [4, 7, 11, 13, 14, 15, 16, 18]:
+            # Compact view (< 1100px): hide Remixer (4), Musical Key (7), Bitrate (13)
+            for col_idx in [4, 7, 13]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, True)
-            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 12, 17]:
+            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 12]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, False)
         elif width < 1350:
-            # Medium view: hide Remixer, Musical Key, and Path
-            for col_idx in [4, 7, 18]:
+            # Medium view: hide Remixer (4)
+            for col_idx in [4]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, True)
-            for col_idx in [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]:
+            for col_idx in [0, 1, 2, 3, 5, 6, 7, 8, 9, 12, 13]:
                 if col_idx < header.count():
                     header.setSectionHidden(col_idx, False)
         else:
-            # Wide view: show all columns
-            for col_idx in range(header.count()):
-                header.setSectionHidden(col_idx, False)
+            # Wide view: show all essential DJ columns
+            for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
+                if col_id in DEFAULT_VISIBLE_COLUMN_IDS and idx < header.count():
+                    header.setSectionHidden(idx, False)
 
     def _toggle_sidebar(self) -> None:
         """Toggles visibility of the left filesystem sidebar."""
@@ -1374,6 +1496,27 @@ class MainWindow(QMainWindow):
 
         menu.exec(self.table_header.mapToGlobal(pos))
 
+    def _apply_default_columns(self) -> None:
+        """Applies clean default view: only essential DJ columns, hiding superfluous columns, with balanced widths."""
+        visible_set = set(DEFAULT_VISIBLE_COLUMN_IDS)
+        for idx, (_, col_id) in enumerate(TrackTableModel.COLUMNS):
+            self.table_header.setSectionHidden(idx, col_id not in visible_set)
+            default_w = DEFAULT_COLUMN_WIDTHS.get(col_id, 100)
+            self.table_header.resizeSection(idx, default_w)
+
+    def _save_table_header_state(self) -> None:
+        """Saves header state (column visual order, hidden sections, widths) to configuration."""
+        try:
+            hex_state = bytes(self.table_header.saveState().toHex().data()).decode("ascii")
+            self.settings_manager.set("ui.header_state", hex_state)
+            self.settings_manager.save()
+        except Exception as exc:
+            MusicatLogger.debug("HEADER_STATE", f"Could not save header state: {exc}")
+
+    def _on_table_section_moved(self, logical_index: int, old_visual_index: int, new_visual_index: int) -> None:
+        """Persists reordered column layout when user drags and drops columns."""
+        self._save_table_header_state()
+
     def _toggle_column_visibility(self, col_idx: int, col_id: str, visible: bool) -> None:
         """Toggles visibility of an individual table column and saves preference."""
         visible_count = sum(
@@ -1386,6 +1529,7 @@ class MainWindow(QMainWindow):
         self._custom_columns_active = True
         self.settings_manager.set("ui.custom_columns_active", True)
         self._save_current_column_visibility()
+        self._save_table_header_state()
 
     def _show_all_columns(self) -> None:
         """Shows all columns and marks custom layout active."""
@@ -1394,13 +1538,21 @@ class MainWindow(QMainWindow):
         self._custom_columns_active = True
         self.settings_manager.set("ui.custom_columns_active", True)
         self._save_current_column_visibility()
+        self._save_table_header_state()
 
     def _reset_default_columns(self) -> None:
-        """Resets column visibility to responsive dynamic default."""
+        """Resets column visual order, visibility and widths to essential DJ defaults."""
         self._custom_columns_active = False
+        self._header_state_restored = False
+        # Reset visual order to logical 0..N
+        for logical_idx in range(self.table_header.count()):
+            cur_vis = self.table_header.visualIndex(logical_idx)
+            if cur_vis != logical_idx:
+                self.table_header.moveSection(cur_vis, logical_idx)
+
+        self._apply_default_columns()
         self.settings_manager.set("ui.custom_columns_active", False)
-        self.settings_manager.save()
-        self._apply_responsive_columns(self.width())
+        self._save_table_header_state()
 
     def _save_current_column_visibility(self) -> None:
         """Saves currently visible column IDs to configuration."""
@@ -1420,7 +1572,7 @@ class MainWindow(QMainWindow):
             self.table_header.setSectionHidden(idx, not is_visible)
 
     def _on_table_section_resized(self, logical_index: int, old_size: int, new_size: int) -> None:
-        """Saves resized column widths into configuration."""
+        """Saves resized column widths into configuration and updates header state."""
         if logical_index < len(TrackTableModel.COLUMNS):
             _, col_id = TrackTableModel.COLUMNS[logical_index]
             widths = self.settings_manager.get("ui.column_widths", {})
@@ -1428,7 +1580,7 @@ class MainWindow(QMainWindow):
                 widths = {}
             widths[col_id] = new_size
             self.settings_manager.set("ui.column_widths", widths)
-            self.settings_manager.save()
+        self._save_table_header_state()
 
     def _apply_saved_column_widths(self, saved_widths: Dict[str, int]) -> None:
         """Restores saved column widths from configuration."""

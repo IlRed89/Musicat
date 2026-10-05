@@ -137,6 +137,17 @@ class ReconcilerSearchWorker(QThread):
                 except Exception as exc:
                     MusicatLogger.debug("RECONCILER:HD", f"HD Artwork query error: {exc}")
 
+            # Fallback to Web/YouTube search if primary results lack genre or year
+            has_genre_or_year = any(r.get("genre") or r.get("year") for r in all_results)
+            if not has_genre_or_year:
+                try:
+                    from ..scrapers.web_enricher import WebEnricher
+                    web_res = WebEnricher.search_genre_and_year(self.artist, self.title or q)
+                    if web_res:
+                        all_results.append(web_res)
+                except Exception as exc:
+                    MusicatLogger.debug("RECONCILER:WEB", f"WebEnricher query error: {exc}")
+
         except Exception as e:
             self.error_occurred.emit(str(e))
             return

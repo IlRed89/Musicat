@@ -46,12 +46,26 @@ class MusicBrainzClient:
                 if date_str and len(date_str) >= 4 and date_str[:4].isdigit():
                     year = int(date_str[:4])
 
+                # Extract community style & genre tags
+                tags = []
+                for t in rec.get("tag-list", []):
+                    if isinstance(t, dict) and t.get("name"):
+                        tags.append(t.get("name").title())
+                for rel in releases[:1]:
+                    for t in rel.get("tag-list", []):
+                        if isinstance(t, dict) and t.get("name"):
+                            tname = t.get("name").title()
+                            if tname not in tags:
+                                tags.append(tname)
+                genre_val = ", ".join(tags) if tags else ""
+
                 results.append({
                     "source": "MusicBrainz",
                     "title": rec_title,
                     "artist": artist_credit,
                     "album": album_name,
                     "year": year,
+                    "genre": genre_val,
                     "release_date": date_str,
                     "mbid": rec.get("id", ""),
                     "isrc": rec.get("isrc-list", [None])[0] if "isrc-list" in rec else None,

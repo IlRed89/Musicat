@@ -9,6 +9,7 @@ from .musicbrainz import MusicBrainzClient
 from .discogs import DiscogsClient
 from .social_remix import SocialRemixScraper, SocialTrackItem
 from .artwork_hd import HDArtworkFinder, HDArtworkCandidate
+from .web_enricher import WebEnricher
 from .reconciler import MetadataReconciler, DiscrepancyReport, FieldDiscrepancy
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "SocialTrackItem",
     "HDArtworkFinder",
     "HDArtworkCandidate",
+    "WebEnricher",
     "MetadataReconciler",
     "DiscrepancyReport",
     "FieldDiscrepancy",

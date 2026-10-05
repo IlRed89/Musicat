@@ -39,7 +39,13 @@ hiddenimports = [
     'vlc',
     'src.gui.views',
     'src.gui.views.crates_view',
+    'src.gui.views.quality_view',
     'src.core.boot_diagnostics',
+    'src.core.oauth_manager',
+    'src.scrapers.web_enricher',
+    'src.plugins.quality_analyzer',
+    'src.plugins.quality_analyzer.analyzer',
+    'src.plugins.quality_analyzer.normalizer',
 ]
 
 datas = [

@@ -242,16 +242,16 @@ class MiniPlayerWidget(QFrame):
         self.btn_normalize.setToolTip("Diagnosi e Normalizzazione Qualità Audio (LUFS / Clipping)")
         self.btn_normalize.setStyleSheet("""
             QPushButton {
-                background-color: #1a2234;
-                border: 1px solid #0284c7;
-                color: #38bdf8;
+                background-color: #0d6efd;
+                border: 1px solid #0b5ed7;
+                color: #ffffff;
                 font-weight: bold;
                 font-size: 10px;
                 padding: 1px 7px;
                 border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: #0284c7;
+                background-color: #0b5ed7;
                 color: #ffffff;
             }
         """)
@@ -388,10 +388,10 @@ class MiniPlayerWidget(QFrame):
         lufs = track.get("lufs")
         tp = track.get("true_peak")
         status = track.get("audio_status") or "OK"
-        if lufs is not None and tp is not None:
+        if lufs is not None and tp is not None and float(lufs) > -65.0 and float(tp) > -95.0:
             self.meter_bar.set_metrics(float(lufs), float(tp), str(status))
         else:
-            self.meter_bar.set_metrics(-14.0 if is_url else -70.0, -1.0 if is_url else -100.0, "OK")
+            self.meter_bar.clear_metrics()
 
         # Retrieve or generate waveform peak envelope
         peaks = None

@@ -10,6 +10,35 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.8.0] - 2026-10-05
+
+### 🎛️ Scraping Multi-Source (Genere & Anno), Riordino Colonne Drag & Drop, Fix Freccia ComboBox & Restyle Loudnorm
+
+#### 🌐 Motore di Arricchimento Metadati Cascata Multi-Source (Genere & Anno)
+- **Cascata Multi-Provider Intelligente:** Integrazione Discogs (priorità a `styles` e Master Release per identificare sottogeneri DJ precisi quali Tech House, Melodic Techno, Afro House al posto del generico "Electronic") $\rightarrow$ MusicBrainz / AcousticBrainz (community tags e data di prima uscita) $\rightarrow$ Beatport / Traxsource $\rightarrow$ `WebEnricher` (fallback web scraping su Wikipedia Knowledge Graph e YouTube con query mirata `"[Artista] - [Titolo] genre year"`).
+- **Normalizzazione Rigorosa dei Generi:** Rifiuto preventivo di etichette vaghe o inutili ("Other", "Unknown", "Soundtrack", "Music", "Various", "General"), preferenza per i sottogeneri musicali e assegnazione di `"Vario"` rigorosamente come ultima risorsa se nessun provider restituisce dati.
+
+#### 🔀 Riordino Interattivo Colonne Drag & Drop & Persistenza Layout
+- **Trascinamento Intestazioni Tabella:** Abilitato `setSectionsMovable(True)` e `setDragEnabled(True)` sull'header della tabella libreria per consentire la riorganizzazione libera delle colonne.
+- **Persistenza Stato Header:** Salvataggio serializzato dello stato dell'header (`saveState()` in formato esadecimale) in `config.json` (`ui.header_state`) e ripristino istantaneo all'avvio con `restoreState()`.
+
+#### 🔽 Fix ComboBox Generi: Freccia Visibile & Popolamento Esclusivamente Dinamico
+- **Rimozione Generi Hardcoded:** Eliminato il dizionario statico `COMMON_DJ_GENRES`. Il selettore viene ora popolato esclusivamente dai generi effettivamente presenti nel database SQLite (`SELECT DISTINCT genre FROM tracks`).
+- **Ordinamento Intuitivo:** Voce iniziale `"🏷️ Tutti i Generi"` in testa, generi del database in ordine alfabetico e voce `"Vario"` posizionata in fondo.
+- **Sottocontrolli CSS per la Freccia Dropdown:** Aggiunti stili espliciti `QComboBox::drop-down` e `QComboBox::down-arrow` con freccia vettoriale pura CSS sia nel tema scuro che nel tema chiaro, eliminando il bug visivo della scomparsa della freccia su PySide6/Windows.
+
+#### 🧹 Sfoltimento Colonne Predefinite della Tabella Principale
+- **Rimozione Colonne Superflue dalla Vista Standard:** Nascoste di default le colonne `energy_level`, `lufs`, `true_peak` e `audio_status` per evitare affollamento orizzontale.
+- **Proporzioni Ottimizzate per DJ:** Spazio redistribuito uniformemente tra le colonne cardine: `#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Durata`, `Bitrate`.
+
+#### 🔊 Loudness Meter Pulito & Restyle Nativo Light del Dialog "Correggi Audio"
+- **Disattivazione Meter per Brani Non Analizzati:** Eliminata l'indicazione fittizia `-70 LUFS / -100 dBTP`. I brani privi di scansione mostrano ora il placeholder neutro disattivato `"— LUFS | TP: — dBTP (Non analizzato)"`.
+- **Restyle Completo Light Theme:** Riprogettata l'interfaccia di `QualityDiagnosisDialog` con sfondo nativo `#ffffff`, testi a contrasto elevato `#212529` e groupbox puliti.
+- **Box "Tips & Spiegazioni Operative":** Scheda didattica dettagliata sulle differenze tra normalizzazione non distruttiva dei metadati (ReplayGain) e normalizzazione fisica con ricodifica audio FFmpeg (-1.0 dBTP headroom).
+- **Cursori Target Interattivi:** Slider per Loudness Target (-9/-10 LUFS club/DJ, -14 LUFS streaming) e True Peak Target (-1.0 dBTP) con tooltip operativi contestuali.
+
+---
+
 ## [1.7.0] - 2026-10-05
 
 ### ⚡ Pulsante Esplicito di Analisi Toolbar, Worker Asincrono Non Bloccante, Revisione Metadati & Scrittura Fisica con Mutagen

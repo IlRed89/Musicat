@@ -10,6 +10,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-10-05
+
+### 🎛️ Multi-Source Metadata Scraping (Genre & Year), Drag & Drop Column Reordering, ComboBox Arrow Fix & Loudnorm Restyle
+
+#### 🌐 Cascading Multi-Source Metadata Enrichment Engine (Genre & Year)
+- **Multi-Provider Cascading Fallback:** Discogs API (prioritizing specific electronic `styles` and Master Release year over broad "Electronic") $\rightarrow$ MusicBrainz / AcousticBrainz (community tags and earliest release date) $\rightarrow$ Beatport / Traxsource $\rightarrow$ `WebEnricher` (fallback search querying Wikipedia Knowledge Graph and YouTube for `"[Artist] - [Title] genre year"`).
+- **Intelligent Genre Normalization:** Automatically rejects generic tags ("Other", "Unknown", "Soundtrack", "Music", "Various", "General"), favors granular electronic subgenres, and assigns `"Vario"` strictly as the absolute last resort.
+
+#### 🔀 Interactive Drag & Drop Column Reordering & Layout Persistence
+- **Header Section Dragging:** Enabled `setSectionsMovable(True)` and `setDragEnabled(True)` on the DJ Library table header.
+- **Persistent Header State:** Visual column order, column widths, and visibility are serialized via `saveState()` into hex strings stored in `config.json` (`ui.header_state`), restored automatically at startup via `restoreState()`.
+
+#### 🔽 Genre ComboBox Fix: Visible Chevron Arrow & Strictly Dynamic DB Population
+- **Removed Static Genre Presets:** Completely excised hardcoded `COMMON_DJ_GENRES`. ComboBox is now dynamically populated strictly from SQLite tracks (`SELECT DISTINCT genre FROM tracks`).
+- **Intuitive Ordering:** `"🏷️ Tutti i Generi"` is anchored at top, followed by database genres in alphabetical order, with `"Vario"` appended at the bottom.
+- **Pure CSS Chevron Dropdown Subcontrols:** Resolved PySide6/Windows dropdown arrow vanishing bug in both Light and Dark themes using explicit `QComboBox::drop-down` and `QComboBox::down-arrow` CSS rules.
+
+#### 🧹 Cleaner Default DJ Table Columns
+- **Superfluous Columns Hidden by Default:** `energy_level`, `lufs`, `true_peak`, and `audio_status` are hidden from default view to maximize readable horizontal space.
+- **Balanced Proportions for DJ Performance:** Columns `#`, `Cover`, `Titolo`, `Artista`, `Remixer`, `BPM`, `Camelot`, `Key`, `Genere`, `Anno`, `Durata`, and `Bitrate` are distributed cleanly across the viewport.
+
+#### 🔊 Loudness Meter Cleanup & Native Light Theme Restyle for "Correggi Audio" Dialog
+- **Deactivated Meter on Unanalyzed Tracks:** Suppressed misleading `-70 LUFS / -100 dBTP` readings, displaying a neutral inactive placeholder `"— LUFS | TP: — dBTP (Non analizzato)"`.
+- **Native Light Theme Styling:** Restyled `QualityDiagnosisDialog` with native `#ffffff` canvas, high-contrast dark text `#212529`, and clean groupboxes.
+- **Operational Tips Card:** Embedded educational callout comparing non-destructive metadata normalization (ReplayGain) with FFmpeg loudnorm physical re-encoding (-1.0 dBTP headroom).
+- **Interactive Target Sliders:** Configurable Target LUFS (-9/-10 LUFS for club/DJ, -14 LUFS for streaming) and Target True Peak (-1.0 dBTP) with informative tooltips.
+
+---
+
 ## [1.7.0] - 2026-10-05
 
 ### ⚡ Dedicated Toolbar Analysis Button, Non-Blocking Async Background Worker, Reconciler Dialog Fix & Mutagen Physical Persistence

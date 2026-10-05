@@ -94,6 +94,11 @@ class DiscogsClient:
 
                     rel_id = item.get("id")
 
+                    styles_list = item.get("style", [])
+                    genres_list = item.get("genre", [])
+                    # Specific electronic style takes precedence over broad genre
+                    discogs_genre = ", ".join(styles_list) if styles_list else ", ".join(genres_list)
+
                     res_dict = {
                         "source": "Discogs",
                         "discogs_id": rel_id,
@@ -102,8 +107,8 @@ class DiscogsClient:
                         "year": year_val,
                         "label": main_label,
                         "catalog_number": cat_num,
-                        "genre": ", ".join(item.get("genre", [])),
-                        "style": ", ".join(item.get("style", [])),
+                        "genre": discogs_genre,
+                        "style": ", ".join(styles_list),
                         "artwork_url": item.get("cover_image") or item.get("thumb", ""),
                         "country": item.get("country", ""),
                         "format": format_str,
@@ -172,15 +177,17 @@ class DiscogsClient:
                         out["artist"] = ", ".join(art_names)
 
                 # Extra artists (Remixers, producers, feat)
-                extra = data.get("extraartists", [])
-                remixers = []
-                if extra and isinstance(extra, list):
-                    for ea in extra:
-                        role = ea.get("role", "").lower()
-                        if "remix" in role:
-                            remixers.append(ea.get("name", ""))
                 if remixers:
                     out["remixer"] = ", ".join(remixers)
+
+                # Detailed Genre & Style (Style prioritized for subgenres)
+                styles = data.get("styles", []) or data.get("style", [])
+                genres = data.get("genres", []) or data.get("genre", [])
+                primary_genre = ", ".join(styles) if styles else ", ".join(genres)
+                if primary_genre:
+                    out["genre"] = primary_genre
+                if styles:
+                    out["style"] = ", ".join(styles)
 
         except Exception as exc:
             MusicatLogger.get_logger().debug(f"[DISCOGS] Could not fetch details for release {release_id}: {exc}")

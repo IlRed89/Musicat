@@ -53,15 +53,6 @@ from ..core.logger import MusicatLogger
 from ..core.i18n import I18n, _t
 
 
-COMMON_DJ_GENRES = [
-    "Tech House", "Melodic Techno", "Afro House", "Deep House",
-    "House", "Techno", "Peak Time Techno", "Progressive House",
-    "Minimal / Deep Tech", "Nu Disco / Disco", "Drum & Bass",
-    "Trance", "Psy-Trance", "Indie Dance", "Hard Techno",
-    "Electro House", "Bass House", "Organic House / Downtempo",
-    "Dance / Pop", "UK Garage", "Acapella",
-]
-
 
 class CamelotWheelDialog(QDialog):
     """Interactive visual Camelot Wheel assistant for harmonic mixing."""
@@ -254,7 +245,7 @@ class GenreMultiSelectWidget(QComboBox):
         return self.lineEdit()
 
     def populate_genres(self) -> None:
-        """Populates dynamic genre list from SQLite DB starting with '🏷️ Tutti i Generi', sorted alphabetically."""
+        """Populates dynamic genre list strictly from SQLite DB, starting with '🏷️ Tutti i Generi', sorted alphabetically, and ending with 'Vario'."""
         curr_text = self.currentText().strip()
         self._updating = True
         self.blockSignals(True)
@@ -263,25 +254,29 @@ class GenreMultiSelectWidget(QComboBox):
         # Item 0: Tutti i Generi
         self.addItem(self._all_genres_label, "")
 
-        genres_set = set(COMMON_DJ_GENRES)
+        db_genres: List[str] = []
         if self.db:
             try:
-                db_genres = self.db.get_distinct_genres()
-                genres_set.update(db_genres)
+                raw_genres = self.db.get_distinct_genres()
+                for g in raw_genres:
+                    clean = str(g).strip()
+                    if clean and clean.lower() != "vario" and clean not in db_genres:
+                        db_genres.append(clean)
             except Exception:
                 pass
 
-        # Always include "Vario" for untagged tracks
-        genres_set.add("Vario")
-
         # Sorted alphabetically (case-insensitive)
-        sorted_genres = sorted(list(genres_set), key=lambda s: s.lower())
+        sorted_genres = sorted(db_genres, key=lambda s: s.lower())
 
         for g in sorted_genres:
             self.addItem(g, g)
 
-        # Autocompletion setup
-        completer = QCompleter(sorted_genres, self)
+        # Always include "Vario" as the last option for untagged tracks
+        self.addItem("Vario", "Vario")
+
+        # Autocompletion setup (DB genres + Vario)
+        completer_list = sorted_genres + ["Vario"]
+        completer = QCompleter(completer_list, self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.setCompleter(completer)
@@ -375,21 +370,38 @@ class GenreMultiSelectWidget(QComboBox):
         self.set_genres(genres)
 
     def update_theme(self, theme_id: str = "light") -> None:
-        """Adapts styling to active theme."""
+        """Adapts styling to active theme with visible drop-down arrow."""
         is_light = (theme_id == "light")
         bg_col = "#ffffff" if is_light else "#1a1d26"
         border_col = "#ced4da" if is_light else "#2d313d"
         text_col = "#212529" if is_light else "#e0e2ec"
+        arrow_col = "#495057" if is_light else "#00d2ff"
 
         self.setStyleSheet(f"""
             QComboBox {{
                 background-color: {bg_col};
                 border: 1px solid {border_col};
                 border-radius: 4px;
-                padding: 4px 8px;
+                padding: 4px 24px 4px 8px;
                 color: {text_col};
                 font-size: 11px;
                 font-weight: 500;
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid {border_col};
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+            }}
+            QComboBox::down-arrow {{
+                width: 0px;
+                height: 0px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {arrow_col};
+                margin-right: 2px;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {bg_col};
