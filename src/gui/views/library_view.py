@@ -64,22 +64,6 @@ class BreadcrumbBar(QFrame):
                     font-size: 11px;
                 }
             """)
-            if hasattr(self, "btn_reveal"):
-                self.btn_reveal.setStyleSheet("""
-                    QPushButton {
-                        background-color: #e9ecef;
-                        border: 1px solid #ced4da;
-                        color: #0d6efd;
-                        font-weight: bold;
-                        font-size: 10px;
-                        padding: 1px 8px;
-                        border-radius: 3px;
-                    }
-                    QPushButton:hover {
-                        background-color: #0d6efd;
-                        color: #ffffff;
-                    }
-                """)
         else:
             self.setStyleSheet("""
                 BreadcrumbBar {
@@ -92,22 +76,6 @@ class BreadcrumbBar(QFrame):
                     font-size: 11px;
                 }
             """)
-            if hasattr(self, "btn_reveal"):
-                self.btn_reveal.setStyleSheet("""
-                    QPushButton {
-                        background-color: #1a2234;
-                        border: 1px solid #0284c7;
-                        color: #38bdf8;
-                        font-weight: bold;
-                        font-size: 10px;
-                        padding: 1px 8px;
-                        border-radius: 3px;
-                    }
-                    QPushButton:hover {
-                        background-color: #0284c7;
-                        color: #ffffff;
-                    }
-                """)
         self.set_path(self.current_filepath)
 
     def _init_ui(self) -> None:
@@ -128,14 +96,6 @@ class BreadcrumbBar(QFrame):
         self.main_layout.addWidget(self.crumbs_widget)
         self.main_layout.addStretch()
 
-        # Action: Reveal in OS File Manager
-        self.btn_reveal = QPushButton("Mostra nella cartella")
-        self.btn_reveal.setFixedHeight(20)
-        self.btn_reveal.setToolTip("Evidenzia il file nel file manager nativo (Windows Explorer / macOS Finder)")
-        self.btn_reveal.clicked.connect(self._on_reveal_clicked)
-        self.btn_reveal.setVisible(False)
-        self.main_layout.addWidget(self.btn_reveal)
-
         self.set_path("")
 
     def set_path(self, filepath: str) -> None:
@@ -153,11 +113,9 @@ class BreadcrumbBar(QFrame):
             empty_color = "#6c757d" if self._is_light else "#64748b"
             lbl_empty.setStyleSheet(f"color: {empty_color}; font-size: 11px; font-style: italic;")
             self.crumbs_layout.addWidget(lbl_empty)
-            self.btn_reveal.setVisible(False)
             return
 
         p = Path(filepath)
-        self.btn_reveal.setVisible(True)
 
         parts = list(p.parts)
         accum_path = Path(parts[0])

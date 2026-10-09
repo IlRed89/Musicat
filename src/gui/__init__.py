@@ -18,4 +18,9 @@ __all__ = [
     "AnalysisControllerThread",
     "SettingsDialog",
     "Mp3tagWorkspaceWindow",
+    "ReconciliationDialog",
+    "ReconcilerDialog",
 ]
+
+from .reconciler_dialog import ReconciliationDialog, ReconcilerDialog
+

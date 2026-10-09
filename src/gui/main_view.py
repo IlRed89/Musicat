@@ -60,9 +60,7 @@ from .live_filters import LiveFilterBar, CamelotWheelDialog
 from .tag_editor_dialog import TagEditorDialog
 from .sorter_dialog import SorterDialog
 from .pattern_dialog import PatternDialog
-from .scraper_dialog import ScraperDialog
-from .reconciler_dialog import ReconcilerDialog
-from .analysis_dialog import AcousticAnalysisDialog
+from .reconciler_dialog import ReconciliationDialog, ReconcilerDialog
 from .settings_dialog import SettingsDialog
 from .mp3tag_workspace import Mp3tagWorkspaceWindow
 from .views import (
@@ -222,8 +220,13 @@ class AsyncAnalysisWorker(QThread):
                     search_title = updates.get("title") or cur_title
                     query = f"{search_artist} - {search_title}" if search_artist else search_title
 
-                    found_genre = None
-                    found_year = None
+                    years_by_source: Dict[str, Any] = {}
+                    genres_by_source: Dict[str, Any] = {}
+
+                    if cur_year and str(cur_year).isdigit():
+                        years_by_source["File Attuale"] = int(cur_year)
+                    if cur_genre and cur_genre.strip() and cur_genre.lower() not in ("vario", "other", "unknown"):
+                        genres_by_source["File Attuale"] = cur_genre
 
                     from ..scrapers.discogs import DiscogsClient
                     from ..scrapers.musicbrainz import MusicBrainzClient
@@ -234,56 +237,71 @@ class AsyncAnalysisWorker(QThread):
                     try:
                         disc_results = DiscogsClient().search_releases(query, limit=2)
                         for d in disc_results:
-                            if not found_year and d.get("year"):
-                                found_year = d["year"]
-                            if not found_genre and d.get("genre"):
+                            if d.get("year") and str(d["year"]).isdigit():
+                                years_by_source.setdefault("Discogs", int(d["year"]))
+                            if d.get("genre"):
                                 cleaned = MetadataReconciler.clean_and_normalize_genre(d["genre"])
                                 if cleaned and cleaned.lower() not in MetadataReconciler.BROAD_GENRES:
-                                    found_genre = cleaned
+                                    genres_by_source.setdefault("Discogs", cleaned)
                     except Exception:
                         pass
 
                     # 2. MusicBrainz API
-                    if not found_genre or not found_year:
-                        try:
-                            mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
-                            for m in mb_results:
-                                if not found_year and m.get("year"):
-                                    found_year = m["year"]
-                                if not found_genre and m.get("genre"):
-                                    cleaned = MetadataReconciler.clean_and_normalize_genre(m["genre"])
-                                    if cleaned:
-                                        found_genre = cleaned
-                        except Exception:
-                            pass
+                    try:
+                        mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
+                        for m in mb_results:
+                            if m.get("year") and str(m["year"]).isdigit():
+                                years_by_source.setdefault("MusicBrainz", int(m["year"]))
+                            if m.get("genre"):
+                                cleaned = MetadataReconciler.clean_and_normalize_genre(m["genre"])
+                                if cleaned:
+                                    genres_by_source.setdefault("MusicBrainz", cleaned)
+                    except Exception:
+                        pass
 
                     # 3. Web & YouTube fallback
-                    if not found_genre or not found_year:
-                        try:
-                            web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
-                            if web_res:
-                                if not found_year and web_res.get("year"):
-                                    found_year = web_res["year"]
-                                if not found_genre and web_res.get("genre"):
-                                    cleaned = MetadataReconciler.clean_and_normalize_genre(web_res["genre"])
-                                    if cleaned:
-                                        found_genre = cleaned
-                        except Exception:
-                            pass
+                    try:
+                        web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
+                        if web_res:
+                            if web_res.get("year") and str(web_res["year"]).isdigit():
+                                years_by_source.setdefault("Web/YouTube", int(web_res["year"]))
+                            if web_res.get("genre"):
+                                cleaned = MetadataReconciler.clean_and_normalize_genre(web_res["genre"])
+                                if cleaned:
+                                    genres_by_source.setdefault("Web/YouTube", cleaned)
+                    except Exception:
+                        pass
 
-                    if found_genre:
-                        updates["genre"] = found_genre
+                    # Detect conflicts across providers
+                    conflicts: Dict[str, Dict[str, Any]] = {}
+                    distinct_years = {v for v in years_by_source.values() if v is not None}
+                    if len(distinct_years) > 1:
+                        conflicts["year"] = years_by_source
+
+                    distinct_genres = {str(v).strip().lower() for v in genres_by_source.values() if v is not None}
+                    if len(distinct_genres) > 1:
+                        conflicts["genre"] = genres_by_source
+
+                    if conflicts:
+                        updates["_conflicts"] = conflicts
+                        tr["_conflicts"] = conflicts
+
+                    # Select recommended consensus values
+                    if genres_by_source:
+                        updates["genre"] = MetadataReconciler._select_recommended_genre(genres_by_source)
                     elif need_genre and not tr.get("genre"):
                         updates["genre"] = "Vario"
 
-                    if found_year:
-                        updates["year"] = int(found_year)
+                    if years_by_source:
+                        rec_year = MetadataReconciler._select_recommended_year(years_by_source)
+                        if rec_year:
+                            updates["year"] = rec_year
 
                 # 4. Write physical tags with Mutagen
-                AudioTagEditor.write_metadata(fp, updates)
+                AudioTagEditor.write_metadata(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
 
                 # 5. Write to SQLite database
-                self.db.update_track_tags(fp, updates)
+                self.db.update_track_tags(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
 
                 full_updated = dict(tr)
                 full_updated.update(updates)
@@ -370,7 +388,7 @@ class MainWindow(QMainWindow):
         nav_layout.setSpacing(6)
 
         # Main Navigation Macro-Buttons:
-        # [Libreria], [Top Charts], [Tag Editor (Mp3tag)], [Smart Crates], [Trova Simili], [Organizza File], [Impostazioni]
+        # [Libreria], [Top Charts], [Tag Editor (Mp3tag)], [Trova Simili], [Organizza File], [Smart Crates], [Impostazioni]
         self.btn_nav_library = QPushButton(_t("nav_library", "📁  Libreria"))
         self.btn_nav_library.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_library.clicked.connect(lambda: self._switch_view(0))
@@ -383,24 +401,24 @@ class MainWindow(QMainWindow):
         self.btn_nav_mp3tag.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_mp3tag.clicked.connect(lambda: self._switch_view(2))
 
-        self.btn_nav_crates = QPushButton(_t("nav_crates", "📦  Smart Crates"))
-        self.btn_nav_crates.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_crates.clicked.connect(lambda: self._switch_view(3))
-
         self.btn_nav_similar = QPushButton(_t("nav_similar", "🔍  Trova Simili"))
         self.btn_nav_similar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_similar.clicked.connect(lambda: self._switch_view(4))
+        self.btn_nav_similar.clicked.connect(lambda: self._switch_view(3))
 
         self.btn_nav_organizer = QPushButton(_t("nav_organizer", "📂  Organizza File"))
         self.btn_nav_organizer.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_organizer.clicked.connect(lambda: self._switch_view(5))
+        self.btn_nav_organizer.clicked.connect(lambda: self._switch_view(4))
+
+        self.btn_nav_crates = QPushButton(_t("nav_crates", "📦  Smart Crates"))
+        self.btn_nav_crates.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_nav_crates.clicked.connect(lambda: self._switch_view(5))
 
         nav_layout.addWidget(self.btn_nav_library)
         nav_layout.addWidget(self.btn_nav_trends)
         nav_layout.addWidget(self.btn_nav_mp3tag)
-        nav_layout.addWidget(self.btn_nav_crates)
         nav_layout.addWidget(self.btn_nav_similar)
         nav_layout.addWidget(self.btn_nav_organizer)
+        nav_layout.addWidget(self.btn_nav_crates)
         nav_layout.addStretch()
 
         # Dedicated Settings button in top-right corner
@@ -550,24 +568,24 @@ class MainWindow(QMainWindow):
         self.mp3tag_view.close_requested.connect(lambda: self._switch_view(0))
         self.view_stack.addWidget(self.mp3tag_view)
 
-        # Index 3: Dedicated Smart Crates Workbench
-        self.crates_view = SmartCratesView(self.db, self)
-        self.crates_view.play_track_requested.connect(self._on_home_play_track)
-        self.crates_view.crates_updated.connect(self._refresh_library)
-        self.view_stack.addWidget(self.crates_view)
-
-        # Index 4: Trova Simili (Embedded Similar Tracks Workspace)
+        # Index 3: Trova Simili (Embedded Similar Tracks Workspace)
         self.similar_view = SimilarTracksView(self.db, self)
         self.similar_view.play_track_requested.connect(self._on_home_play_track)
         self.similar_view.navigate_to_library_requested.connect(lambda: self._switch_view(0))
         self.similar_view.crates_updated.connect(self._refresh_library)
         self.view_stack.addWidget(self.similar_view)
 
-        # Index 5: Organizza File (Embedded Organizer Workspace)
+        # Index 4: Organizza File (Embedded Organizer Workspace)
         self.organizer_view = OrganizerView(parent=self)
         self.organizer_view.operation_completed.connect(self._refresh_library)
         self.organizer_view.back_requested.connect(lambda: self._switch_view(0))
         self.view_stack.addWidget(self.organizer_view)
+
+        # Index 5: Dedicated Smart Crates Workbench
+        self.crates_view = SmartCratesView(self.db, self)
+        self.crates_view.play_track_requested.connect(self._on_home_play_track)
+        self.crates_view.crates_updated.connect(self._refresh_library)
+        self.view_stack.addWidget(self.crates_view)
 
         main_layout.addWidget(self.view_stack, 1)
 
@@ -1143,7 +1161,7 @@ class MainWindow(QMainWindow):
         self._open_reconciler_for_track(selected[0])
 
     def _open_reconciler_for_track(self, track: Dict[str, Any]) -> None:
-        dlg = ReconcilerDialog(track, self)
+        dlg = ReconciliationDialog(track, conflicts=track.get("_conflicts"), parent=self)
         dlg.metadata_reconciled.connect(
             lambda updated: [self.db.update_track_tags(updated["filepath"], updated), self._refresh_library()]
         )
@@ -1231,7 +1249,28 @@ class MainWindow(QMainWindow):
         self._refresh_library()
 
         total = len(updated_tracks)
-        if total == 1 and updated_tracks:
+        conflicting = [t for t in updated_tracks if t.get("_conflicts")]
+
+        if conflicting:
+            if len(conflicting) == 1:
+                self.status_bar.showMessage(f"⚠️ Discrepanze rilevate per '{conflicting[0].get('title')}'. Apertura Riconciliazione Conflitti...", 7000)
+                self._open_reconciler_for_track(conflicting[0])
+            else:
+                reply = QMessageBox.question(
+                    self,
+                    _t("reconciliation_needed_title", "Discrepanze Metadati Rilevate"),
+                    _t(
+                        "reconciliation_needed_prompt",
+                        "Sono state rilevate discrepanze tra le fonti online per {count} tracce.\nVuoi risolvere i conflitti ora?",
+                        count=len(conflicting),
+                    ),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    for c_tr in conflicting:
+                        self._open_reconciler_for_track(c_tr)
+        elif total == 1 and updated_tracks:
             tr = updated_tracks[0]
             title = tr.get("title") or Path(tr.get("filepath", "")).name
             bpm = f"{tr.get('bpm', 0.0):.1f}" if tr.get("bpm") else "-"
@@ -1243,9 +1282,9 @@ class MainWindow(QMainWindow):
                 _t("analysis_done_title", "Analisi Completata"),
                 _t(
                     "analysis_done_review_prompt",
-                    "Analisi completata con successo!\nBPM: {bpm} | Chiave: {key}\nVuoi aprire la revisione online per cercare etichetta, anno e copertina HD?",
+                    "Analisi completata con successo!\nBPM: {bpm} | Chiave: {musical_key}\nVuoi aprire la revisione online per cercare etichetta, anno e copertina HD?",
                     bpm=bpm,
-                    key=key,
+                    musical_key=key,
                 ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
@@ -1266,7 +1305,7 @@ class MainWindow(QMainWindow):
 
     def _on_open_sorter(self) -> None:
         """Switches to integrated File Organizer workspace."""
-        self._switch_view(5)
+        self._switch_view(4)
 
     def _on_batch_acoustic_analysis(self) -> None:
         self._on_toolbar_analyze_clicked()
@@ -1393,7 +1432,7 @@ class MainWindow(QMainWindow):
                     return
                 self.filter_bar.genre_widget.set_genres([val])
             elif itype == "crate" and val:
-                self._switch_view(3)
+                self._switch_view(5)
                 if hasattr(self, "crates_view"):
                     self.crates_view.select_crate_by_name(val)
             elif itype == "camelot" and val:
@@ -1691,9 +1730,9 @@ class MainWindow(QMainWindow):
         0: Libreria
         1: Top Charts (Home Trends)
         2: Tag Editor (Mp3tag)
-        3: Smart Crates
-        4: Trova Simili
-        5: Organizza File
+        3: Trova Simili
+        4: Organizza File
+        5: Smart Crates
         """
         selected = self._get_selected_tracks()
 
@@ -1701,12 +1740,15 @@ class MainWindow(QMainWindow):
         if index == 2 and hasattr(self, "mp3tag_view"):
             tracks = selected if selected else self.all_tracks
             self.mp3tag_view.load_tracks(tracks)
-        elif index == 4 and hasattr(self, "similar_view"):
-            ref = selected[0] if selected else (self.player_widget.current_track or None)
-            if ref:
-                self.similar_view.set_reference_track(ref)
-        elif index == 5 and hasattr(self, "organizer_view"):
+        elif index == 3 and hasattr(self, "similar_view"):
+            if not getattr(self.similar_view, "reference_track", None):
+                ref = selected[0] if selected else (self.player_widget.current_track or None)
+                if ref:
+                    self.similar_view.set_reference_track(ref)
+        elif index == 4 and hasattr(self, "organizer_view"):
             self.organizer_view.set_selected_tracks(selected)
+        elif index == 5 and hasattr(self, "crates_view"):
+            self.crates_view.refresh_crates()
 
         self.view_stack.setCurrentIndex(index)
         self._update_nav_button_styles(index)
@@ -1715,7 +1757,7 @@ class MainWindow(QMainWindow):
             if hasattr(self.home_view, "ensure_loaded"):
                 self.home_view.ensure_loaded()
             self.home_view.refresh_library_status()
-        elif index == 3 and hasattr(self, "crates_view"):
+        elif index == 5 and hasattr(self, "crates_view"):
             self.crates_view.refresh_crates()
 
     def _update_nav_button_styles(self, active_index: int = 0) -> None:
@@ -1828,9 +1870,9 @@ class MainWindow(QMainWindow):
             getattr(self, "btn_nav_library", None),     # 0: Libreria
             getattr(self, "btn_nav_trends", None),      # 1: Top Charts
             getattr(self, "btn_nav_mp3tag", None),      # 2: Tag Editor (Mp3tag)
-            getattr(self, "btn_nav_crates", None),      # 3: Smart Crates
-            getattr(self, "btn_nav_similar", None),     # 4: Trova Simili
-            getattr(self, "btn_nav_organizer", None),   # 5: Organizza File
+            getattr(self, "btn_nav_similar", None),     # 3: Trova Simili
+            getattr(self, "btn_nav_organizer", None),   # 4: Organizza File
+            getattr(self, "btn_nav_crates", None),      # 5: Smart Crates
         ]
         for idx, btn in enumerate(nav_buttons):
             if btn:
@@ -1858,10 +1900,18 @@ class MainWindow(QMainWindow):
         self.player_widget.play()
 
     def _on_home_find_similar(self, track: Dict[str, Any]) -> None:
-        """Sets reference track and switches to integrated Similar Tracks workspace."""
+        """Sets reference track strictly from chart item and switches to integrated Similar Tracks workspace."""
         if hasattr(self, "similar_view"):
-            self.similar_view.set_reference_track(track)
-        self._switch_view(4)
+            chart_ref = {
+                "title": track.get("title", ""),
+                "artist": track.get("artist", ""),
+                "bpm": track.get("bpm"),
+                "camelot_key": track.get("camelot_key") or track.get("musical_key"),
+                "genre": track.get("genre", ""),
+                "filepath": track.get("filepath", ""),
+            }
+            self.similar_view.set_reference_track(chart_ref)
+        self._switch_view(3)
 
     def _on_action_find_similar(self) -> None:
         """Finds similar tracks for selected library track or currently playing deck."""
@@ -1869,7 +1919,7 @@ class MainWindow(QMainWindow):
         ref = selected[0] if selected else (self.player_widget.current_track or None)
         if ref and hasattr(self, "similar_view"):
             self.similar_view.set_reference_track(ref)
-        self._switch_view(4)
+        self._switch_view(3)
 
     def _on_home_genre_filter_requested(self, genre: str) -> None:
         """Handles genre filter requests originating from Home view or cards."""

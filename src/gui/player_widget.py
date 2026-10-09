@@ -257,31 +257,11 @@ class MiniPlayerWidget(QFrame):
         """)
         self.btn_normalize.clicked.connect(self._on_open_quality_dialog)
 
-        self.btn_similar = QPushButton("✨ Simili")
-        self.btn_similar.setToolTip("Trova tracce simili nella libreria e online (Cosine & Camelot)")
-        self.btn_similar.setStyleSheet("""
-            QPushButton {
-                background-color: #1e1b4b;
-                border: 1px solid #7c3aed;
-                color: #c084fc;
-                font-weight: bold;
-                font-size: 10px;
-                padding: 1px 7px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #7c3aed;
-                color: #ffffff;
-            }
-        """)
-        self.btn_similar.clicked.connect(self._on_open_similar_dialog)
-
         self.time_label = QLabel("00:00 / 00:00")
         self.time_label.setStyleSheet("color: #8c92a4; font-size: 11px; font-family: monospace;")
 
         meter_layout.addWidget(self.meter_bar, 1)
         meter_layout.addWidget(self.btn_normalize)
-        meter_layout.addWidget(self.btn_similar)
         meter_layout.addStretch()
         meter_layout.addWidget(self.time_label)
 
@@ -536,8 +516,8 @@ class MiniPlayerWidget(QFrame):
             return
         parent_db = getattr(self.parent(), "db", None) if self.parent() else None
         dlg = SimilarTracksDialog(self.current_track, db=parent_db, parent=self)
-        dlg.play_requested.connect(self.load_track)
-        dlg.play_requested.connect(lambda _: self.play())
+        dlg.play_track_requested.connect(self.load_track)
+        dlg.play_track_requested.connect(lambda _: self.play())
         dlg.exec()
 
     def _on_track_normalized(self, normalized_path: str) -> None:
@@ -552,6 +532,3 @@ class MiniPlayerWidget(QFrame):
             self.title_label.setText(_t("player_no_track", "Nessuna traccia in riproduzione"))
             self.artist_label.setText(_t("player_select_prompt", "Seleziona una traccia da ascoltare"))
         self.btn_normalize.setText(_t("player_normalize", "⚡ Correggi"))
-        self.btn_similar.setText(_t("player_similar", "✨ Simili"))
-        if hasattr(self, "breadcrumb_bar") and hasattr(self.breadcrumb_bar, "btn_show_folder"):
-            self.breadcrumb_bar.btn_show_folder.setToolTip(_t("player_show_in_folder", "📂 Mostra nella cartella"))

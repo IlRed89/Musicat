@@ -533,7 +533,7 @@ class I18n(QObject):
                     except Exception:
                         pass
 
-    def t(self, key: str, default: Optional[str] = None, **kwargs: Any) -> str:
+    def t(self, key: str, default: Optional[str] = None, /, **kwargs: Any) -> str:
         """Retrieves translated text for key in current language, formatting with kwargs."""
         lang_dict = self._translations.get(self._current_lang, {})
         val = lang_dict.get(key)
@@ -558,9 +558,9 @@ class I18n(QObject):
         return self._translations.get(code, {})
 
 
-def _t(key: str, default: Optional[str] = None, **kwargs: Any) -> str:
+def _t(key: str, default: Optional[str] = None, /, **kwargs: Any) -> str:
     """Global convenience translator."""
-    return I18n.get_instance().t(key, default=default, **kwargs)
+    return I18n.get_instance().t(key, default, **kwargs)
 
 
 # Alias

@@ -107,6 +107,7 @@ class SimilarTracksDialog(QDialog):
 
     play_track_requested = Signal(dict)
     crate_export_requested = Signal(list)
+    play_requested = play_track_requested
 
     def __init__(
         self,

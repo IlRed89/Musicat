@@ -107,16 +107,16 @@ class TestFiveCoreRequirements(unittest.TestCase):
             window.btn_nav_mp3tag.click()
             self.assertEqual(window.view_stack.currentIndex(), 2)
 
-            # Switch to Smart Crates (View 3)
-            window.btn_nav_crates.click()
+            # Switch to Similar Tracks (Trova Simili - View 3)
+            window.btn_nav_similar.click()
             self.assertEqual(window.view_stack.currentIndex(), 3)
 
-            # Switch to Similar Tracks (View 4)
-            window.btn_nav_similar.click()
+            # Switch to Organizza File (View 4)
+            window.btn_nav_organizer.click()
             self.assertEqual(window.view_stack.currentIndex(), 4)
 
-            # Switch to Organizza File (View 5)
-            window.btn_nav_organizer.click()
+            # Switch to Smart Crates (View 5 - moved to end before Impostazioni)
+            window.btn_nav_crates.click()
             self.assertEqual(window.view_stack.currentIndex(), 5)
 
             # Switch to Top Charts (View 1)

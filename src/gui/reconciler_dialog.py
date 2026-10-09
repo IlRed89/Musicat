@@ -1,9 +1,10 @@
 """
 Multi-Source Reconciliation Dialog for Musicat.
 
-Presents side-by-side metadata comparisons from Beatport, Traxsource, Discogs,
-MusicBrainz, Social/Remix web sources, and Apple Music HD covers.
-Provides field-by-field selective resolution to resolve metadata discrepancies.
+Detects and resolves metadata discrepancies across Beatport, Traxsource, Discogs,
+MusicBrainz, Tunebat, Rate Your Music, Web/YouTube, and HD Cover Art providers.
+Presents a dedicated Conflict Card per conflicting field (Titolo, Artista, Genere, Anno, BPM, Key)
+with radio buttons per source and a custom input option, writing verified tags physically into the file.
 Non-blocking asynchronous background execution ensures zero GUI freezing.
 """
 
@@ -12,19 +13,20 @@ from typing import Any, Dict, List, Optional
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QRadioButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -36,25 +38,28 @@ from ..scrapers.discogs import DiscogsClient
 from ..scrapers.musicbrainz import MusicBrainzClient
 from ..scrapers.social_remix import SocialRemixScraper
 from ..scrapers.artwork_hd import HDArtworkFinder
+from ..scrapers.providers.acoustic_discovery import TunebatSongBpmProvider
+from ..scrapers.providers.discography import RateYourMusicProvider
 from ..tags.editor import AudioTagEditor
 from ..core.logger import MusicatLogger
 from ..core.i18n import _t
 
 
-FIELD_TRANSLATIONS = {
-    "title": "Titolo",
-    "artist": "Artista",
-    "remixer": "Remixer",
-    "album": "Album",
-    "label": "Etichetta",
-    "genre": "Genere",
-    "year": "Anno",
-    "bpm": "BPM",
-    "musical_key": "Chiave Musicale",
-    "camelot_key": "Chiave Camelot",
-    "catalog_number": "Num. Catalogo",
-    "format": "Formato",
-    "artwork_url": "Copertina HD",
+FIELD_METADATA = {
+    "title": ("Titolo", "🎵"),
+    "artist": ("Artista", "🎤"),
+    "genre": ("Genere", "🏷️"),
+    "year": ("Anno", "📅"),
+    "bpm": ("BPM", "⚡"),
+    "musical_key": ("Chiave Musicale", "🔑"),
+    "camelot_key": ("Chiave Camelot", "🎯"),
+    "key": ("Chiave Musicale (Key)", "🔑"),
+    "label": ("Etichetta", "🏢"),
+    "remixer": ("Remixer", "🎧"),
+    "album": ("Album", "💿"),
+    "catalog_number": ("Num. Catalogo", "🔢"),
+    "format": ("Formato", "📦"),
+    "artwork_url": ("Copertina HD", "🖼️"),
 }
 
 
@@ -121,6 +126,22 @@ class ReconcilerSearchWorker(QThread):
                 except Exception as exc:
                     MusicatLogger.debug("RECONCILER:MB", f"MusicBrainz query error: {exc}")
 
+            # Specialized Tunebat / SongBPM check for acoustic BPM and Key
+            try:
+                tb_res = TunebatSongBpmProvider().search_track(self.title or q, self.artist)
+                if tb_res:
+                    all_results.append(tb_res.to_dict())
+            except Exception as exc:
+                MusicatLogger.debug("RECONCILER:TUNEBAT", f"Tunebat query error: {exc}")
+
+            # Specialized Rate Your Music check for micro-genres
+            try:
+                rym_res = RateYourMusicProvider().search_track(self.title or q, self.artist)
+                if rym_res:
+                    all_results.append(rym_res.to_dict())
+            except Exception as exc:
+                MusicatLogger.debug("RECONCILER:RYM", f"RYM query error: {exc}")
+
             if self.chk_soc:
                 try:
                     soc_tracks = SocialRemixScraper.search_all(q, limit_per_source=2)
@@ -155,35 +176,222 @@ class ReconcilerSearchWorker(QThread):
         self.results_ready.emit(all_results, hd_candidates)
 
 
-class ReconcilerDialog(QDialog):
-    """Interactive multi-source discrepancy resolution and HD cover injector."""
+class ConflictFieldCard(QFrame):
+    """Visual card widget for a single conflicting metadata field.
+
+    Renders a group of radio buttons corresponding to each source,
+    plus an editable custom value radio button.
+    """
+
+    def __init__(
+        self,
+        field_name: str,
+        source_values: Dict[str, Any],
+        recommended_val: Any = None,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.field_name = field_name
+        self.source_values = source_values
+        self.btn_group = QButtonGroup(self)
+        self.radio_options: Dict[QRadioButton, Any] = {}
+
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("""
+            ConflictFieldCard {
+                background-color: #1a1d29;
+                border: 1px solid #2d3348;
+                border-radius: 8px;
+                padding: 10px;
+                margin-bottom: 6px;
+            }
+            ConflictFieldCard:hover {
+                border-color: #3b82f6;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        # Header with icon and field name
+        friendly_label, icon = FIELD_METADATA.get(field_name, (field_name.replace("_", " ").title(), "📝"))
+        lbl_header = QLabel(f"{icon}  <b>{friendly_label}</b>")
+        lbl_header.setStyleSheet("font-size: 13px; font-weight: bold; color: #38bdf8;")
+        layout.addWidget(lbl_header)
+
+        # Radio options per source
+        first_rb: Optional[QRadioButton] = None
+        checked_set = False
+
+        for src_name, val in source_values.items():
+            if val is None or str(val).strip() == "":
+                continue
+            rb = QRadioButton(f"[{src_name}]: {val}")
+            rb.setStyleSheet("""
+                QRadioButton {
+                    font-size: 12px;
+                    color: #e2e8f0;
+                    padding: 3px 0;
+                }
+                QRadioButton:checked {
+                    font-weight: bold;
+                    color: #60a5fa;
+                }
+            """)
+            self.btn_group.addButton(rb)
+            self.radio_options[rb] = val
+            layout.addWidget(rb)
+
+            if first_rb is None:
+                first_rb = rb
+
+            # Pre-select recommended consensus value
+            if recommended_val is not None and str(val).strip().lower() == str(recommended_val).strip().lower():
+                rb.setChecked(True)
+                checked_set = True
+
+        # Custom value row
+        custom_layout = QHBoxLayout()
+        custom_layout.setSpacing(8)
+
+        self.rb_custom = QRadioButton(_t("reconciler_custom_radio", "Personalizzato:"))
+        self.rb_custom.setStyleSheet("""
+            QRadioButton {
+                font-size: 12px;
+                color: #e2e8f0;
+            }
+            QRadioButton:checked {
+                font-weight: bold;
+                color: #34d399;
+            }
+        """)
+        self.btn_group.addButton(self.rb_custom)
+
+        self.txt_custom = QLineEdit()
+        self.txt_custom.setPlaceholderText(_t("reconciler_custom_hint", "Digita valore personalizzato manuale..."))
+        self.txt_custom.setStyleSheet("""
+            QLineEdit {
+                background-color: #11131a;
+                border: 1px solid #334155;
+                border-radius: 4px;
+                color: #ffffff;
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border-color: #34d399;
+            }
+        """)
+
+        # Auto-check custom radio when typing in line edit
+        self.txt_custom.textChanged.connect(self._on_custom_text_changed)
+        self.rb_custom.toggled.connect(self._on_custom_radio_toggled)
+
+        custom_layout.addWidget(self.rb_custom)
+        custom_layout.addWidget(self.txt_custom, 1)
+        layout.addLayout(custom_layout)
+
+        # Fallback selection if no recommended value matched
+        if not checked_set and first_rb is not None:
+            first_rb.setChecked(True)
+
+    def _on_custom_text_changed(self, text: str) -> None:
+        if text.strip():
+            self.rb_custom.setChecked(True)
+
+    def _on_custom_radio_toggled(self, checked: bool) -> None:
+        if checked:
+            self.txt_custom.setFocus()
+
+    def get_selected_value(self) -> Any:
+        """Returns the chosen value for this field."""
+        if self.rb_custom.isChecked():
+            val = self.txt_custom.text().strip()
+            return val if val else None
+
+        for rb, val in self.radio_options.items():
+            if rb.isChecked():
+                return val
+
+        return None
+
+
+class ReconciliationDialog(QDialog):
+    """Modal Conflict Reconciliation & Metadata Resolution Dialog.
+
+    Displays conflicting metadata across sources (Titolo, Artista, Genere, Anno, BPM, Key)
+    with radio buttons and custom input, saving confirmed tags directly to the audio file.
+    """
 
     metadata_reconciled = Signal(dict)
 
-    def __init__(self, track: Dict[str, Any], parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        track: Dict[str, Any],
+        conflicts: Optional[Dict[str, Dict[str, Any]]] = None,
+        parent: Optional[QWidget] = None,
+    ) -> None:
         super().__init__(parent)
-        self.track = track
+        self.track = dict(track)
+        self.predefined_conflicts = conflicts or {}
         self.current_report: Optional[DiscrepancyReport] = None
         self.selected_image_bytes: Optional[bytes] = None
         self.search_worker: Optional[ReconcilerSearchWorker] = None
+        self.field_cards: Dict[str, ConflictFieldCard] = {}
+        self.hd_candidates: List[Any] = []
 
         filename = self.track.get("filename") or Path(self.track.get("filepath", "")).name
-        self.setWindowTitle(_t("reconciler_dialog_title", "Revisione e Conferma Metadati — {filename}", filename=filename))
-        self.setMinimumSize(920, 620)
-        self.resize(1040, 720)
+        self.setWindowTitle(_t("reconciler_conflict_title", "Riconciliazione Conflitti — {filename}", filename=filename))
+        self.setModal(True)
+        self.setMinimumSize(940, 640)
+        self.resize(1060, 720)
         self.setSizeGripEnabled(True)
 
         self._init_ui()
-        self._start_search()
+
+        # If conflicts were already provided, render them immediately;
+        # otherwise, trigger online multi-source query.
+        if self.predefined_conflicts:
+            self._render_from_dict_conflicts(self.predefined_conflicts)
+            # Also search for HD artwork in the background
+            self._start_artwork_search()
+        else:
+            self._start_search()
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(16, 16, 16, 16)
 
-        # Header Search Query Bar
+        # Header Banner
+        header_banner = QFrame()
+        header_banner.setStyleSheet("""
+            QFrame {
+                background-color: #0f172a;
+                border: 1px solid #1e293b;
+                border-radius: 6px;
+                padding: 10px;
+            }
+        """)
+        h_box = QVBoxLayout(header_banner)
+        h_box.setContentsMargins(8, 6, 8, 6)
+
+        lbl_instruct = QLabel(
+            _t(
+                "reconciler_conflict_banner",
+                "⚠️ <b>Risoluzione Discrepanze Metadati:</b> Le fonti di analisi hanno restituito valori discordanti.<br>"
+                "Seleziona il valore da considerare valido tramite il pulsante radio corrispondente, oppure digita un valore manuale personalizzato prima del salvataggio.",
+            )
+        )
+        lbl_instruct.setStyleSheet("font-size: 12px; color: #94a3b8; line-height: 1.4;")
+        lbl_instruct.setWordWrap(True)
+        h_box.addWidget(lbl_instruct)
+        main_layout.addWidget(header_banner)
+
+        # Search Query Bar
         q_bar = QHBoxLayout()
-        lbl_q = QLabel(_t("reconciler_lbl_query", "<b>Query di Ricerca:</b>"))
+        lbl_q = QLabel(_t("reconciler_lbl_query", "<b>Query:</b>"))
         q_bar.addWidget(lbl_q)
 
         self.txt_query = QLineEdit()
@@ -214,7 +422,7 @@ class ReconcilerDialog(QDialog):
 
         # Sources Checkboxes
         src_box = QHBoxLayout()
-        src_box.addWidget(QLabel(_t("reconciler_lbl_sources", "Fonti Attive:")))
+        src_box.addWidget(QLabel(_t("reconciler_lbl_sources", "Fonti:")))
         self.chk_bp = QCheckBox("Beatport")
         self.chk_bp.setChecked(True)
         self.chk_tx = QCheckBox("Traxsource")
@@ -233,46 +441,31 @@ class ReconcilerDialog(QDialog):
         src_box.addStretch()
         main_layout.addLayout(src_box)
 
-        # Content: Discrepancy Table + HD Cover Preview
+        # Content Split Layout: Scrollable Conflict Cards on Left + HD Cover on Right
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
+        content_layout.setSpacing(14)
 
-        # Discrepancy Table
-        table_group = QGroupBox(_t("reconciler_group_table", "Riconciliazione Metadati e Conflitti"))
-        table_layout = QVBoxLayout(table_group)
-
-        self.table_discrepancies = QTableWidget()
-        self.table_discrepancies.setColumnCount(4)
-        self.table_discrepancies.setHorizontalHeaderLabels([
-            _t("reconciler_col_field", "Campo"),
-            _t("reconciler_col_current", "Valore Attuale"),
-            _t("reconciler_col_found", "Valore Rilevato (Online)"),
-            _t("reconciler_col_chosen", "Valore da Applicare"),
-        ])
-        self.table_discrepancies.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.table_discrepancies.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table_discrepancies.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table_discrepancies.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        self.table_discrepancies.verticalHeader().setDefaultSectionSize(36)
-        self.table_discrepancies.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #2b3040;
-                font-size: 12px;
-            }
-            QTableWidget::item {
-                padding: 4px 6px;
-            }
-            QComboBox {
-                padding: 3px 6px;
-                min-height: 24px;
-                font-size: 11px;
+        # Left: Scroll area with conflict cards
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #27272a;
+                background-color: #12141c;
+                border-radius: 6px;
             }
         """)
 
-        table_layout.addWidget(self.table_discrepancies)
-        content_layout.addWidget(table_group, 3)
+        self.cards_container = QWidget()
+        self.cards_layout = QVBoxLayout(self.cards_container)
+        self.cards_layout.setContentsMargins(10, 10, 10, 10)
+        self.cards_layout.setSpacing(10)
+        self.cards_layout.addStretch()
+        self.scroll_area.setWidget(self.cards_container)
 
-        # Artwork Panel
+        content_layout.addWidget(self.scroll_area, 3)
+
+        # Right: Artwork Panel
         art_group = QGroupBox(_t("reconciler_group_artwork", "Copertina HD Album"))
         art_layout = QVBoxLayout(art_group)
 
@@ -287,7 +480,7 @@ class ReconcilerDialog(QDialog):
         self.cmb_art_options = QComboBox()
         self.cmb_art_options.currentIndexChanged.connect(self._on_artwork_selected)
 
-        self.chk_save_folder_copy = QCheckBox(_t("reconciler_chk_save_local", "Salva copia come cover.jpg nella cartella"))
+        self.chk_save_folder_copy = QCheckBox(_t("reconciler_chk_save_local", "Salva copia come cover.jpg"))
         self.chk_save_folder_copy.setChecked(True)
 
         art_layout.addWidget(self.lbl_cover_preview, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -310,15 +503,16 @@ class ReconcilerDialog(QDialog):
         self.lbl_status.setStyleSheet("color: #8c92a4; font-size: 12px;")
 
         self.btn_cancel = QPushButton(_t("reconciler_btn_cancel", "Annulla"))
-        self.btn_apply = QPushButton(_t("reconciler_btn_apply", "Salva Modifiche nei File"))
+        self.btn_apply = QPushButton(_t("reconciler_btn_apply", "💾 Salva Modifiche nei File"))
         self.btn_apply.setObjectName("PrimaryButton")
         self.btn_apply.setStyleSheet("""
             QPushButton {
                 background-color: #16a34a;
                 color: #ffffff;
                 font-weight: bold;
-                padding: 7px 18px;
+                padding: 8px 20px;
                 border-radius: 4px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #15803d;
@@ -328,10 +522,8 @@ class ReconcilerDialog(QDialog):
                 color: #9ca3af;
             }
         """)
-        self.btn_apply.setEnabled(False)
-
-        self.btn_cancel.clicked.connect(self.reject)
         self.btn_apply.clicked.connect(self._apply_reconciliation)
+        self.btn_cancel.clicked.connect(self.reject)
 
         bottom_bar.addWidget(self.lbl_status)
         bottom_bar.addStretch()
@@ -339,21 +531,70 @@ class ReconcilerDialog(QDialog):
         bottom_bar.addWidget(self.btn_apply)
         main_layout.addLayout(bottom_bar)
 
-        self.combos_by_field: Dict[str, QComboBox] = {}
-        self.hd_candidates: List[Any] = []
+    def _clear_cards(self) -> None:
+        """Clears all existing conflict cards from the layout."""
+        self.field_cards.clear()
+        while self.cards_layout.count() > 0:
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _render_from_dict_conflicts(self, conflicts: Dict[str, Dict[str, Any]]) -> None:
+        """Builds conflict cards directly from a dictionary of conflicting fields."""
+        self._clear_cards()
+
+        # Priority order of fields to render
+        priority_order = ["title", "artist", "genre", "year", "bpm", "musical_key", "camelot_key", "key"]
+        rendered_keys = set()
+
+        for fld in priority_order:
+            if fld in conflicts:
+                source_vals = dict(conflicts[fld])
+                # Ensure current file value is available
+                if fld in self.track and "Attuale" not in source_vals and "File Attuale" not in source_vals:
+                    cur_v = self.track.get(fld)
+                    if cur_v:
+                        source_vals["File Attuale"] = cur_v
+                card = ConflictFieldCard(fld, source_vals, parent=self.cards_container)
+                self.cards_layout.addWidget(card)
+                self.field_cards[fld] = card
+                rendered_keys.add(fld)
+
+        # Any remaining fields
+        for fld, source_vals in conflicts.items():
+            if fld not in rendered_keys:
+                card = ConflictFieldCard(fld, dict(source_vals), parent=self.cards_container)
+                self.cards_layout.addWidget(card)
+                self.field_cards[fld] = card
+
+        self.cards_layout.addStretch()
+        self.btn_apply.setEnabled(len(self.field_cards) > 0)
+        self.lbl_status.setText(f"Rilevati {len(self.field_cards)} campi con discrepanze.")
+
+    def _start_artwork_search(self) -> None:
+        """Searches specifically for HD artwork."""
+        q = self.txt_query.text().strip()
+        art = self.track.get("artist") or ""
+        tit = self.track.get("title") or q
+        try:
+            candidates = HDArtworkFinder.search_all_hd_sources(artist=art, title=tit)
+            self._populate_artwork_candidates(candidates)
+        except Exception as exc:
+            MusicatLogger.debug("RECONCILER:ARTWORK", f"Artwork search error: {exc}")
 
     def _start_search(self) -> None:
+        """Starts asynchronous online search across providers."""
         q = self.txt_query.text().strip()
         if not q:
             return
 
         self.btn_search.setEnabled(False)
+        self.btn_apply.setEnabled(False)
         self.lbl_status.setText(_t("reconciler_status_querying", "Interrogazione fonti online in corso..."))
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
         self.lbl_cover_preview.setText("Ricerca in corso...")
 
-        # Start non-blocking QThread
         self.search_worker = ReconcilerSearchWorker(
             query=q,
             artist=self.track.get("artist") or "",
@@ -380,83 +621,57 @@ class ReconcilerDialog(QDialog):
         self.hd_candidates = hd_candidates
 
         q = self.txt_query.text().strip()
-        # Analyze discrepancies
         self.current_report = MetadataReconciler.analyze_discrepancies(
             track_query=q,
             results_from_sources=all_results,
             current_file_tags=self.track,
         )
 
-        self._render_discrepancies(self.current_report)
+        self._render_from_report(self.current_report)
         self._populate_artwork_candidates(self.hd_candidates)
-        self.btn_apply.setEnabled(len(all_results) > 0 or len(self.hd_candidates) > 0 or bool(self.track))
-        sources_count = len(self.current_report.sources_participated)
+        self.btn_apply.setEnabled(len(self.field_cards) > 0 or len(all_results) > 0)
         self.lbl_status.setText(
             _t(
                 "reconciler_status_done",
-                "Completato. Metadati recuperati da {count} risultati across {sources} fonti.",
+                "Completato. Trovate informazioni da {count} risultati.",
                 count=len(all_results),
-                sources=sources_count,
             )
         )
 
-    def _render_discrepancies(self, report: DiscrepancyReport) -> None:
-        self.table_discrepancies.setRowCount(0)
-        self.combos_by_field.clear()
+    def _render_from_report(self, report: DiscrepancyReport) -> None:
+        """Renders conflict cards from DiscrepancyReport."""
+        self._clear_cards()
 
-        rows = list(report.fields.items())
-        self.table_discrepancies.setRowCount(len(rows))
+        # Key fields to check for conflicts: Title, Artist, Genre, Year, BPM, Key
+        target_fields = ["title", "artist", "genre", "year", "bpm", "musical_key", "camelot_key", "label", "album"]
 
-        for idx, (fld_name, disc) in enumerate(rows):
-            # Column 0: Friendly Localized Field name
-            friendly_name = FIELD_TRANSLATIONS.get(fld_name, fld_name.replace("_", " ").title())
-            item_fld = QTableWidgetItem(friendly_name)
-            item_fld.setFlags(item_fld.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        # First add fields that have conflicts
+        conflicting_fields = [f for f in target_fields if f in report.fields and report.fields[f].has_conflict]
+        # Then add fields that have at least one online value discovered
+        other_fields = [
+            f for f in target_fields
+            if f in report.fields and not report.fields[f].has_conflict and len(report.fields[f].values_by_source) > 0
+        ]
 
-            # Column 1: Current Local Value
-            cur_local = str(self.track.get(fld_name) or "").strip()
-            item_cur = QTableWidgetItem(cur_local if cur_local else "-")
-            item_cur.setFlags(item_cur.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            if not cur_local:
-                item_cur.setForeground(Qt.GlobalColor.gray)
+        fields_to_render = conflicting_fields if conflicting_fields else (conflicting_fields + other_fields)
 
-            # Column 2: Available Values summary from online sources (excluding Current File)
-            online_sources = {s: v for s, v in disc.values_by_source.items() if s != "Current File"}
-            summary_parts = [f"[{src}]: {val}" for src, val in online_sources.items()]
-            summary_text = "; ".join(summary_parts) if summary_parts else "-"
-            item_summary = QTableWidgetItem(summary_text)
-            item_summary.setFlags(item_summary.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            if disc.has_conflict:
-                item_summary.setForeground(Qt.GlobalColor.yellow)
+        for fld in fields_to_render:
+            disc = report.fields[fld]
+            card = ConflictFieldCard(
+                field_name=fld,
+                source_values=disc.values_by_source,
+                recommended_val=disc.recommended_value,
+                parent=self.cards_container,
+            )
+            self.cards_layout.addWidget(card)
+            self.field_cards[fld] = card
 
-            # Column 3: Combo to choose which value to apply
-            cmb_choice = QComboBox()
-            cmb_choice.addItem("<Nessuno / Lascia vuoto>", "")
+        if not fields_to_render:
+            lbl_empty = QLabel("Nessuna discrepanza rilevata tra le fonti online e i tag locali.")
+            lbl_empty.setStyleSheet("color: #94a3b8; font-size: 13px; padding: 20px;")
+            self.cards_layout.addWidget(lbl_empty)
 
-            default_idx = 0
-            opt_idx = 1
-
-            # Option for current value
-            if cur_local:
-                cmb_choice.addItem(f"Attuale: {cur_local}", cur_local)
-                default_idx = opt_idx
-                opt_idx += 1
-
-            # Options for online sources
-            for src_name, src_val in online_sources.items():
-                if str(src_val).strip():
-                    cmb_choice.addItem(f"{src_name}: {src_val}", src_val)
-                    if disc.recommended_value is not None and str(src_val).strip() == str(disc.recommended_value).strip():
-                        default_idx = opt_idx
-                    opt_idx += 1
-
-            cmb_choice.setCurrentIndex(default_idx)
-            self.combos_by_field[fld_name] = cmb_choice
-
-            self.table_discrepancies.setItem(idx, 0, item_fld)
-            self.table_discrepancies.setItem(idx, 1, item_cur)
-            self.table_discrepancies.setItem(idx, 2, item_summary)
-            self.table_discrepancies.setCellWidget(idx, 3, cmb_choice)
+        self.cards_layout.addStretch()
 
     def _populate_artwork_candidates(self, candidates: List) -> None:
         self.cmb_art_options.clear()
@@ -491,40 +706,52 @@ class ReconcilerDialog(QDialog):
             self.lbl_cover_preview.setText("Download Fallito")
 
     def _apply_reconciliation(self) -> None:
-        if not self.current_report:
+        """Gathers selected values from conflict cards, writes physical audio tags, and closes."""
+        resolved_tags: Dict[str, Any] = {}
+
+        for fld, card in self.field_cards.items():
+            val = card.get_selected_value()
+            if val is not None and str(val).strip() != "":
+                # Type sanitization
+                if fld == "year":
+                    if str(val).isdigit():
+                        resolved_tags[fld] = int(val)
+                elif fld == "bpm":
+                    try:
+                        resolved_tags[fld] = float(val)
+                    except ValueError:
+                        pass
+                else:
+                    resolved_tags[fld] = str(val).strip()
+
+        filepath = self.track.get("filepath", "")
+        if not filepath:
+            QMessageBox.warning(self, "Attenzione", "Percorso del file audio non valido.")
             return
 
-        # Read user selections
-        selections: Dict[str, Any] = {}
-        for fld, cmb in self.combos_by_field.items():
-            val = cmb.currentData()
-            if val is not None and val != "":
-                selections[fld] = val
-
-        merged_tags = MetadataReconciler.merge_selected_metadata(self.current_report, selections)
-        filepath = self.track.get("filepath", "")
-
-        # Clean separation: If title contains " - " and artist is empty, separate cleanly
-        t_val = str(merged_tags.get("title") or self.track.get("title") or "").strip()
-        a_val = str(merged_tags.get("artist") or self.track.get("artist") or "").strip()
+        # Clean separation: If title contains " - " and artist is empty, split cleanly
+        t_val = str(resolved_tags.get("title") or self.track.get("title") or "").strip()
+        a_val = str(resolved_tags.get("artist") or self.track.get("artist") or "").strip()
         if " - " in t_val and (not a_val or a_val.lower() in ("various", "unknown")):
             parts = t_val.split(" - ", 1)
-            merged_tags["artist"] = parts[0].strip()
-            merged_tags["title"] = parts[1].strip()
+            resolved_tags["artist"] = parts[0].strip()
+            resolved_tags["title"] = parts[1].strip()
 
         try:
             # 1. Write merged metadata to physical audio tags
-            AudioTagEditor.write_metadata(filepath, merged_tags)
+            AudioTagEditor.write_metadata(filepath, resolved_tags)
 
             # 2. Inject HD Artwork if selected
             if self.selected_image_bytes:
                 save_local = self.chk_save_folder_copy.isChecked()
                 HDArtworkFinder.apply_artwork_to_file(filepath, self.selected_image_bytes, save_folder_copy=save_local)
-                merged_tags["has_cover"] = 1
+                resolved_tags["has_cover"] = 1
 
             # 3. Synchronize with updated record
             updated_record = dict(self.track)
-            updated_record.update(merged_tags)
+            updated_record.update(resolved_tags)
+            if "_conflicts" in updated_record:
+                del updated_record["_conflicts"]
 
             QMessageBox.information(
                 self,
@@ -535,3 +762,9 @@ class ReconcilerDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Errore di Scrittura", f"Impossibile scrivere i tag nel file: {e}")
+
+
+# Alias ReconcilerDialog to ReconciliationDialog for backward compatibility
+ReconcilerDialog = ReconciliationDialog
+
+__all__ = ["ReconciliationDialog", "ReconcilerDialog", "ConflictFieldCard", "ReconcilerSearchWorker"]
