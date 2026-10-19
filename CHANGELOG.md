@@ -10,11 +10,46 @@ e il progetto aderisce al [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
-## [1.1.0] - 2026-10-05 — Release Ufficiale Consolidata (Official Consolidated Release)
+## [1.2.0] - 2026-10-19 — Release Ufficiale Consolidata (Official Consolidated Release)
 
-Prima release pubblica ufficiale e consolidata di **Musicat**, il catalogatore desktop universale per DJ, tag editor stile Mp3tag e smart organizer acustico ad alte prestazioni.
+Release ufficiale consolidata di **Musicat**, che introduce il motore professionale di mastering DSP (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3), l'autofit dinamico delle colonne della Libreria, l'avvio massimizzato a tutto schermo, il riordino ergonomico della navbar superiore e il ripristino del tasto "Simili" nel deck player.
 
-### 🌟 Panoramica delle Funzionalità Consolidate
+### 🌟 Novità e Interventi della Release v1.2.0
+
+#### 1. 🎛️ Motore di Elaborazione Audio DSP Professionale (`src/audio/dsp_engine.py`)
+- **Spotify Pedalboard Nativo:** Integrazione della libreria DSP ad altissima fedeltà basata sul framework JUCE C++ (`HighpassFilter`, `LowpassFilter`, `PeakFilter`, `Compressor`, `Limiter`, `Clipping`, `Distortion`, `NoiseGate`).
+- **Fallback Vectorizzato NumPy/SciPy:** In assenza di estensioni binarie native nel sistema host, interviene automaticamente un processore numerico ad alte prestazioni con filtraggio Butterworth e soft saturation limiter (`tanh`).
+- **Pipeline Broadcast libavfilter (FFmpeg):** Catena di filtri per de-clipping (`adeclip`), noise reduction/de-click (`afftdn`), equalizzazione correttiva (`highpass`, `lowpass`, `equalizer`), normalizzazione dinamica EBU R128 (`loudnorm`) e limiter di sicurezza broadcast con lookahead (`alimiter`).
+- **Hosting JUCE per Plugin VST3 Esterni:** Bridge per caricare ed eseguire plugin VST3 esterni tramite il wrapper JUCE C++ di Pedalboard (`load_plugin`), con gestione sicura e tolleranza d'errore su Windows.
+- **5 Preset Studio-Grade DJ & Mastering:**
+  - *"Club Master":* Taglio sub-bass a 30Hz, punch sui bassi a 60Hz (+2.5dB), glue compression e limiting brickwall a -0.5 dBTP per grandi impianti;
+  - *"Vocal Clarity":* High-pass 80Hz, boost di presenza a 3.8kHz, de-essing mirato a 6.5kHz e compressione ottica trasparente;
+  - *"Warm Analog":* Roll-off morbido sulle frequenze alte (18.5kHz), corpo caldo sui 120Hz e saturazione armonica lieve a soft clipping;
+  - *"DJ Punch":* Esaltazione dei transienti su cassa (85Hz) e rullante (2.2kHz) con controllo aggressivo del range dinamico;
+  - *"De-Clip & Clean":* Ricostruzione audio da de-clipping per master sature, noise gate anti-fruscio e limiting a -1.5 dBTP.
+- **Esportazione MP3 (320 kbps CBR / V0 VBR) e FLAC Lossless:** Ricodifica con duplicazione e preservazione integrale dei tag ID3v2.4 e delle copertine ad alta risoluzione.
+
+#### 2. 📐 Autofit Dinamico Larghezza Colonne (+16px Margine di Sicurezza)
+- **Adattamento Automatico al Testo:** Al caricamento della libreria, al refresh e al termine delle scansioni, le colonne della tabella si ridimensionano automaticamente per accogliere il contenuto più esteso (`resizeColumnsToContents()`), con un margine orizzontale di sicurezza (+16px per colonna) per eliminare i troncamenti con puntini di sospensione (...) su titoli, artisti, percorsi o formati audio.
+- **Preservazione Manovre Utente:** L'utente mantiene la piena possibilità di ridimensionare manualmente e riordinare le colonne tramite drag & drop senza alcun reset durante scrolling o selezioni.
+
+#### 3. 🖥️ Avvio Massimizzato a Schermo Intero di Default
+- **Massimizzazione Automatica al Boot:** L'applicazione si avvia a schermo intero massimizzato fin dal primo boot (`window.showMaximized()`), sfruttando immediatamente tutto lo spazio del monitor per la console DJ.
+
+#### 4. 🧭 Nuova Disposizione Navbar Superiore
+- **Pulsante "Smart Crates" Spostato all'Estrema Destra:** Riorganizzata la barra superiore per una gerarchia visiva ottimale:
+  1. *Libreria* (Schermata Principale di default)
+  2. *Top Charts* (Classifiche e anteprime audio)
+  3. *Tag Editor* (Workspace Mp3tag)
+  4. *Trova Simili* (Workspace vettoriale)
+  5. *Organizza File* (Smistamento disco)
+  6. *Smart Crates* (Ancorato a destra prima delle preferenze)
+  7. *Impostazioni* (Pannello configurazione)
+
+#### 5. 🎯 Ripristino Tasto "Simili" nel Player & Isolamento Contesto Top Charts
+- **Pulsante "Simili" nel Deck:** Ripristinato il pulsante nei controlli del player (`btn_similar`), con tooltip discreto non bloccante quando nessuna traccia è caricata e routing immediato a Trova Simili.
+- **Isolamento Contesto Top Charts:** Il click su "Simili" da una riga/card delle classifiche passa rigorosamente il brano della classifica come riferimento (`set_target_track`), gestendo stream online e proprietà di compatibilità (`affinity_score`, `score`, `affinity`).
+- **Crash Fix:** Risolto l'errore di attributo mancante (`play_requested` vs `play_track_requested`) e la collisione argomenti in `_t()`.
 
 #### 1. 🌐 Motore di Arricchimento Metadati & Scraping Multi-Source a Cascata
 - **Cascata Multi-Provider Intelligente:** Interrogazione asincrona e parallela delle maggiori banche dati musicali:

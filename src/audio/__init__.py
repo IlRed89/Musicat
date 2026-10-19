@@ -22,6 +22,14 @@ from .worker import (
 )
 from .parallel_analyzer import ParallelAnalyzer
 from .gpu_analyzer import BatchGpuAcousticEngine
+from .dsp_engine import (
+    DspProcessResult,
+    PedalboardDspProcessor,
+    LibavfilterDspEngine,
+    JucePluginBridge,
+    AudioEnhancementOrchestrator,
+    HAS_PEDALBOARD,
+)
 
 __all__ = [
     "AcousticAnalyzer",
@@ -41,4 +49,10 @@ __all__ = [
     "extract_high_energy_chroma",
     "ParallelAnalyzer",
     "BatchGpuAcousticEngine",
+    "DspProcessResult",
+    "PedalboardDspProcessor",
+    "LibavfilterDspEngine",
+    "JucePluginBridge",
+    "AudioEnhancementOrchestrator",
+    "HAS_PEDALBOARD",
 ]

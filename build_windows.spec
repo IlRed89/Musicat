@@ -40,6 +40,11 @@ hiddenimports = [
     'src.gui.views',
     'src.gui.views.crates_view',
     'src.gui.views.quality_view',
+    'src.gui.views.similar_view',
+    'src.gui.views.similar_dialog',
+    'src.audio.dsp_engine',
+    'src.scrapers.similarity_engine',
+    'pedalboard',
     'src.core.boot_diagnostics',
     'src.core.oauth_manager',
     'src.scrapers.web_enricher',
@@ -53,9 +58,13 @@ datas = [
     (str(project_root / 'assets'), 'assets'),
 ]
 
-# Collect soundfile bundled DLLs
+# Collect soundfile and pedalboard bundled files
 try:
     datas += collect_data_files('soundfile')
+except Exception:
+    pass
+try:
+    datas += collect_data_files('pedalboard')
 except Exception:
     pass
 

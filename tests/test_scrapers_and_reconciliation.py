@@ -196,9 +196,9 @@ class TestScrapersAndReconciliation(unittest.TestCase):
     # 4. Redundant UI Buttons Removal
     # -------------------------------------------------------------
     def test_redundant_buttons_removed(self):
-        """Verifies btn_similar is removed from player bar and btn_reveal is removed from breadcrumb bar."""
+        """Verifies btn_similar is restored on player bar and btn_reveal is removed from breadcrumb bar."""
         player = MiniPlayerWidget()
-        self.assertFalse(hasattr(player, "btn_similar"))
+        self.assertTrue(hasattr(player, "btn_similar"))
         player.close()
 
         bbar = BreadcrumbBar()

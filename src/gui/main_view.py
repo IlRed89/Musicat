@@ -372,6 +372,7 @@ class MainWindow(QMainWindow):
         self._refresh_library()
         self._retranslate_ui()
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
+        self.showMaximized()
 
     def _init_ui(self) -> None:
         central_widget = QWidget(self)
@@ -418,8 +419,8 @@ class MainWindow(QMainWindow):
         nav_layout.addWidget(self.btn_nav_mp3tag)
         nav_layout.addWidget(self.btn_nav_similar)
         nav_layout.addWidget(self.btn_nav_organizer)
-        nav_layout.addWidget(self.btn_nav_crates)
         nav_layout.addStretch()
+        nav_layout.addWidget(self.btn_nav_crates)
 
         # Dedicated Settings button in top-right corner
         self.btn_nav_settings = QPushButton(_t("nav_settings", "⚙️  Impostazioni"))
@@ -592,6 +593,7 @@ class MainWindow(QMainWindow):
         # Bottom Mini-Player
         self.player_widget = MiniPlayerWidget(self)
         self.player_widget.track_normalized.connect(lambda _: self._refresh_library())
+        self.player_widget.similar_requested.connect(self._on_player_find_similar)
         self.player_widget.directory_selected.connect(self._on_breadcrumb_directory_selected)
         main_layout.addWidget(self.player_widget)
 
@@ -1010,6 +1012,7 @@ class MainWindow(QMainWindow):
         self.all_tracks = self.db.search_tracks(limit=100000)
         self.filter_engine.warm_cache(self.all_tracks)
         self._on_live_filter_changed(self.filter_bar.get_current_criteria())
+        self._autofit_table_columns(16)
         self.filter_bar._refresh_crates_dropdown()
         self.filter_bar.refresh_directories()
         self.filter_bar.genre_widget._refresh_completer()
@@ -1018,6 +1021,20 @@ class MainWindow(QMainWindow):
             self._populate_sidebar_tree()
         if hasattr(self, "home_view"):
             self.home_view.refresh_library_status()
+
+    def _autofit_table_columns(self, extra_padding: int = 16) -> None:
+        """Autofits column widths to content length with horizontal safety margin (+16px) while preserving manual order and resizing."""
+        if not hasattr(self, "table_view") or not hasattr(self, "table_model"):
+            return
+        if self.table_model.rowCount() == 0:
+            return
+
+        self.table_view.resizeColumnsToContents()
+        header = getattr(self, "table_header", self.table_view.horizontalHeader())
+        for col in range(self.table_model.columnCount()):
+            if not header.isSectionHidden(col):
+                cur_w = header.sectionSize(col)
+                header.resizeSection(col, cur_w + extra_padding)
 
         total_dur = sum(t.get("duration") or 0.0 for t in self.all_tracks)
         hours = int(total_dur // 3600)
@@ -1332,6 +1349,8 @@ class MainWindow(QMainWindow):
 
     def _apply_responsive_columns(self, width: int) -> None:
         """Adapts table column visibility dynamically based on viewport width if user hasn't set custom columns."""
+        if not hasattr(self, "table_view"):
+            return
         if getattr(self, "_custom_columns_active", False) or getattr(self, "_header_state_restored", False):
             return
         header = getattr(self, "table_header", self.table_view.horizontalHeader())
@@ -1910,7 +1929,19 @@ class MainWindow(QMainWindow):
                 "genre": track.get("genre", ""),
                 "filepath": track.get("filepath", ""),
             }
-            self.similar_view.set_reference_track(chart_ref)
+            if hasattr(self.similar_view, "set_target_track"):
+                self.similar_view.set_target_track(chart_ref)
+            elif hasattr(self.similar_view, "set_reference_track"):
+                self.similar_view.set_reference_track(chart_ref)
+        self._switch_view(3)
+
+    def _on_player_find_similar(self, track: Dict[str, Any]) -> None:
+        """Handles find similar request from mini player widget."""
+        if hasattr(self, "similar_view"):
+            if hasattr(self.similar_view, "set_target_track"):
+                self.similar_view.set_target_track(track)
+            elif hasattr(self.similar_view, "set_reference_track"):
+                self.similar_view.set_reference_track(track)
         self._switch_view(3)
 
     def _on_action_find_similar(self) -> None:

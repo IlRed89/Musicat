@@ -492,8 +492,13 @@ class QualityDiagnosisDialog(QDialog):
         self.rad_loudnorm.setObjectName("radLoudnorm")
         self.rad_loudnorm.setToolTip("Ricalcola l'audio applicando True Peak Limiter a -1.0 dBTP e target LUFS con esportazione diretta in MP3 320k.")
 
+        self.rad_dsp = QRadioButton("🎛️ Audio DSP Mastering & Enhancement (Spotify Pedalboard, libavfilter, JUCE)")
+        self.rad_dsp.setObjectName("radDsp")
+        self.rad_dsp.setToolTip("Applica pipeline professionale di mastering: limiter brickwall broadcast, compressione dinamica, equalizzazione e saturazione armonica.")
+
         act_layout.addWidget(self.rad_replaygain)
         act_layout.addWidget(self.rad_loudnorm)
+        act_layout.addWidget(self.rad_dsp)
 
         # Sub-options for Physical Normalization
         self.frame_loudnorm_opts = QFrame()
@@ -510,8 +515,40 @@ class QualityDiagnosisDialog(QDialog):
         loud_opts_layout.addWidget(self.chk_backup_original)
         act_layout.addWidget(self.frame_loudnorm_opts)
 
-        self.rad_replaygain.toggled.connect(lambda checked: self.frame_loudnorm_opts.setEnabled(not checked))
-        self.frame_loudnorm_opts.setEnabled(False)
+        # Sub-options for DSP Mastering
+        self.frame_dsp_opts = QFrame()
+        dsp_opts_layout = QVBoxLayout(self.frame_dsp_opts)
+        dsp_opts_layout.setContentsMargins(20, 0, 0, 0)
+        dsp_opts_layout.setSpacing(6)
+
+        dsp_row = QHBoxLayout()
+        dsp_row.addWidget(QLabel("Preset DSP:"))
+        self.combo_dsp_preset = QComboBox()
+        self.combo_dsp_preset.addItem("Club Master (Punch bassi, limiter -0.5 dBTP)", "club_master")
+        self.combo_dsp_preset.addItem("Vocal Clarity (Highpass 80Hz, de-essing, presenza)", "vocal_clarity")
+        self.combo_dsp_preset.addItem("Warm Analog (Saturazione armonica lieve, roll-off alte)", "warm_analog")
+        self.combo_dsp_preset.addItem("DJ Punch (Transienti cassa/rullante, controllo dinamico)", "dj_punch")
+        self.combo_dsp_preset.addItem("De-Clip & Clean (Rimozione clipping e noise reduction)", "declip_clean")
+        dsp_row.addWidget(self.combo_dsp_preset, 1)
+
+        dsp_row.addWidget(QLabel("Formato:"))
+        self.combo_dsp_format = QComboBox()
+        self.combo_dsp_format.addItem("MP3 (320 kbps CBR)", "mp3")
+        self.combo_dsp_format.addItem("MP3 (V0 VBR)", "mp3_v0")
+        self.combo_dsp_format.addItem("FLAC (Lossless)", "flac")
+        dsp_row.addWidget(self.combo_dsp_format)
+
+        dsp_opts_layout.addLayout(dsp_row)
+        act_layout.addWidget(self.frame_dsp_opts)
+
+        def _update_option_frames() -> None:
+            self.frame_loudnorm_opts.setEnabled(self.rad_loudnorm.isChecked())
+            self.frame_dsp_opts.setEnabled(self.rad_dsp.isChecked())
+
+        self.rad_replaygain.toggled.connect(lambda _: _update_option_frames())
+        self.rad_loudnorm.toggled.connect(lambda _: _update_option_frames())
+        self.rad_dsp.toggled.connect(lambda _: _update_option_frames())
+        _update_option_frames()
 
         layout.addWidget(grp_action)
 
@@ -685,6 +722,33 @@ class QualityDiagnosisDialog(QDialog):
                 self.accept()
             else:
                 QMessageBox.critical(self, "Errore ReplayGain", f"Impossibile applicare ReplayGain:\n{res.error_message}")
+
+        elif self.rad_dsp.isChecked():
+            preset = self.combo_dsp_preset.currentData() or "club_master"
+            fmt = self.combo_dsp_format.currentData() or "mp3"
+            res = self.normalizer.apply_dsp_enhancement(
+                self.filepath,
+                preset=preset,
+                output_format=fmt,
+                target_lufs=target_lufs,
+                max_true_peak=max_true_peak,
+                save_as_fixed=True,
+            )
+            if res.success:
+                preset_name = self.combo_dsp_preset.currentText()
+                fmt_name = self.combo_dsp_format.currentText()
+                msg = f"Mastering DSP completato con successo!\n\n"
+                msg += f"• Preset: {preset_name}\n"
+                msg += f"• File generato: {res.output_filepath}\n"
+                msg += f"• Formato: {fmt_name}\n"
+                msg += f"• Target: {target_lufs:.1f} LUFS | Headroom: {max_true_peak:.1f} dBTP\n"
+                msg += f"• Tag ID3 e Artwork: Copiati integralmente"
+
+                QMessageBox.information(self, "Mastering DSP Completato", msg)
+                self.normalization_applied.emit(res.output_filepath)
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Errore DSP", f"Impossibile applicare il processing DSP:\n{res.error_message}")
 
         else:
             save_as_fixed = self.chk_save_fixed.isChecked()

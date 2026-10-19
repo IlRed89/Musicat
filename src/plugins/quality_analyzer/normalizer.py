@@ -368,6 +368,59 @@ class VolumeNormalizer:
                 error_message=str(exc),
             )
 
+    # -------------------------------------------------------------
+    # Strategy C: Audio DSP Enhancement (Spotify Pedalboard / libavfilter / JUCE)
+    # -------------------------------------------------------------
+    def apply_dsp_enhancement(
+        self,
+        filepath: str,
+        preset: str = "club_master",
+        output_format: str = "mp3",
+        target_lufs: float = DEFAULT_TARGET_LUFS,
+        max_true_peak: float = DEFAULT_MAX_TRUE_PEAK,
+        save_as_fixed: bool = True,
+        output_filepath: Optional[str] = None,
+    ) -> NormalizationResult:
+        """Applies professional DSP audio enhancement via Pedalboard, libavfilter, or JUCE bridge."""
+        from src.audio.dsp_engine import AudioEnhancementOrchestrator
+        src_path = Path(filepath).resolve()
+        if not output_filepath:
+            ext = ".mp3" if output_format.lower() in ("mp3", "mp3_v0", "v0") else ".flac"
+            if save_as_fixed:
+                out_path = src_path.parent / f"{src_path.stem}_{preset}{ext}"
+            else:
+                out_path = src_path.parent / f"{src_path.stem}_enhanced{ext}"
+        else:
+            out_path = Path(output_filepath).resolve()
+
+        res = AudioEnhancementOrchestrator.enhance_audio_file(
+            input_filepath=str(src_path),
+            output_filepath=str(out_path),
+            preset=preset,
+            target_lufs=target_lufs,
+            max_true_peak=max_true_peak,
+            output_format=output_format,
+            preserve_metadata=True,
+        )
+
+        if res.success and self.db:
+            try:
+                from src.core.scanner import LibraryScanner
+                LibraryScanner(self.db).scan_file(res.output_filepath)
+            except Exception:
+                pass
+
+        return NormalizationResult(
+            filepath=filepath,
+            output_filepath=res.output_filepath,
+            mode=f"dsp_{res.engine_used}_{preset}",
+            original_lufs=-14.0,
+            target_lufs=target_lufs,
+            gain_applied_db=0.0,
+            success=res.success,
+            error_message=res.error_message,
+        )
+
     def _copy_tags_and_artwork(self, src_path: Path, dst_path: Path) -> None:
         """Transfers all metadata tags and album cover art intact from source audio to exported MP3."""
         try:

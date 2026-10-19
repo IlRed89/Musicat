@@ -36,10 +36,10 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 |                                              MUSICAT                                               |
 +----------------------------------------------------------------------------------------------------+
-| [🏠 Analisi]  | [📁 Libreria] | [🏷️ Mp3tag]   | [📦 Crates]   | [🔍 Simili]   | [📂 Organizza]|
-| - Avvio Default  | - Filtri 2-Row| - Rinumeratore  | - Workbench    | - Cosine.club  | - In-App Stack|
-| - Trend 3-Piatta | - Albero Drive| - Pattern %tag% | - Guida & M3U8 | - Vettori Web  | - Collision   |
-| - Diagnosi EBU   | - Ruota 1A-12B| - $num() Live   | - Dynamic Crate| - Hard Disk    | - Dry Run     |
+| [📁 Libreria] | [🔥 Charts]   | [🏷️ Mp3tag]   | [🔍 Simili]   | [📂 Organizza] | [📦 Crates]  [⚙️] |
+| - Avvio Max   | - Anteprime   | - Rinumeratore| - Cosine.club | - In-App Stack | - Regole M3U8|      |
+| - Autofit +16 | - 3-Piattaform| - Pattern %tag| - Web Vectors | - Collision    | - Dock Destra|      |
+| - Drag & Drop | - Riconcilia  | - $num() Live | - Key & BPM   | - Dry Run      | - Drag/Drop  |      |
 +----------------------------------------------------------------------------------------------------+
 |         Motore Ricerca Rapida (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)           |
 +----------------------------------------------------------------------------------------------------+
@@ -47,20 +47,22 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 |          Status Bar con Monitor Hardware Dinamico a Barre Grafiche (CPU & RAM con Soglie)          |
 +----------------------------------------------------------------------------------------------------+
-|       Suite di Logging Strutturato (.zip rotante 20MB, Bundle Diagnostico, Tracciamento Granulare) |
+|     DSP Audio Engine (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3 Plugin Bridge)           |
 +----------------------------------------------------------------------------------------------------+
 |          Risolutore Path Multi-Piattaforma ([VOL:XXXXXXXX] & portable.lock Drive Migration)        |
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. ⚪ Tema Chiaro Predefinito, Workspaces Incorporati & Navbar Modulare
+### 1. ⚪ Avvio a Schermo Intero Massimizzato, Workspaces Incorporati & Nuova Navbar
+- **Avvio a Schermo Intero (Massimizzato) di Default:** L'applicazione si apre a schermo intero massimizzato fin dal primo avvio occupando l'intero spazio visibile del display per la massima produttività DJ (`window.showMaximized()`).
 - **Architettura a 6 Workspaces Incorporati (`QStackedWidget`):** I moduli principali non aprono finestre modali esterne ma sono completamente integrati nella finestra principale senza interruzioni di flusso:
-  - **Indice 0: [📁 Libreria] (Schermata Predefinita all'Avvio)** (Catalogo DJ ad altissime prestazioni con barra filtri a due righe, riordino colonne drag & drop, tasto toolbar `[⚡ Analizza Selezionate]` e albero cartelle)
-  - **Indice 1: [🏠 Analisi / Home]** (Dashboard di tendenze multi-piattaforma Spotify/SoundCloud/Beatport con preascolto streaming 30s e card ad alto contrasto)
-  - **Indice 2: [🏷️ Tag Editor (Mp3tag)]** (Workspace tabellare completo con autonumerazione, pattern live e conversione case)
-  - **Indice 3: [📦 Smart Crates]** (Workbench con guida interattiva, logiche booleane avanzate ed esportazione M3U8 per Serato, Rekordbox, Traktor ed Engine DJ)
-  - **Indice 4: [🔍 Trova Simili]** (Ricerca vettoriale locale e web discovery su Cosine.club / Chosic con affinità armonica DJ)
-  - **Indice 5: [📂 Organizza File]** (Smistamento fisico su disco integrato in-app con gestione collisioni e dry run)
+  - **Posizione 1: [📁 Libreria] (Avvio Predefinito)**: Catalogo DJ con barra filtri a due righe, autofit automatico larghezza colonne (+16px margine anti-ellissi), riordino drag & drop e albero cartelle.
+  - **Posizione 2: [🔥 Top Charts]**: Dashboard di tendenze multi-piattaforma Spotify/SoundCloud/Beatport con stream anteprima audio 30s in libVLC e passaggio diretto a Trova Simili.
+  - **Posizione 3: [🏷️ Tag Editor (Mp3tag)]**: Workspace tabellare completo con autonumerazione, pattern live e conversione case.
+  - **Posizione 4: [🔍 Trova Simili]**: Ricerca vettoriale locale e web discovery su Cosine.club / Chosic con affinità armonica DJ e pulsante "Simili" cablato sia nel player che nelle classifiche.
+  - **Posizione 5: [📂 Organizza File]**: Smistamento fisico su disco integrato in-app con gestione collisioni e dry run.
+  - **Posizione 6: [📦 Smart Crates]**: Spostato all'estrema destra della barra di navigazione prima di Impostazioni, con regole booleane ed esportazione M3U8.
+  - **Posizione 7: [⚙️ Impostazioni]**: Preferenze generali, audio, prestazioni, scrapers e gestione account in browser.
 - **Stile Visivo Moderno:** Palette chiara predefinita (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) con card bordate e Dark Mode attivabile a caldo nelle Preferenze.
 - **Icona Taskbar Nativa:** Configurazione esplicita di `AppUserModelID` su Windows per garantire l'icona Musicat ad alta risoluzione nella barra delle applicazioni anche in versione portabile su qualsiasi PC.
 
@@ -75,6 +77,7 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 ### 3. 🗂️ Albero Drive a Sinistra, Riordino Colonne Drag & Drop & Filtri 2-Row
 - **Explorer Cartelle/Unità a Sinistra Collassabile:** Pannello laterale integrato nella Libreria (`QFileSystemModel`) con rilevamento rapido di dischi rigidi, memorie USB e percorsi preferiti a 1-click.
 - **Riordino Interattivo Colonne Drag & Drop:** Header della tabella mobile (`setSectionsMovable(True)`, `setDragEnabled(True)`) con riorganizzazione libera della sequenza colonne tramite trascinamento diretto.
+- **Autofit Dinamico Larghezza Colonne (+16px Margine di Sicurezza):** Al caricamento della libreria, al refresh e al termine delle scansioni, le colonne si ridimensionano automaticamente per adattarsi al testo più lungo (`resizeColumnsToContents()`), con un margine orizzontale di sicurezza (+16px per colonna) per scongiurare troncamenti con puntini di sospensione (...) su titoli, artisti, percorsi o formati audio. L'utente conserva la piena libertà di ridimensionamento e riordino manuale con il mouse (drag & drop) senza reset su scroll o selezione.
 - **Persistenza Layout Esadecimale:** Lo stato visivo, l'ordinamento e le larghezze delle colonne vengono memorizzati in formato esadecimale (`saveState()`) in `config.json` (`ui.header_state`) e ripristinati istantaneamente a ogni lancio con `restoreState()`.
 - **Vista DJ Ottimizzata & Menu Contestuale:** Nascoste di default le colonne di calcolo interno (`energy_level`, `lufs`, `true_peak`, `audio_status`), focalizzando lo spazio sulle 12 colonne essenziali. Cliccando con il tasto destro su un'intestazione qualsiasi, è sempre possibile attivare o disattivare ciascuna delle 19 colonne totali.
 - **Pulsante Toolbar Dedicato `[⚡ Analizza Selezionate]`:** Elaborazione asincrona non bloccante (`AsyncAnalysisWorker`) per calcolo BPM, chiave Camelot, arricchimento metadati e scrittura tag con Mutagen senza alcun freeze dell'interfaccia.
@@ -104,15 +107,21 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 - **Streaming Window Reads:** Analisi spettrale focalizzata sulla finestra centrale di 60s (drop) a 22.050 Hz mono, tagliando l'uso della CPU dell'80%.
 - **Cache L1 in RAM (SQLite In-Memory):** Buffer temporaneo in RAM (`:memory:`) per evitare scritture premature su SSD e preservare la vita dei supporti flash; cache LRU in memoria per forme d'onda istantanee.
 
-### 7. 🔊 Plugin Qualità Audio, Clipping Detector & Loudnorm (EBU R128)
+### 7. 🔊 DSP Audio Engine (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3)
+- **Spotify Pedalboard & Fallback NumPy/SciPy:** Modulo avanzato `src/audio/dsp_engine.py` per processing DSP di livello professionale (HighpassFilter, LowpassFilter, PeakFilter, Compressor, Limiter, Clipping/Saturation). Se le librerie C++ native non sono presenti nell'ambiente, interviene automaticamente il fallback vettoriale NumPy/SciPy.
+- **FFmpeg libavfilter Pipeline Broadcast:** Elaborazione ad alta prestazione per de-clipping (`adeclip`), noise reduction/de-click (`afftdn`), equalizzazione chirurgica (`highpass`, `lowpass`, `equalizer`), normalizzazione dinamica EBU R128 (`loudnorm`) e limiter di sicurezza broadcast con lookahead (`alimiter`).
+- **Supporto Hosting VST3 / JUCE C++:** Interfaccia per caricare plugin esterni VST3 attraverso il wrapper JUCE nativo fornito da Pedalboard (`load_plugin`), con gestione sicura degli errori se il file VST3 non è presente o non supportato su Windows.
+- **5 Preset DSP di Livello Studio:**
+  - *Club Master:* Sub-bass cut 30Hz, punch sui bassi a 60Hz (+2.5dB), glue compression e limiting a -0.5 dBTP per impianti da club;
+  - *Vocal Clarity:* High-pass 80Hz, de-essing a 6.5kHz, boost di presenza a 3.8kHz e compressione ottica trasparente;
+  - *Warm Analog:* Roll-off morbido sulle alte (18.5kHz), calore sui 120Hz, saturazione armonica lieve a soft clipping;
+  - *DJ Punch:* Esaltazione transienti cassa (85Hz) e rullante (2.2kHz) con controllo aggressivo della dinamica;
+  - *De-Clip & Clean:* De-clipping digitale per tracce sature, noise gate anti-fruscio e limiting a -1.5 dBTP.
+- **Esportazione MP3 (320 kbps CBR / V0 VBR) & FLAC Lossless:** Conversione fisica con preservazione integrale di tag ID3 e copertina.
 - **Conformità Standard EBU R128 / ITU-R BS.1770-4:** Misurazione Integrated Loudness (LUFS), True Peak (dBTP) con oversampling 4x sinc/spline e Loudness Range (LRA).
-- **Loudness Meter Disattivato su Brani Non Analizzati:** Eliminata l'indicazione fittizia `-70 LUFS / -100 dBTP`; i brani non ancora analizzati mostrano il placeholder neutro `"— LUFS | TP: — dBTP (Non analizzato)"`.
-- **Dialog "Correggi Audio" Nativo in Tema Chiaro:** Ridisegnato con palette nativa bianca `#ffffff`, testi scuri `#212529` e box informativo *"Tips & Spiegazioni Operative"*:
-  - *Normalizzazione non distruttiva (ReplayGain):* scrittura tag metadati senza alterare il file audio.
-  - *Normalizzazione fisica con FFmpeg (`loudnorm`):* ricodifica audio precisa a 2 passaggi con margine True Peak di sicurezza di -1.0 dBTP.
-  - *Cursori target configurabili:* target Loudness (-9/-10 LUFS per club/DJ, -14 LUFS per streaming) e target True Peak con indicazioni contestuali.
 
 ### 8. 🏠 Dashboard Trends Multi-Piattaforma & Motore Tracce Simili
+- **Pulsante "Simili" nel Player & Contesto Top Charts Rigoroso:** Il pulsante "Simili" del mini-player invia la traccia correntemente caricata al modulo Trova Simili; se nessuna traccia è caricata, mostra un tooltip discreto non bloccante. Cliccando "Simili" su una riga/card di Top Charts, il riferimento viene preso rigorosamente dall'elemento della classifica (`set_target_track`), gestendo stream online e proprietà di affinità (`affinity_score`, `score`, `affinity`).
 - **Classifiche Multi-Sorgente:** Schede dedicate per `Top Spotify`, `Top SoundCloud / Hype` e `Top Beatport / Discogs`. Categorie musicali contestuali, dataset offline estesi e navigazione ad alta reattività con preascolto audio 30s integrato nel player libVLC.
 - **Riconciliazione Istantanea con la Collezione:** Badge visivo per verificare al volo se la traccia in classifica è già presente nel proprio hard disk (`✓ In Libreria`) o mancante (`+ Mancante`).
 - **Motore di Similarità (Cosine.club):** Ricerca vettoriale su database online e matching acustico diretto contro la propria libreria locale.

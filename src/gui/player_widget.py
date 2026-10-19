@@ -11,7 +11,7 @@ Features:
 
 from pathlib import Path
 from typing import Dict, List, Optional
-from PySide6.QtCore import QPoint, QRectF, QTime, QUrl, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QRectF, QTime, QUrl, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSlider,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -137,6 +138,7 @@ class MiniPlayerWidget(QFrame):
     position_tick = Signal(int, int)
     track_normalized = Signal(str)
     directory_selected = Signal(str)
+    similar_requested = Signal(dict)
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -257,11 +259,31 @@ class MiniPlayerWidget(QFrame):
         """)
         self.btn_normalize.clicked.connect(self._on_open_quality_dialog)
 
+        self.btn_similar = QPushButton("🎯 Simili")
+        self.btn_similar.setToolTip("Cerca tracce simili per BPM, chiave Camelot e affinità")
+        self.btn_similar.setStyleSheet("""
+            QPushButton {
+                background-color: #7c3aed;
+                border: 1px solid #6d28d9;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 1px 7px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #6d28d9;
+                color: #ffffff;
+            }
+        """)
+        self.btn_similar.clicked.connect(self._on_find_similar_clicked)
+
         self.time_label = QLabel("00:00 / 00:00")
         self.time_label.setStyleSheet("color: #8c92a4; font-size: 11px; font-family: monospace;")
 
         meter_layout.addWidget(self.meter_bar, 1)
         meter_layout.addWidget(self.btn_normalize)
+        meter_layout.addWidget(self.btn_similar)
         meter_layout.addStretch()
         meter_layout.addWidget(self.time_label)
 
@@ -510,14 +532,41 @@ class MiniPlayerWidget(QFrame):
         dlg.normalization_applied.connect(self._on_track_normalized)
         dlg.exec()
 
+    def _on_find_similar_clicked(self) -> None:
+        """Handles click on 'Simili' button: routes current track to Trova Simili view or shows non-blocking notice."""
+        if not self.current_track:
+            QToolTip.showText(
+                self.btn_similar.mapToGlobal(QPoint(0, -32)),
+                _t("player_no_track_for_similar", "Carica o riproduci prima un brano per trovare tracce simili."),
+                self.btn_similar,
+                QRect(),
+                3500,
+            )
+            if self.parent() and hasattr(self.parent(), "status_bar"):
+                self.parent().status_bar.showMessage("⚠️ Nessuna traccia caricata nel player per trovare simili.", 4000)
+            return
+
+        self.similar_requested.emit(self.current_track)
+        # Direct UI routing if embedded in MainWindow
+        if self.parent() and hasattr(self.parent(), "similar_view") and hasattr(self.parent(), "_switch_view"):
+            if hasattr(self.parent().similar_view, "set_target_track"):
+                self.parent().similar_view.set_target_track(self.current_track)
+            elif hasattr(self.parent().similar_view, "set_reference_track"):
+                self.parent().similar_view.set_reference_track(self.current_track)
+            self.parent()._switch_view(3)
+
     def _on_open_similar_dialog(self) -> None:
         """Opens Similar Tracks recommendation dialog for currently loaded track."""
         if not self.current_track:
             return
         parent_db = getattr(self.parent(), "db", None) if self.parent() else None
         dlg = SimilarTracksDialog(self.current_track, db=parent_db, parent=self)
-        dlg.play_track_requested.connect(self.load_track)
-        dlg.play_track_requested.connect(lambda _: self.play())
+        if hasattr(dlg, "play_track_requested"):
+            dlg.play_track_requested.connect(self.load_track)
+            dlg.play_track_requested.connect(lambda _: self.play())
+        if hasattr(dlg, "play_requested") and dlg.play_requested != getattr(dlg, "play_track_requested", None):
+            dlg.play_requested.connect(self.load_track)
+            dlg.play_requested.connect(lambda _: self.play())
         dlg.exec()
 
     def _on_track_normalized(self, normalized_path: str) -> None:
@@ -532,3 +581,5 @@ class MiniPlayerWidget(QFrame):
             self.title_label.setText(_t("player_no_track", "Nessuna traccia in riproduzione"))
             self.artist_label.setText(_t("player_select_prompt", "Seleziona una traccia da ascoltare"))
         self.btn_normalize.setText(_t("player_normalize", "⚡ Correggi"))
+        if hasattr(self, "btn_similar"):
+            self.btn_similar.setText(_t("player_similar", "🎯 Simili"))

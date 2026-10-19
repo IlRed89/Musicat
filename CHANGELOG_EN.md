@@ -10,11 +10,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.1.0] - 2026-10-05 — Official Consolidated Release
+## [1.2.0] - 2026-10-19 — Official Consolidated Release
 
-Initial official and consolidated public release of **Musicat**, the universal desktop music catalog, Mp3tag-style batch metadata engine, and high-performance acoustic smart organizer for DJs and music collectors.
+Official consolidated release of **Musicat**, introducing professional DSP audio mastering (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3), dynamic Library column autofit, maximized fullscreen boot, ergonomic top navbar reordering, and restored player "Simili" button with isolated Top Charts context.
 
-### 🌟 Consolidated Feature Overview
+### 🌟 New Features & Enhancements in v1.2.0
+
+#### 1. 🎛️ Professional Audio DSP Processing Engine (`src/audio/dsp_engine.py`)
+- **Native Spotify Pedalboard:** Direct integration of JUCE C++ framework components (`HighpassFilter`, `LowpassFilter`, `PeakFilter`, `Compressor`, `Limiter`, `Clipping`, `Distortion`, `NoiseGate`).
+- **Vectorized NumPy/SciPy Fallback:** Automatic high-precision numerical DSP processor fallback using 2nd-order Butterworth filters and soft-saturation limiter (`tanh`) if native C++ wheels are absent.
+- **FFmpeg libavfilter Broadcast Pipeline:** Professional filtering for de-clipping (`adeclip`), noise reduction/de-click (`afftdn`), surgical EQ (`highpass`, `lowpass`, `equalizer`), dynamic EBU R128 loudness normalization (`loudnorm`), and lookahead broadcast safety limiting (`alimiter`).
+- **JUCE VST3 Plugin Hosting Bridge:** Load and execute external compiled VST3 plugins using Pedalboard's native JUCE C++ wrapper (`load_plugin`) with error suppression and resilience on Windows.
+- **5 Studio-Grade DJ & Mastering Presets:**
+  - *"Club Master":* Sub-bass cut 30Hz, punchy bass boost at 60Hz (+2.5dB), glue compression, and brickwall peak limiting at -0.5 dBTP for club sound systems;
+  - *"Vocal Clarity":* High-pass 80Hz, presence boost 3.8kHz, de-essing 6.5kHz, and transparent optical compression;
+  - *"Warm Analog":* Smooth high roll-off (18.5kHz), 120Hz body warmth, and subtle harmonic soft-clipping saturation;
+  - *"DJ Punch":* Kick transient punch (85Hz) and snare snap (2.2kHz) with assertive dynamic control;
+  - *"De-Clip & Clean:* Digital de-clipping reconstruction, background hiss noise reduction, and safe peak limiting at -1.5 dBTP.
+- **MP3 (320 kbps CBR / V0 VBR) & Lossless FLAC Export:** Complete cloning and preservation of ID3v2.4 / Vorbis comment tags and HD cover art.
+
+#### 2. 📐 Dynamic Table Column Autofit (+16px Safety Margin)
+- **Automatic Content Width Adaptation:** On library load, refresh, and folder scan completion, all table columns automatically adapt to fit the longest cell content (`resizeColumnsToContents()`), with a 16px horizontal safety margin to prevent ellipsis truncation (...) on long titles, artists, albums, or paths.
+- **User Preference Preservation:** Manual column resizing and drag-and-drop column reordering remain fully functional without unexpected resets during scrolling or row selection.
+
+#### 3. 🖥️ Default Fullscreen Maximized Boot
+- **Automatic Maximized Launch:** Launches directly in maximized fullscreen mode on boot (`window.showMaximized()`), instantly providing maximum display real estate for DJ library management.
+
+#### 4. 🧭 Top Navigation Bar Reordering
+- **"Smart Crates" Relocated to Far Right:** Optimized macro navigation hierarchy:
+  1. *Library* (Default primary workstation)
+  2. *Top Charts* (Multi-platform trends and stream previews)
+  3. *Tag Editor* (Mp3tag spreadsheet)
+  4. *Find Similar* (Vector discovery)
+  5. *Organize Files* (Disk dispatcher)
+  6. *Smart Crates* (Docked right before Settings)
+  7. *Settings* (Configuration modal)
+
+#### 5. 🎯 Restored Player "Simili" Button & Strict Top Charts Context
+- **Player Deck "Simili" Button:** Re-enabled `btn_similar` in mini-player controls with a non-blocking tooltip when no track is loaded and immediate routing to Find Similar.
+- **Top Charts Context Isolation:** Clicking "Simili" on chart cards or rows strictly targets the selected chart song (`set_target_track`), routing streaming previews when local audio is absent and ensuring compatibility with `affinity_score`, `score`, and `affinity` properties.
+- **Crash Resolution:** Fixed missing signal attribute error (`play_requested` vs `play_track_requested`) and positional keyword argument collision in `_t()`.
 
 #### 1. 🌐 Cascading Multi-Source Metadata Scraping Engine
 - **Intelligent Multi-Provider Cascade:** Asynchronous parallel querying of the world's leading music databases:

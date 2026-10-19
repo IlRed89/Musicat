@@ -106,8 +106,8 @@ class SimilarTracksDialog(QDialog):
     """Dialog for inspecting similar tracks in the local collection and online discovery."""
 
     play_track_requested = Signal(dict)
+    play_requested = Signal(dict)
     crate_export_requested = Signal(list)
-    play_requested = play_track_requested
 
     def __init__(
         self,
@@ -445,6 +445,25 @@ class SimilarTracksDialog(QDialog):
                 "genre": rec.genre,
             }
             self.play_track_requested.emit(track_dict)
+            self.play_requested.emit(track_dict)
+        elif rec.preview_url:
+            track_dict = {
+                "filepath": rec.preview_url,
+                "title": rec.title,
+                "artist": rec.artist,
+                "bpm": rec.bpm,
+                "camelot_key": rec.camelot_key,
+                "genre": rec.genre,
+                "preview_url": rec.preview_url,
+            }
+            self.play_track_requested.emit(track_dict)
+            self.play_requested.emit(track_dict)
+        else:
+            QMessageBox.information(
+                self,
+                "Anteprima Non Disponibile",
+                "Nessun file locale o anteprima audio streaming disponibile per questa traccia.",
+            )
 
     def _on_export_smart_crate(self) -> None:
         """Saves current similar matches as a new Smart Crate."""

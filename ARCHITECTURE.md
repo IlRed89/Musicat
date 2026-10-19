@@ -9,16 +9,16 @@
 
 ```mermaid
 graph TD
-    UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode] --> Navbar[Clean Top Navbar<br/>Analysis Home / Library / Tag Editor / Smart Crates / Similars / Organize / Settings]
+    UI[PySide6 High-Contrast Interface<br/>Light Theme Default / Dark Mode / Maximized Boot] --> Navbar[Clean Top Navbar<br/>Library / Top Charts / Tag Editor / Similar / Organize / Smart Crates / Settings]
     
     Navbar --> Stack[QStackedWidget 6 Embedded Workspaces]
-    Stack --> DJLibrary[Index 0: DJ Library View (Default Startup)<br/>Hex Header State, Drag & Drop, Live Filters & Drive Explorer]
-    Stack --> AnalysisHome[Index 1: Analysis / Home View<br/>Full-Scroll Trends, Stream Preview & Async Semaphore Loader]
-    Stack --> Mp3tag[Index 2: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Bulk Pattern Tagging Dialog]
-    Stack --> CratesBench[Index 3: Dedicated Smart Crates Workbench<br/>Interactive Rule Guide & Extended M3U8 Export]
-    Stack --> Similars[Index 4: Similar Tracks Workspace<br/>Cosine Similarity Engine & Web Discovery]
-    Stack --> Organize[Index 5: Embedded File Organizer<br/>Physical File Dispatcher & Collision Safety]
-    Navbar --> Settings[Modular Settings Dialog]
+    Stack --> DJLibrary[Position 1: DJ Library View (Default Startup)<br/>Column Autofit +16px, Drag & Drop, Live Filters & Drive Explorer]
+    Stack --> AnalysisHome[Position 2: Top Charts View<br/>Full-Scroll Trends, Stream Preview & Similar Context]
+    Stack --> Mp3tag[Position 3: Embedded Mp3tag Spreadsheet Workbench<br/>Track Numbering Wizard & Bulk Pattern Tagging Dialog]
+    Stack --> Similars[Position 4: Similar Tracks Workspace<br/>Cosine Similarity Engine & Web Vectors Discovery]
+    Stack --> Organize[Position 5: Embedded File Organizer<br/>Physical File Dispatcher & Collision Safety]
+    Stack --> CratesBench[Position 6: Dedicated Smart Crates Workbench (Docked Right)<br/>Interactive Rule Guide & Extended M3U8 Export]
+    Navbar --> Settings[Position 7: Modular Settings Dialog]
 
     DJLibrary --> DriveExplorer[Clean Drive Root & Collapsed Explorer]
     DJLibrary --> FilterBar[Live DJ Expanded 2-Row Filter Bar <15ms]
@@ -29,7 +29,8 @@ graph TD
     SearchFactory --> Spotlight[macOS: Spotlight mdfind]
     SearchFactory --> SQLiteFTS[Fallback: SQLite FTS5]
 
-    DJLibrary --> Player[libVLC Mini-Player Deck with +/-8% Pitch]
+    DJLibrary --> Player[libVLC Mini-Player Deck with +/-8% Pitch & Restored Simili]
+    Player --> Similars
 
     Mp3tag --> PatternEngine[PatternEngine with $num token support]
     Mp3tag --> NumberWizard[Track Numbering Wizard Dialog]
@@ -42,6 +43,12 @@ graph TD
     WorkerPool --> AudioDSP[BPM Autocorrelation & Camelot Chromagram]
     AudioDSP --> RAMCache[L1 AnalysisMemoryCache :memory:]
     RAMCache --> DiskDB[(SQLite WAL Database)]
+
+    UI --> DspEngine[Advanced Audio DSP Engine src/audio/dsp_engine.py]
+    DspEngine --> Pedalboard[Spotify Pedalboard JUCE C++ DSP]
+    DspEngine --> Libavfilter[FFmpeg libavfilter adeclip/alimiter/loudnorm]
+    DspEngine --> JuceBridge[JUCE External VST3 Plugin Bridge]
+    DspEngine --> DspPresets[5 Studio Presets: Club Master, Vocal Clarity, Warm Analog, DJ Punch, De-Clip]
 
     AnalysisHome --> QualityPlugin[Audio Quality & Loudnorm Plugin]
     QualityPlugin --> EBUR128[EBU R128 / True Peak 4x Sinc / FFmpeg loudnorm]
@@ -198,9 +205,35 @@ Adheres strictly to ITU-R BS.1770-4 and EBU R128 specifications:
 - **Loudness Range (LRA):** Dynamic span in LU computed across 3-second overlapping windows (EBU Tech 3342).
 - **Dynamic Correction Engine:**
   - *Tag mode:* Writes ReplayGain tags into file tags (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
-  - *Physical re-encode mode:* Executes FFmpeg two-pass `loudnorm` filter (target: $-14$ LUFS, $-1.0$ dBTP ceiling).
+  - *Physical re-encode mode:* Executes FFmpeg two-pass `loudnorm` filter (target: $-10$ LUFS for club, $-14$ LUFS for streaming, $-1.0$ dBTP ceiling).
 
 ---
+
+### F2. Professional Audio DSP Engine & VST3 JUCE Bridge (`src/audio/dsp_engine.py`)
+Musicat introduces a modular, high-performance DSP engine combining Spotify's native C++ audio processing libraries, FFmpeg libavfilter pipelines, and JUCE VST3 plugin hosting:
+
+1. **`PedalboardDspProcessor` (Spotify Pedalboard):**
+   - High-fidelity C++ DSP architecture wrapping JUCE framework components.
+   - Chain building blocks: `HighpassFilter`, `LowpassFilter`, `PeakFilter`, `HighShelfFilter`, `Compressor`, `Limiter`, `Clipping`, `Distortion`, `NoiseGate`.
+   - **Vectorized Fallback (`_numpy_fallback_dsp`):** Seamless high-precision NumPy/SciPy fallback using 2nd-order Butterworth filters and tanh soft-saturation limiting when native C++ wheels are absent.
+2. **`LibavfilterDspEngine` (FFmpeg Broadcast Pipeline):**
+   - Low-distortion filtergraph generation integrating:
+     - Digital de-clipping reconstruction (`adeclip=w=55:o=75`)
+     - Background hiss and noise removal (`afftdn=nf=-25`)
+     - Surgical corrective EQ (`highpass`, `lowpass`, `equalizer`)
+     - ITU-R BS.1770 / EBU R128 two-pass loudness normalization (`loudnorm`)
+     - Lookahead broadcast brickwall safety limiter (`alimiter=limit=X:attack=5:release=50:asc=1`).
+3. **`JucePluginBridge` (External VST3 Hosting):**
+   - Discovers installed `.vst3` plugin bundles across system directories (`C:\Program Files\Common Files\VST3`, `/Library/Audio/Plug-Ins/VST3`).
+   - Dynamically loads and binds compiled audio plugins into Python via Pedalboard's native JUCE wrapper (`pb.load_plugin`), with graceful exception suppression on unsupported platforms.
+4. **Studio-Grade Presets (`AudioEnhancementOrchestrator`):**
+   - `"club_master"`: Highpass 30Hz, punch bass boost 60Hz (+2.5dB), glue compressor, and brickwall peak limiting at -0.5 dBTP.
+   - `"vocal_clarity"`: Highpass 80Hz, presence boost 3.8kHz, de-essing 6.5kHz, and transparent optical compression.
+   - `"warm_analog"`: High roll-off 18.5kHz, low-end warmth 120Hz, harmonic soft-clipping saturation, and analog glue.
+   - `"dj_punch"`: Kick punch 85Hz, snare snap 2.2kHz, and aggressive dynamic control.
+   - `"declip_clean"`: Digital de-clipping reconstruction, noise gate anti-hiss, and safe headroom limiting (-1.5 dBTP).
+5. **Lossless and 320k CBR Export:**
+   - Re-encodes using `libmp3lame` (320 kbps CBR or V0 VBR) or `flac` (24-bit PCM), cloning all ID3v2.4 / Vorbis comment tags and HD cover art.
 
 ### G. Internationalization Engine (`src/core/i18n.py`)
 - Thread-safe singleton `I18n` with Qt signal `language_changed(str)`.

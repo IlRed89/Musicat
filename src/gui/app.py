@@ -85,8 +85,8 @@ def run_app() -> int:
     window = MainWindow(db=db)
     if icon_path and icon_path.exists():
         window.setWindowIcon(QIcon(str(icon_path)))
-    boot_log("[GUI:MAIN] Showing main application window.", level="GUI")
-    window.show()
+    boot_log("[GUI:MAIN] Showing main application window (maximized).", level="GUI")
+    window.showMaximized()
 
     boot_log("[QT:LOOP] Entering QApplication event loop (app.exec).", level="QT")
     ret_code = app.exec()
