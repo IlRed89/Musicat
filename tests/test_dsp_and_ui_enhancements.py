@@ -134,6 +134,34 @@ class TestDspAndUiEnhancements(unittest.TestCase):
         self.assertTrue(hasattr(view, "set_reference_track"))
         self.assertEqual(view.set_target_track, view.set_reference_track)
 
+        # Test similar tables row height and stretch column
+        from PySide6.QtWidgets import QHeaderView
+        self.assertGreaterEqual(view.table_local.verticalHeader().defaultSectionSize(), 36)
+        self.assertGreaterEqual(view.table_online.verticalHeader().defaultSectionSize(), 36)
+        self.assertEqual(view.table_local.horizontalHeader().sectionResizeMode(2), QHeaderView.ResizeMode.Stretch)
+        self.assertEqual(view.table_online.horizontalHeader().sectionResizeMode(2), QHeaderView.ResizeMode.Stretch)
+
+        self.assertGreaterEqual(dlg.table_local.verticalHeader().defaultSectionSize(), 36)
+        self.assertGreaterEqual(dlg.table_online.verticalHeader().defaultSectionSize(), 36)
+        self.assertEqual(dlg.table_local.horizontalHeader().sectionResizeMode(2), QHeaderView.ResizeMode.Stretch)
+        self.assertEqual(dlg.table_online.horizontalHeader().sectionResizeMode(2), QHeaderView.ResizeMode.Stretch)
+
+    def test_increased_similarity_limits(self):
+        """Verifies expanded limits in SimilarityEngine and SimilarSearchWorker."""
+        from src.scrapers.similarity_engine import SimilarityEngine
+        from src.gui.views.similar_dialog import SimilarSearchWorker
+        import inspect
+
+        sig_engine = inspect.signature(SimilarityEngine.find_all_similar)
+        self.assertEqual(sig_engine.parameters["local_limit"].default, 100)
+        self.assertEqual(sig_engine.parameters["online_limit"].default, 50)
+        self.assertEqual(sig_engine.parameters["min_affinity_score"].default, 25.0)
+
+        sig_worker = inspect.signature(SimilarSearchWorker.__init__)
+        self.assertEqual(sig_worker.parameters["local_limit"].default, 100)
+        self.assertEqual(sig_worker.parameters["online_limit"].default, 50)
+        self.assertEqual(sig_worker.parameters["min_affinity_score"].default, 25.0)
+
 
 if __name__ == "__main__":
     unittest.main()

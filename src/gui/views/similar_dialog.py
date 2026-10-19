@@ -53,12 +53,16 @@ class SimilarSearchWorker(QThread):
         self,
         reference_track: Dict[str, Any],
         db: Database,
-        min_affinity_score: float = 35.0,
+        min_affinity_score: float = 25.0,
+        local_limit: int = 100,
+        online_limit: int = 50,
     ) -> None:
         super().__init__()
         self.reference_track = reference_track
         self.db = db
         self.min_affinity_score = min_affinity_score
+        self.local_limit = local_limit
+        self.online_limit = online_limit
 
     def run(self) -> None:
         try:
@@ -66,6 +70,8 @@ class SimilarSearchWorker(QThread):
                 self.reference_track,
                 self.db,
                 min_affinity_score=self.min_affinity_score,
+                local_limit=self.local_limit,
+                online_limit=self.online_limit,
             )
             self.finished.emit(result)
         except Exception as exc:
@@ -262,8 +268,10 @@ class SimilarTracksDialog(QDialog):
         self.table_local.setHorizontalHeaderLabels([
             "#", "Affinità", "Titolo", "Artista", "BPM", "Camelot", "Genere", "Motivo Affinità"
         ])
-        self.table_local.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_local.horizontalHeader().setStretchLastSection(True)
+        self.table_local.verticalHeader().setDefaultSectionSize(38)
+        self.table_local.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_local.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_local.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table_local.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_local.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_local.customContextMenuRequested.connect(self._on_local_context_menu)
@@ -293,8 +301,10 @@ class SimilarTracksDialog(QDialog):
         self.table_online.setHorizontalHeaderLabels([
             "Fonte", "Affinità", "Titolo", "Artista", "Stato", "Ascolta Online"
         ])
-        self.table_online.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_online.horizontalHeader().setStretchLastSection(True)
+        self.table_online.verticalHeader().setDefaultSectionSize(38)
+        self.table_online.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_online.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_online.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table_online.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         online_layout.addWidget(self.table_online)
 

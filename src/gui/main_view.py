@@ -323,21 +323,21 @@ DEFAULT_VISIBLE_COLUMN_IDS = [
 ]
 
 DEFAULT_COLUMN_WIDTHS = {
-    "id": 40,
-    "has_cover": 45,
-    "title": 220,
-    "artist": 180,
+    "id": 50,
+    "has_cover": 75,
+    "title": 240,
+    "artist": 190,
     "remixer": 130,
-    "bpm": 65,
-    "camelot_key": 70,
-    "musical_key": 65,
+    "bpm": 75,
+    "camelot_key": 80,
+    "musical_key": 75,
     "genre": 120,
-    "year": 60,
-    "duration": 65,
-    "bitrate": 65,
+    "year": 70,
+    "duration": 75,
+    "bitrate": 75,
     "album": 140,
     "label": 120,
-    "energy_level": 70,
+    "energy_level": 75,
     "lufs": 80,
     "true_peak": 80,
     "audio_status": 80,
@@ -419,14 +419,14 @@ class MainWindow(QMainWindow):
         nav_layout.addWidget(self.btn_nav_mp3tag)
         nav_layout.addWidget(self.btn_nav_similar)
         nav_layout.addWidget(self.btn_nav_organizer)
-        nav_layout.addStretch()
         nav_layout.addWidget(self.btn_nav_crates)
 
-        # Dedicated Settings button in top-right corner
+        # Dedicated Settings button in navbar, neatly grouped with function buttons
         self.btn_nav_settings = QPushButton(_t("nav_settings", "⚙️  Impostazioni"))
         self.btn_nav_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_settings.clicked.connect(self._on_open_settings)
         nav_layout.addWidget(self.btn_nav_settings)
+        nav_layout.addStretch()
 
         main_layout.addWidget(self.nav_bar)
 
@@ -509,9 +509,10 @@ class MainWindow(QMainWindow):
         self.table_header.setDragEnabled(True)
         self.table_header.setStretchLastSection(True)
         self.table_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table_header.setMinimumSectionSize(55)
         self.table_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_header.customContextMenuRequested.connect(self._on_table_header_context_menu)
-        self.table_view.verticalHeader().setDefaultSectionSize(28)
+        self.table_view.verticalHeader().setDefaultSectionSize(34)
         self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
         self.table_view.doubleClicked.connect(self._on_row_double_clicked)
@@ -1023,18 +1024,33 @@ class MainWindow(QMainWindow):
             self.home_view.refresh_library_status()
 
     def _autofit_table_columns(self, extra_padding: int = 16) -> None:
-        """Autofits column widths to content length with horizontal safety margin (+16px) while preserving manual order and resizing."""
+        """Autofits column widths taking into account both header titles and cell content."""
         if not hasattr(self, "table_view") or not hasattr(self, "table_model"):
             return
-        if self.table_model.rowCount() == 0:
-            return
 
-        self.table_view.resizeColumnsToContents()
         header = getattr(self, "table_header", self.table_view.horizontalHeader())
+        fm = header.fontMetrics()
+        header.setMinimumSectionSize(55)
+
+        # Let Qt measure cell contents if table has rows
+        if self.table_model.rowCount() > 0:
+            self.table_view.resizeColumnsToContents()
+
         for col in range(self.table_model.columnCount()):
             if not header.isSectionHidden(col):
-                cur_w = header.sectionSize(col)
-                header.resizeSection(col, cur_w + extra_padding)
+                # 1. Header title length
+                header_text = str(self.table_model.headerData(col, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole) or "")
+                header_w = fm.horizontalAdvance(header_text) + 32  # text + sorting arrow indicator + margin
+
+                # 2. Content width
+                content_w = header.sectionSize(col) if self.table_model.rowCount() > 0 else 0
+
+                # 3. Minimum defaults per column id
+                col_id = self.table_model.COLUMNS[col][1] if col < len(self.table_model.COLUMNS) else ""
+                default_min = DEFAULT_COLUMN_WIDTHS.get(col_id, 65)
+
+                final_w = max(header_w, content_w, default_min) + extra_padding
+                header.resizeSection(col, final_w)
 
         total_dur = sum(t.get("duration") or 0.0 for t in self.all_tracks)
         hours = int(total_dur // 3600)

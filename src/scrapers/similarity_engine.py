@@ -271,7 +271,7 @@ class SimilarityScraper:
         artist: str,
         title: str,
         genre: str = "",
-        limit: int = 15,
+        limit: int = 50,
     ) -> List[SimilarTrackRecommendation]:
         """Queries multiple online similarity APIs and scrapes acoustic recommendation vectors."""
         results: List[SimilarTrackRecommendation] = []
@@ -289,7 +289,7 @@ class SimilarityScraper:
         # 2. WhoSampled integration: Samples, Covers, and Remixes
         try:
             from .providers.credits_lineage import WhoSampledProvider
-            ws_results = WhoSampledProvider().search(query=f"{clean_artist} {clean_title}", artist=clean_artist, title=clean_title, limit=3)
+            ws_results = WhoSampledProvider().search(query=f"{clean_artist} {clean_title}", artist=clean_artist, title=clean_title, limit=5)
             for item in ws_results:
                 for smp in item.samples:
                     s_track = smp.get("track", "")
@@ -315,7 +315,7 @@ class SimilarityScraper:
         # 3. Rate Your Music integration: Micro-genres & Stylistic Descriptors
         try:
             from .providers.discography import RateYourMusicProvider
-            rym_results = RateYourMusicProvider().search(query=f"{clean_artist} {clean_title}", artist=clean_artist, title=clean_title, limit=3)
+            rym_results = RateYourMusicProvider().search(query=f"{clean_artist} {clean_title}", artist=clean_artist, title=clean_title, limit=5)
             for ri in rym_results:
                 for subg in ri.subgenres[:3]:
                     results.append(
@@ -356,7 +356,7 @@ class SimilarityScraper:
         artist: str,
         title: str,
         genre: str,
-        limit: int = 15,
+        limit: int = 40,
     ) -> List[SimilarTrackRecommendation]:
         """Queries Chosic and Cosine similarity web services for matching vectors."""
         recommendations: List[SimilarTrackRecommendation] = []
@@ -456,6 +456,10 @@ class SimilarityScraper:
                 ("Gorgon City", "Voodoo", 127.0, "4A"),
                 ("Michael Bibi", "Different Side", 128.0, "8A"),
                 ("Cloonee", "Stephanie", 127.0, "9A"),
+                ("Pawsa", "Pick Up The Phone", 128.0, "7A"),
+                ("Sidepiece", "Acrobatic", 126.0, "11A"),
+                ("ACRAZE", "Do It To It", 125.0, "6A"),
+                ("James Hype & Miggy Dela Rosa", "Ferrari", 125.0, "4A"),
             ],
             "melodic techno": [
                 ("Tale of Us & Anyma", "Eternity", 124.0, "11A"),
@@ -465,6 +469,9 @@ class SimilarityScraper:
                 ("Stephan Bodzin", "Boavista", 123.0, "10A"),
                 ("Mind Against", "Walking Away", 124.0, "7A"),
                 ("Innellea", "Five Phases", 125.0, "1A"),
+                ("Adriatique & WhoMadeWho", "Miracle", 124.0, "3A"),
+                ("Kevin de Vries", "Dance With Me", 125.0, "2A"),
+                ("Colyn", "The Future Is The Past", 123.0, "9A"),
             ],
             "techno": [
                 ("Amelie Lens", "Feel It", 134.0, "10A"),
@@ -473,6 +480,9 @@ class SimilarityScraper:
                 ("Adam Beyer", "Your Mind", 130.0, "1A"),
                 ("Reinier Zonneveld", "Move Your Body", 135.0, "11A"),
                 ("ANNA", "Cosmic Dimension", 132.0, "4A"),
+                ("Eli Brown", "Be The One", 132.0, "9A"),
+                ("HI-LO & Space 92", "Mercury", 133.0, "6A"),
+                ("I Hate Models", "Toro", 140.0, "12A"),
             ],
             "house": [
                 ("Peggy Gou", "(It Goes Like) Nanana", 130.0, "8B"),
@@ -480,6 +490,16 @@ class SimilarityScraper:
                 ("Disclosure", "Latch", 122.0, "11B"),
                 ("RÜFÜS DU SOL", "On My Knees (Cassian Remix)", 124.0, "8A"),
                 ("Bob Sinclar", "World Hold On (Fisher Rework)", 127.0, "2A"),
+                ("Vintage Culture", "Agony", 125.0, "1A"),
+                ("Meduza & Goodboys", "Piece Of Your Heart", 124.0, "7A"),
+                ("MK & Sonny Fodera", "Asking", 126.0, "9B"),
+            ],
+            "afro house": [
+                ("Black Coffee & David Guetta", "Drive", 122.0, "5A"),
+                ("THEMBA", "Sound Of Freedom", 122.0, "4A"),
+                ("Francis Mercier", "Kamili", 124.0, "7A"),
+                ("MoBlack & Benja", "Chagu", 123.0, "8A"),
+                ("Shimza", "Fight To Love", 122.0, "11A"),
             ],
         }
 
@@ -495,7 +515,7 @@ class SimilarityScraper:
         discoveries: List[SimilarTrackRecommendation] = []
 
         for idx, (c_artist, c_title, c_bpm, c_key) in enumerate(candidates[:needed_count]):
-            score = round(92.0 - (idx * 2.5), 1)
+            score = round(92.0 - (idx * 1.5), 1)
             recs = SimilarTrackRecommendation(
                 title=c_title,
                 artist=c_artist,
@@ -531,18 +551,18 @@ class SimilarityEngine:
         cls,
         reference_track: Dict[str, Any],
         db: Database,
-        min_affinity_score: float = 35.0,
-        local_limit: int = 50,
-        online_limit: int = 20,
+        min_affinity_score: float = 25.0,
+        local_limit: int = 100,
+        online_limit: int = 50,
     ) -> SimilarityResult:
         """Finds both local matching tracks from user's disk and missing online discoveries.
 
         Args:
             reference_track: The target track dictionary.
             db: Active SQLite database instance.
-            min_affinity_score: Minimum threshold to consider a local track similar (default: 35%).
-            local_limit: Max count of local tracks returned.
-            online_limit: Max count of online discoveries returned.
+            min_affinity_score: Minimum threshold to consider a local track similar (default: 25%).
+            local_limit: Max count of local tracks returned (default: 100).
+            online_limit: Max count of online discoveries returned (default: 50).
 
         Returns:
             SimilarityResult holding categorized recommendations.

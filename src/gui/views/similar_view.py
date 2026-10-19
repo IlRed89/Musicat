@@ -189,8 +189,10 @@ class SimilarTracksView(QWidget):
         self.table_local.setHorizontalHeaderLabels([
             "#", "Affinità", "Titolo", "Artista", "BPM", "Camelot", "Genere", "Motivo Affinità"
         ])
-        self.table_local.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_local.horizontalHeader().setStretchLastSection(True)
+        self.table_local.verticalHeader().setDefaultSectionSize(38)
+        self.table_local.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_local.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_local.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table_local.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_local.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_local.customContextMenuRequested.connect(self._on_local_context_menu)
@@ -222,8 +224,10 @@ class SimilarTracksView(QWidget):
         self.table_online.setHorizontalHeaderLabels([
             "Fonte", "Affinità", "Titolo", "Artista", "Stato", "Ascolta Online"
         ])
-        self.table_online.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table_online.horizontalHeader().setStretchLastSection(True)
+        self.table_online.verticalHeader().setDefaultSectionSize(38)
+        self.table_online.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_online.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table_online.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table_online.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         online_layout.addWidget(self.table_online)
 

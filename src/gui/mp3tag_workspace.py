@@ -1028,7 +1028,7 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self.grid.setHorizontalHeaderLabels([name for _, name in self.COLUMNS])
         self.grid.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.grid.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
-        self.grid.verticalHeader().setDefaultSectionSize(26)
+        self.grid.verticalHeader().setDefaultSectionSize(32)
         self.grid.horizontalHeader().setStretchLastSection(True)
         self.grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
 
