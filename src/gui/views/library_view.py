@@ -100,6 +100,8 @@ class BreadcrumbBar(QFrame):
 
     def set_path(self, filepath: str) -> None:
         """Parses filepath and generates clickable path tokens."""
+        if filepath and not (filepath.startswith("http://") or filepath.startswith("https://") or filepath.startswith("🌐")):
+            filepath = PathResolver.to_absolute_path(filepath)
         self.current_filepath = filepath
 
         # Clear existing crumb widgets
@@ -171,16 +173,18 @@ class BreadcrumbBar(QFrame):
 
     def _on_crumb_clicked(self, path_str: str) -> None:
         """Handles click on breadcrumb segment."""
-        p = Path(path_str)
+        abs_path = PathResolver.to_absolute_path(path_str)
+        p = Path(abs_path)
         if p.is_dir():
-            self.folder_selected.emit(path_str)
-            self.directory_selected.emit(path_str)
-            PathResolver.show_in_file_manager(path_str)
+            self.folder_selected.emit(abs_path)
+            self.directory_selected.emit(abs_path)
+            PathResolver.show_in_file_manager(abs_path)
         else:
-            self.show_in_folder_requested.emit(path_str)
-            PathResolver.show_in_file_manager(path_str)
+            self.show_in_folder_requested.emit(abs_path)
+            PathResolver.show_in_file_manager(abs_path)
 
     def _on_reveal_clicked(self) -> None:
         """Reveals current file in Explorer/Finder."""
         if self.current_filepath:
-            PathResolver.show_in_file_manager(self.current_filepath)
+            abs_p = PathResolver.to_absolute_path(self.current_filepath)
+            PathResolver.show_in_file_manager(abs_p)

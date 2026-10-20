@@ -203,6 +203,12 @@ Adheres strictly to ITU-R BS.1770-4 and EBU R128 specifications:
 - **Integrated Loudness (LUFS):** Perceived total track loudness using dual-stage K-weighting pre-filters (high-shelf + RLB) and relative gating.
 - **True Peak (dBTP):** 4x oversampled sinc/FIR polyphase interpolation catching inter-sample peaks that clip Digital-to-Analog Converters (DAC).
 - **Loudness Range (LRA):** Dynamic span in LU computed across 3-second overlapping windows (EBU Tech 3342).
+- **Overhauled Modal Interface (`QualityDiagnosisDialog`):**
+  - *Unlocked Preset & Format Selectors:* Always interactive combo dropdowns for DSP presets and output formats.
+  - *3 Exclusive Application Cards (`QButtonGroup`):* 1. ReplayGain (metadata tags only), 2. Physical Normalization (high-bitrate MP3 `_normalized.mp3`), 3. Safe Overwrite (with automated backup in `_original/`).
+  - *Integrated Audio Glossary (`AudioGlossaryDialog`):* Educational popup detailing LUFS targets (-10 club vs -14 streaming), True Peak -1.0 dBTP headroom, and LRA dynamics.
+  - *Parameter Reset (`[↺ Ripristina Valori Predefiniti]`):* Instantly restores default parameters (-10.0 LUFS, -1.0 dBTP, DJ Club preset, MP3 320 kbps).
+  - *Dual Waveform Preview (`DualWaveformWidget`):* Real-time before/after comparison highlighting pre-normalization clipping in red and post-normalization ceiling in green.
 - **Dynamic Correction Engine:**
   - *Tag mode:* Writes ReplayGain tags into file tags (`REPLAYGAIN_TRACK_GAIN`, `REPLAYGAIN_TRACK_PEAK`).
   - *Physical re-encode mode:* Executes FFmpeg two-pass `loudnorm` filter (target: $-10$ LUFS for club, $-14$ LUFS for streaming, $-1.0$ dBTP ceiling).

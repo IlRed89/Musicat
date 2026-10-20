@@ -100,6 +100,7 @@ class SettingsDialog(QDialog):
             ("⚡  Prestazioni & Hardware", 2),
             ("🌐  Account & Servizi", 3),
             ("🧩  Plugin & Estensioni", 4),
+            ("📖  Guida all'Uso", 5),
         ]
 
         for text, _ in categories:
@@ -120,12 +121,14 @@ class SettingsDialog(QDialog):
         self.page_performance = self._create_performance_page()
         self.page_scrapers = self._create_scrapers_page()
         self.page_plugins = self._create_plugins_page()
+        self.page_guide = self._create_guide_page()
 
         self.stack.addWidget(self.page_ui)
         self.stack.addWidget(self.page_audio)
         self.stack.addWidget(self.page_performance)
         self.stack.addWidget(self.page_scrapers)
         self.stack.addWidget(self.page_plugins)
+        self.stack.addWidget(self.page_guide)
 
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.sidebar.setCurrentRow(0)
@@ -1130,6 +1133,97 @@ class SettingsDialog(QDialog):
     # -------------------------------------------------------------
     # Load and Save Logic
     # -------------------------------------------------------------
+    # Category 6: Guida all'Uso & Manuale Operativo
+    # -------------------------------------------------------------
+    def _create_guide_page(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(14)
+        layout.setContentsMargins(10, 8, 14, 14)
+
+        header = QLabel("<h2>📖 Guida all'Uso & Manuale Operativo Musicat</h2>")
+        header.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
+        layout.addWidget(header)
+
+        sub = QLabel("Panoramica e istruzioni pratiche per gestire la tua libreria musicale, arricchire i metadati, normalizzare l'audio e preparare i tuoi DJ set professionali.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: #495057; font-size: 12px; margin-bottom: 8px;")
+        layout.addWidget(sub)
+
+        # 1. Libreria & File Explorer
+        grp_lib = QGroupBox("📁 1. Libreria & File Explorer")
+        lib_layout = QVBoxLayout(grp_lib)
+        lib_layout.setSpacing(8)
+        lbl_lib = QLabel(
+            "• <b>Importazione Tracce & Cartelle:</b> Usa il pulsante <b>[📂 Apri Cartella]</b> o trascina (Drag & Drop) cartelle e file audio nella tabella. Musicat supporta MP3, FLAC, WAV, AIFF, M4A e OGG con scansione ultraveloce in background.<br>"
+            "• <b>Navigazione con Percorsi (Breadcrumb):</b> Sotto la forma d'onda del player trovi la barra di navigazione a briciole di pane. Cliccando su qualsiasi cartella del percorso puoi filtrare la vista o rivelare la cartella nel file manager; cliccando sul nome del file aprirai direttamente Esplora Risorse / Finder con il file già selezionato ed evidenziato.<br>"
+            "• <b>Personalizzazione Colonne:</b> Clicca sull'intestazione per ordinare alfabeticamente, per BPM, tonalità, anno o volume. Puoi riordinare le colonne trascinandole orizzontalmente. La larghezza delle colonne si auto-adatta al contenuto per non troncare mai testi lunghi.<br>"
+            "• <b>Pulsante [🔄 Aggiorna] & Esportazione Playlist:</b> Clicca su Aggiorna per sincronizzare istantaneamente la libreria se aggiungi o sposti file da disco. Tramite il menu contestuale puoi esportare selezioni in playlist M3U8, file CSV o archivi JSON."
+        )
+        lbl_lib.setWordWrap(True)
+        lib_layout.addWidget(lbl_lib)
+        layout.addWidget(grp_lib)
+
+        # 2. Analisi & Tagging Metadati
+        grp_tags = QGroupBox("🏷️ 2. Analisi Musicale & Tagging Metadati")
+        tags_layout = QVBoxLayout(grp_tags)
+        tags_layout.setSpacing(8)
+        lbl_tags = QLabel(
+            "• <b>Scansione Acustica BPM & Tonalità:</b> Seleziona i brani e premi <b>[🔍 Analizza Brani]</b> per calcolare il BPM preciso, la chiave musicale, la codifica Camelot (es. 8A, 11B), il livello di energia (1-5) e il volume integrato LUFS.<br>"
+            "• <b>Ruota Armonica Camelot:</b> Apri la ruota Camelot per identificare istantaneamente le transizioni DJ armoniche perfette: mix compatibili a pari chiave, transizioni di tono (±1 passo), cambi di atmosfera (maggiore/minore A↔B) o boost energetici (+2 o +7 semitoni).<br>"
+            "• <b>Provider Online Specializzati:</b> Interroga i database mondiali per arricchire i tuoi file:<br>"
+            "  - <i>Discogs:</i> Cataloghi ufficiali, barcode, stampe promo, stampe vinile e anni di prima pubblicazione.<br>"
+            "  - <i>MusicBrainz:</i> Identificatori MBID univoci, case discografiche ed edizioni internazionali.<br>"
+            "  - <i>Spotify & Beatport:</i> Copertine HD, generi contemporanei e metriche di popolarità.<br>"
+            "• <b>Editor Tag ID3 & Mp3tag Workspace:</b> Modifica i metadati singoli o massivi, applica pattern intelligenti di rinomina file (es. <i>%artist% - %title%</i>) e salva copertine HD incorporate a 300 DPI."
+        )
+        lbl_tags.setWordWrap(True)
+        tags_layout.addWidget(lbl_tags)
+        layout.addWidget(grp_tags)
+
+        # 3. Miglioramento Audio & Normalizzazione
+        grp_audio = QGroupBox("⚡ 3. Miglioramento Audio & Normalizzazione Volume")
+        audio_layout = QVBoxLayout(grp_audio)
+        audio_layout.setSpacing(8)
+        lbl_audio = QLabel(
+            "• <b>Differenze tra le Tre Modalità:</b><br>"
+            "  1. <i>ReplayGain (Solo Metadati, Non Distruttivo):</i> Calcola il dislivello di volume e scrive i tag di gain nel file senza toccare i campioni sonori. Il file originale resta inalterato al 100%.<br>"
+            "  2. <i>Normalizzazione Fisica MP3 (EBU R128 Two-Pass):</i> Normalizza fisicamente la traccia esportando un nuovo file MP3 a 320 kbps (es. <i>brano_normalized.mp3</i>) preservando intatti copertina e tag ID3.<br>"
+            "  3. <i>Sovrascrittura con Backup:</i> Sostituisce il file originale salvando una copia integra nella cartella <i>_original/</i>.<br>"
+            "• <b>Preset Audio Disponibili:</b><br>"
+            "  - <i>DJ Club (-10.0 LUFS):</i> Volume alto e potente per club e festival con massima resa sui bassi.<br>"
+            "  - <i>Streaming Standard (-14.0 LUFS):</i> Conforme alle specifiche Spotify, YouTube e Apple Music.<br>"
+            "  - <i>Anti-Clipping & Clean:</i> Elimina distorsioni e artefatti abbassando i picchi con limiter a -1.5 dBTP.<br>"
+            "  - <i>Warm Analog / DJ Punch / Vocal Clarity:</i> Curve di equalizzazione e dinamica per valorizzare il timbro.<br>"
+            "• <b>Margine di Sicurezza True Peak (-1.0 dBTP):</b> Evita qualsiasi distorsione inter-sample durante la decodifica DAC ad alto volume."
+        )
+        lbl_audio.setWordWrap(True)
+        audio_layout.addWidget(lbl_audio)
+        layout.addWidget(grp_audio)
+
+        # 4. Trova Simili & Smart Crates
+        grp_crates = QGroupBox("📦 4. Trova Simili & Smart Crates per DJ Set")
+        crates_layout = QVBoxLayout(grp_crates)
+        crates_layout.setSpacing(8)
+        lbl_crates = QLabel(
+            "• <b>Trova Simili (Similarity Engine):</b> Dal player clicca su <b>[🎯 Simili]</b> per trovare istantaneamente le tracce affini per BPM (±4-8%), chiave Camelot compatibile ed energia. Esplora sia i brani già presenti nella tua libreria che suggerimenti online di tracce mancanti con anteprima streaming.<br>"
+            "• <b>Creazione Smart Crates:</b> Crea casse intelligenti impostando regole dinamiche (es. <i>Genere: 'Tech House', BPM: 125-128, Chiave: 8A/9A</i>). Le casse si aggiornano automaticamente ogni volta che aggiungi nuova musica.<br>"
+            "• <b>Esportazione & Sync USB:</b> Sincronizza le Smart Crates direttamente su chiavette USB o hard disk esterni in cartelle ordinate o playlist M3U8 pronte per essere caricate su CDJ Pioneer (Rekordbox) o console Denon DJ (Engine DJ)."
+        )
+        lbl_crates.setWordWrap(True)
+        crates_layout.addWidget(lbl_crates)
+        layout.addWidget(grp_crates)
+
+        layout.addStretch()
+        scroll.setWidget(widget)
+        return scroll
+
+    # -------------------------------------------------------------
     def _load_values(self) -> None:
         """Fills UI fields with current values from SettingsManager."""
         # UI
@@ -1205,6 +1299,7 @@ class SettingsDialog(QDialog):
             _t("settings_tab_perf", "⚡  Prestazioni & Hardware"),
             _t("settings_tab_accounts", "🌐  Account & Servizi"),
             _t("settings_tab_plugins", "🧩  Plugin & Estensioni"),
+            _t("settings_tab_guide", "📖  Guida all'Uso"),
         ]
         for i, text in enumerate(categories):
             if i < self.sidebar.count():

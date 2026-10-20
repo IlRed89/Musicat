@@ -54,14 +54,30 @@ from src.core.spotify_trends import (
 CATEGORY_TO_GENRE: Dict[str, str] = {
     # Spotify
     "global_50": "",
+    "latin_reggaeton": "Latin",
+    "tech_house_techno": "Tech House",
+    "afro_amapiano": "Afro House",
+    "hiphop_trap": "Hip-Hop",
+    "rnb_soul": "R&B",
+    "pop_commercial": "Pop",
+    "dance_edm": "Dance",
+    "rock_indie": "Rock",
+    # Legacy aliases
     "dance_electro": "Dance",
     "tech_house": "Tech House",
     "techno": "Techno",
-    "pop_commercial": "Pop",
     "hiphop_urban": "Hip-Hop",
     "indie_rock": "Rock",
     # SoundCloud
     "sc_trending_all": "",
+    "sc_latin_urbano": "Latin",
+    "sc_tech_house_techno": "Tech House",
+    "sc_afro_amapiano": "Afro House",
+    "sc_hiphop_trap": "Hip-Hop",
+    "sc_rnb_soul": "R&B",
+    "sc_pop_commercial": "Pop",
+    "sc_dance_edm": "Dance",
+    "sc_rock_indie": "Rock",
     "sc_remix_hype": "Dance",
     "sc_electronic": "Electronic",
     "sc_house_tech": "Tech House",
@@ -69,10 +85,13 @@ CATEGORY_TO_GENRE: Dict[str, str] = {
     # Beatport
     "bp_top_100": "",
     "bp_tech_house": "Tech House",
-    "bp_techno_peak": "Techno",
-    "bp_melodic_house": "Melodic Techno",
+    "bp_afro_house": "Afro House",
     "bp_house": "House",
+    "bp_melodic_house": "Melodic Techno",
+    "bp_dance_edm": "Dance",
     "bp_drum_and_bass": "Drum & Bass",
+    "bp_latin_tech": "Latin",
+    "bp_techno_peak": "Techno",
 }
 
 
@@ -735,9 +754,21 @@ class HomeTrendsView(QWidget):
         # -------------------------------------------------------------
         # Category Selector Buttons (Generi Musicali Dinamici)
         # -------------------------------------------------------------
-        self.cat_bar_layout = QHBoxLayout()
+        self.cat_scroll = QScrollArea()
+        self.cat_scroll.setFixedHeight(44)
+        self.cat_scroll.setWidgetResizable(True)
+        self.cat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.cat_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.cat_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+
+        cat_container = QWidget()
+        cat_container.setStyleSheet("background-color: transparent;")
+        self.cat_bar_layout = QHBoxLayout(cat_container)
+        self.cat_bar_layout.setContentsMargins(0, 2, 0, 2)
         self.cat_bar_layout.setSpacing(6)
-        main_layout.addLayout(self.cat_bar_layout)
+        self.cat_scroll.setWidget(cat_container)
+        main_layout.addWidget(self.cat_scroll)
+
         self._rebuild_category_buttons()
 
         # Status & Stats line

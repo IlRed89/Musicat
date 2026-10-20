@@ -9,7 +9,9 @@ Provides:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import shutil
 from typing import Any, Dict, List, Optional
 import numpy as np
 from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal, QThread
@@ -195,8 +197,8 @@ class DualWaveformWidget(QWidget):
         theme = SettingsManager.get_instance().get("ui", "theme", "light")
         is_light = "light" in (theme or "").lower()
 
-        bg_card = QColor("#f8fafc" if is_light else "#141722")
-        border_col = QColor("#dee2e6" if is_light else "#282d3f")
+        bg_card = QColor("#ffffff" if is_light else "#141722")
+        border_col = QColor("#e9ecef" if is_light else "#282d3f")
         text_col = QColor("#212529" if is_light else "#e2e8f0")
         subtext_col = QColor("#6c757d" if is_light else "#94a3b8")
 
@@ -287,6 +289,124 @@ class DualWaveformWidget(QWidget):
             painter.fillRect(QRectF(bx, by, bar_w, bar_h), QColor("#10b981"))
 
 
+class AudioGlossaryDialog(QDialog):
+    """Informative modal providing clear explanations of LUFS, True Peak (dBTP), and Dynamic Range (LRA)."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("ℹ️ Guida & Glossario Audio — Termini e Standard")
+        self.resize(580, 500)
+
+        from src.core.settings import SettingsManager
+        theme = SettingsManager.get_instance().get("ui", "theme", "light")
+        is_light = "light" in (theme or "").lower()
+
+        bg_main = "#ffffff" if is_light else "#141722"
+        card_bg = "#ffffff" if is_light else "#1a1e2d"
+        border_col = "#e9ecef" if is_light else "#2a3148"
+        text_col = "#212529" if is_light else "#f1f5f9"
+        muted_col = "#495057" if is_light else "#94a3b8"
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {bg_main};
+                color: {text_col};
+            }}
+            QLabel {{
+                color: {text_col};
+                font-size: 12px;
+            }}
+            QGroupBox {{
+                border: 1px solid {border_col};
+                border-radius: 8px;
+                margin-top: 10px;
+                font-weight: bold;
+                color: #0d6efd;
+                background-color: {card_bg};
+                padding: 12px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 6px;
+                background-color: {card_bg};
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(18, 16, 18, 16)
+
+        header = QLabel("<h3>📖 Parametri di Qualità & Loudness Audio Spiegati</h3>")
+        header.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
+        layout.addWidget(header)
+
+        sub = QLabel("Musicat utilizza gli standard broadcast ITU-R BS.1770 ed EBU R128 per garantire che i tuoi brani suonino sempre al massimo senza distorsioni.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(f"color: {muted_col}; font-size: 11px; margin-bottom: 4px;")
+        layout.addWidget(sub)
+
+        # 1. LUFS Group
+        grp_lufs = QGroupBox("🔊 LUFS (Loudness Units relative to Full Scale)")
+        lufs_layout = QVBoxLayout(grp_lufs)
+        lufs_layout.setSpacing(6)
+        lbl_lufs_desc = QLabel(
+            "<b>Che cos'è:</b> È la misura del <i>volume percepito dall'orecchio umano</i> calcolata sull'intera durata della traccia.<br><br>"
+            "• <b>-10.0 LUFS (DJ & Club):</b> Volume ideale per discoteche, festival e set DJ. Massimizza l'impatto e la spinta dei bassi senza far saturare i mixer professionali.<br>"
+            "• <b>-14.0 LUFS (Streaming Spotify / Apple):</b> Standard di riferimento dello streaming. I brani a -14 LUFS non subiscono attenuazioni forzate dagli algoritmi delle piattaforme.<br>"
+            "• <b>-16.0 / -23.0 LUFS (Podcast & Radio/TV):</b> Standard broadcast tradizionale per il parlato o l'ascolto rilassato."
+        )
+        lbl_lufs_desc.setWordWrap(True)
+        lufs_layout.addWidget(lbl_lufs_desc)
+        layout.addWidget(grp_lufs)
+
+        # 2. True Peak Group
+        grp_tp = QGroupBox("🛡️ True Peak (dBTP — Decibel True Peak)")
+        tp_layout = QVBoxLayout(grp_tp)
+        tp_layout.setSpacing(6)
+        lbl_tp_desc = QLabel(
+            "<b>Che cos'è:</b> È il <i>picco reale del segnale analogico</i> ricostruito tra i singoli campioni digitali (inter-sample peak).<br><br>"
+            "• <b>Perché impostarlo a -1.0 dBTP (Headroom di Sicurezza):</b> Quando un file audio viene compresso in MP3/AAC o suonato ad altissimo volume, l'interpolazione può spingere i picchi oltre 0 dB causando clipping e gracchiamenti digitali. Lasciare un margine di -1.0 dBTP elimina totalmente questo rischio garantendo un suono pulito."
+        )
+        lbl_tp_desc.setWordWrap(True)
+        tp_layout.addWidget(lbl_tp_desc)
+        layout.addWidget(grp_tp)
+
+        # 3. LRA Group
+        grp_lra = QGroupBox("📊 LRA (Loudness Range / Dinamica)")
+        lra_layout = QVBoxLayout(grp_lra)
+        lra_layout.setSpacing(6)
+        lbl_lra_desc = QLabel(
+            "<b>Che cos'è:</b> Esprime l'escursione dinamica (in LU) tra i passaggi più tranquilli (intro/breakdown) e i momenti più potenti del brano (drop/ritornello).<br><br>"
+            "• <b>3 - 7 LU (Club, Dance & Pop moderno):</b> Suono denso e compatto, ideale per mix continui ad alta intensità.<br>"
+            "• <b>> 8 LU (Rock, Acustica & Classica):</b> Ampia escursione dinamica naturale con forti variazioni di volume."
+        )
+        lbl_lra_desc.setWordWrap(True)
+        lra_layout.addWidget(lbl_lra_desc)
+        layout.addWidget(grp_lra)
+
+        # Close button
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+        btn_ok = QPushButton("Ho Capito / Chiudi")
+        btn_ok.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6efd;
+                color: #ffffff;
+                font-weight: bold;
+                padding: 6px 18px;
+                border-radius: 4px;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+            }
+        """)
+        btn_ok.clicked.connect(self.accept)
+        btn_box.addWidget(btn_ok)
+        layout.addLayout(btn_box)
+
+
 class QualityDiagnosisDialog(QDialog):
     """Detailed modal diagnosis and loudness normalization dialog for single tracks in clean native light theme."""
 
@@ -304,8 +424,8 @@ class QualityDiagnosisDialog(QDialog):
         self.report: Optional[QualityReport] = None
         self.normalizer = VolumeNormalizer(db=self.db)
 
-        self.setWindowTitle(f"🔊 Audio Quality & Loudness Normalizer — {Path(filepath).name}")
-        self.resize(760, 680)
+        self.setWindowTitle(f"🔊 Miglioramento & Normalizzazione Audio — {Path(filepath).name}")
+        self.resize(780, 710)
         self.setStyleSheet("""
             QDialog {
                 background-color: #ffffff;
@@ -316,7 +436,7 @@ class QualityDiagnosisDialog(QDialog):
                 font-size: 12px;
             }
             QGroupBox {
-                border: 1px solid #dee2e6;
+                border: 1px solid #e9ecef;
                 border-radius: 6px;
                 margin-top: 10px;
                 font-weight: bold;
@@ -330,37 +450,36 @@ class QualityDiagnosisDialog(QDialog):
                 padding: 0 6px;
                 background-color: #ffffff;
             }
-            QRadioButton#radReplayGain, QRadioButton#radLoudnorm {
+            QRadioButton {
                 color: #212529;
                 font-size: 11px;
                 padding: 8px 12px;
-                border: 1px solid #ced4da;
+                border: 1px solid #e9ecef;
                 border-radius: 6px;
-                background-color: #f8f9fa;
+                background-color: #ffffff;
                 font-weight: 500;
             }
-            QRadioButton#radReplayGain:hover, QRadioButton#radLoudnorm:hover {
+            QRadioButton:hover {
                 border-color: #0d6efd;
                 background-color: #f0f7ff;
             }
-            QRadioButton#radReplayGain:checked, QRadioButton#radLoudnorm:checked {
+            QRadioButton:checked {
                 border: 2px solid #0d6efd;
                 background-color: #e7f1ff;
                 font-weight: bold;
                 color: #0b5ed7;
             }
-            QCheckBox {
-                color: #212529;
-                font-size: 11px;
-                spacing: 6px;
-            }
             QComboBox {
                 background-color: #ffffff;
                 border: 1px solid #ced4da;
                 border-radius: 4px;
-                padding: 4px 8px;
+                padding: 5px 8px;
                 color: #212529;
-                min-width: 180px;
+                font-size: 12px;
+                min-width: 170px;
+            }
+            QComboBox:hover {
+                border-color: #0d6efd;
             }
             QSlider::groove:horizontal {
                 height: 6px;
@@ -389,10 +508,55 @@ class QualityDiagnosisDialog(QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(18, 12, 18, 12)
 
-        # Header Info
-        header = QLabel(f"<b>File:</b> {Path(self.filepath).name}")
-        header.setStyleSheet("font-size: 13px; color: #212529;")
-        layout.addWidget(header)
+        # Header Info Row with Glossary and Reset buttons
+        header_row = QHBoxLayout()
+        header_row.setSpacing(8)
+
+        lbl_file = QLabel(f"<b>Brano:</b> {Path(self.filepath).name}")
+        lbl_file.setStyleSheet("font-size: 13px; color: #212529;")
+        header_row.addWidget(lbl_file, 1)
+
+        self.btn_reset = QPushButton("↺ Ripristina Valori Predefiniti")
+        self.btn_reset.setToolTip("Ripristina -10.0 LUFS, True Peak -1.0 dBTP, Preset DJ Club e formato MP3 320 kbps")
+        self.btn_reset.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #495057;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 5px 10px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #f8f9fa;
+                border-color: #adb5bd;
+                color: #212529;
+            }
+        """)
+        self.btn_reset.clicked.connect(self._on_reset_defaults)
+        header_row.addWidget(self.btn_reset)
+
+        self.btn_glossary = QPushButton("ℹ️ Spiegazione Termini")
+        self.btn_glossary.setToolTip("Visualizza la spiegazione chiara di LUFS, True Peak (dBTP) e dinamica (LRA)")
+        self.btn_glossary.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #0d6efd;
+                border: 1px solid #0d6efd;
+                border-radius: 4px;
+                padding: 5px 11px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #f0f7ff;
+            }
+        """)
+        self.btn_glossary.clicked.connect(self._show_glossary)
+        header_row.addWidget(self.btn_glossary)
+
+        layout.addLayout(header_row)
 
         # Meter Bar
         self.meter_bar = LoudnessMeterBar(self)
@@ -403,7 +567,7 @@ class QualityDiagnosisDialog(QDialog):
         layout.addWidget(self.waveform_widget)
 
         # 1. Diagnostics Group
-        grp_diag = QGroupBox("📊 Analisi e Livello del Volume")
+        grp_diag = QGroupBox("📊 Diagnosi e Livello Sonoro Rilevato")
         diag_layout = QVBoxLayout(grp_diag)
         diag_layout.setSpacing(4)
 
@@ -421,54 +585,84 @@ class QualityDiagnosisDialog(QDialog):
         layout.addWidget(grp_diag)
 
         # 2. Strategy Selector Group
-        grp_action = QGroupBox("⚡ Ottimizzazione Volume e Qualità Audio")
+        grp_action = QGroupBox("⚡ Configurazione e Parametri di Ottimizzazione")
         act_layout = QVBoxLayout(grp_action)
         act_layout.setSpacing(8)
 
-        # Target LUFS row & slider
+        # Row 1: Preset Audio and Export Format (Unlocked and always interactive)
+        preset_format_row = QHBoxLayout()
+        preset_format_row.setSpacing(12)
+
+        lbl_preset = QLabel("<b>Preset Audio:</b>")
+        preset_format_row.addWidget(lbl_preset)
+
+        self.combo_preset = QComboBox()
+        self.combo_preset.addItem("DJ Club (-10 LUFS - Bassi potenti & Limiter)", "dj_club")
+        self.combo_preset.addItem("Streaming Standard (-14 LUFS - Spotify / Apple)", "streaming")
+        self.combo_preset.addItem("Anti-Clipping & Clean (Eliminazione distorsioni)", "declip_clean")
+        self.combo_preset.addItem("Warm Analog (Calore sonoro analogico)", "warm_analog")
+        self.combo_preset.addItem("DJ Punch (Attacco dinamico cassa e rullante)", "dj_punch")
+        self.combo_preset.addItem("Vocal Clarity (Nitidezza e presenza voce)", "vocal_clarity")
+        self.combo_preset.setToolTip("Scegli il profilo di mastering o normalizzazione desiderato.")
+        self.combo_preset.currentIndexChanged.connect(self._on_preset_changed)
+        preset_format_row.addWidget(self.combo_preset, 2)
+
+        lbl_format = QLabel("<b>Formato:</b>")
+        preset_format_row.addWidget(lbl_format)
+
+        self.combo_format = QComboBox()
+        self.combo_format.addItem("MP3 (320 kbps Massima Qualità)", "mp3")
+        self.combo_format.addItem("MP3 (V0 Bitrate Variabile)", "mp3_v0")
+        self.combo_format.addItem("FLAC (Senza Perdita di Qualità)", "flac")
+        self.combo_format.addItem("WAV (Non Compresso / Studio Master)", "wav")
+        self.combo_format.setToolTip("Formato di codifica audio per l'esportazione fisica.")
+        preset_format_row.addWidget(self.combo_format, 1)
+
+        act_layout.addLayout(preset_format_row)
+
+        # Row 2: Target LUFS row & slider
         lufs_tooltip = (
-            "Regola automaticamente il volume per evitare che i brani suonino troppo bassi o distorcano, "
-            "mantenendo la massima qualità audio senza modificare il timbro originale.\n\n"
-            "• -14 LUFS: Volume standard consigliato per streaming (Spotify, YouTube, Apple Music)\n"
-            "• -10 LUFS: Volume alto per DJ, club e piste da ballo\n"
-            "• -16 LUFS: Volume conservativo per podcast e ascolto rilassato\n"
-            "• -23 LUFS: Standard broadcast tradizionale per radio e TV"
+            "Regola il volume percepito finale del brano (standard EBU R128):\n"
+            "• -10 LUFS: Volume alto per DJ, discoteche e club\n"
+            "• -14 LUFS: Standard consigliato per Spotify, YouTube e Apple Music\n"
+            "• -16 LUFS: Volume conservativo per podcast e parlato\n"
+            "• -23 LUFS: Standard broadcast radio/TV tradizionale"
         )
 
         target_row = QHBoxLayout()
-        lbl_target_title = QLabel("Volume Desiderato:")
+        lbl_target_title = QLabel("Volume Target:")
         lbl_target_title.setToolTip(lufs_tooltip)
         target_row.addWidget(lbl_target_title)
 
         self.cmb_target = QComboBox()
-        self.cmb_target.addItem("Volume Standard Consigliato (Streaming / Spotify -14 LUFS)", -14.0)
-        self.cmb_target.addItem("Volume Alto per DJ / Club (-10 LUFS)", -10.0)
-        self.cmb_target.addItem("Volume Conservativo (-16 LUFS / Podcast)", -16.0)
-        self.cmb_target.addItem("Volume Broadcast Tradizionale (-23 LUFS / Radio TV)", -23.0)
+        self.cmb_target.addItem("DJ / Club (-10 LUFS)", -10.0)
+        self.cmb_target.addItem("Streaming / Spotify (-14 LUFS)", -14.0)
+        self.cmb_target.addItem("Podcast / Ascolto rilassato (-16 LUFS)", -16.0)
+        self.cmb_target.addItem("Broadcast Radio/TV (-23 LUFS)", -23.0)
         self.cmb_target.setToolTip(lufs_tooltip)
         self.cmb_target.currentIndexChanged.connect(self._on_combo_target_changed)
         target_row.addWidget(self.cmb_target)
 
         self.slider_lufs = QSlider(Qt.Orientation.Horizontal)
         self.slider_lufs.setRange(-24, -6)
-        self.slider_lufs.setValue(-14)
+        self.slider_lufs.setValue(-10)
         self.slider_lufs.setToolTip(lufs_tooltip)
         self.slider_lufs.valueChanged.connect(self._on_slider_lufs_changed)
         target_row.addWidget(self.slider_lufs, 1)
 
-        self.lbl_lufs_val = QLabel("-14.0 LUFS")
+        self.lbl_lufs_val = QLabel("-10.0 LUFS")
         self.lbl_lufs_val.setStyleSheet("font-weight: bold; min-width: 65px; color: #0d6efd;")
         target_row.addWidget(self.lbl_lufs_val)
         act_layout.addLayout(target_row)
 
-        # Target True Peak ceiling row & slider
+        # Row 3: Target True Peak ceiling row & slider
         tp_tooltip = (
-            "Margine di sicurezza (Headroom):\n"
-            "• -1.0 dBTP: Margine di sicurezza raccomandato per eliminare qualsiasi distorsione "
+            "Margine di sicurezza True Peak (Headroom):\n"
+            "• -1.0 dBTP: Margine di sicurezza consigliato per eliminare qualsiasi distorsione "
             "o clipping digitale durante l'ascolto e la compressione MP3/AAC."
         )
         tp_row = QHBoxLayout()
-        lbl_tp_title = QLabel("Protezione Distorsioni (Headroom):")
+        lbl_tp_title = QLabel("Limiter Headroom:")
         lbl_tp_title.setToolTip(tp_tooltip)
         tp_row.addWidget(lbl_tp_title)
 
@@ -484,73 +678,33 @@ class QualityDiagnosisDialog(QDialog):
         tp_row.addWidget(self.lbl_tp_val)
         act_layout.addLayout(tp_row)
 
-        # Strategy Radio Buttons
-        self.rad_replaygain = QRadioButton("🏷️ Regolazione Intelligente Non Distruttiva (Scrive il volume nei tag senza toccare il file audio)")
+        # 3 Exclusive Choice Cards in QButtonGroup
+        lbl_mode_title = QLabel("<b>Modalità di Applicazione:</b>")
+        lbl_mode_title.setStyleSheet("margin-top: 4px; color: #495057;")
+        act_layout.addWidget(lbl_mode_title)
+
+        self.radio_group = QButtonGroup(self)
+
+        self.rad_replaygain = QRadioButton("🏷️  ReplayGain (Solo Metadati — Non Distruttivo)")
         self.rad_replaygain.setObjectName("radReplayGain")
-        self.rad_replaygain.setChecked(True)
-        self.rad_replaygain.setToolTip("Conserva il file originale al 100% senza alterare i campioni sonori. I software DJ compatibili applicheranno il volume al volo.")
+        self.rad_replaygain.setToolTip("Aggiunge i tag di volume senza toccare i dati audio fisici. File originale preservato al 100%.")
 
-        self.rad_loudnorm = QRadioButton("🛠️ Ottimizzazione Dinamica e Picchi Sonori (Prevenzione distorsione ed esportazione MP3 320k)")
-        self.rad_loudnorm.setObjectName("radLoudnorm")
-        self.rad_loudnorm.setToolTip("Normalizza il volume del brano al livello scelto ed elimina qualsiasi distorsione esportando in un file MP3 320 kbps ad alta fedeltà.")
+        self.rad_loudnorm_copy = QRadioButton("✨  Normalizzazione Fisica (Nuovo file esportato '_normalized.mp3')")
+        self.rad_loudnorm_copy.setObjectName("radLoudnormCopy")
+        self.rad_loudnorm_copy.setChecked(True)
+        self.rad_loudnorm_copy.setToolTip("Crea una copia ottimizzata ad alto bitrate (320 kbps) preservando intatto il file originale.")
 
-        self.rad_dsp = QRadioButton("🎛️ Mastering Audio e Miglioramento Acustico (Equalizzazione, presenza vocale e punch)")
-        self.rad_dsp.setObjectName("radDsp")
-        self.rad_dsp.setToolTip("Applica filtri avanzati per migliorare la resa acustica, la nitidezza della voce o dare più corpo ai bassi.")
+        self.rad_loudnorm_overwrite = QRadioButton("💾  Sovrascrittura File Originale (Con Backup di Sicurezza)")
+        self.rad_loudnorm_overwrite.setObjectName("radLoudnormOverwrite")
+        self.rad_loudnorm_overwrite.setToolTip("Sostituisce il file sorgente salvando prima una copia di sicurezza completa in '_original/'.")
+
+        self.radio_group.addButton(self.rad_replaygain)
+        self.radio_group.addButton(self.rad_loudnorm_copy)
+        self.radio_group.addButton(self.rad_loudnorm_overwrite)
 
         act_layout.addWidget(self.rad_replaygain)
-        act_layout.addWidget(self.rad_loudnorm)
-        act_layout.addWidget(self.rad_dsp)
-
-        # Sub-options for Physical Normalization
-        self.frame_loudnorm_opts = QFrame()
-        loud_opts_layout = QVBoxLayout(self.frame_loudnorm_opts)
-        loud_opts_layout.setContentsMargins(20, 0, 0, 0)
-        loud_opts_layout.setSpacing(4)
-
-        self.chk_save_fixed = QCheckBox("Salva come nuovo file '_normalized.mp3' (lascia intatto il file originale)")
-        self.chk_save_fixed.setChecked(False)
-        self.chk_backup_original = QCheckBox("Crea copia di sicurezza del file originale nella cartella '_original/'")
-        self.chk_backup_original.setChecked(False)
-
-        loud_opts_layout.addWidget(self.chk_save_fixed)
-        loud_opts_layout.addWidget(self.chk_backup_original)
-        act_layout.addWidget(self.frame_loudnorm_opts)
-
-        # Sub-options for DSP Mastering
-        self.frame_dsp_opts = QFrame()
-        dsp_opts_layout = QVBoxLayout(self.frame_dsp_opts)
-        dsp_opts_layout.setContentsMargins(20, 0, 0, 0)
-        dsp_opts_layout.setSpacing(6)
-
-        dsp_row = QHBoxLayout()
-        dsp_row.addWidget(QLabel("Preset Audio:"))
-        self.combo_dsp_preset = QComboBox()
-        self.combo_dsp_preset.addItem("Club Master (Bassi più potenti, limiter -0.5 dBTP)", "club_master")
-        self.combo_dsp_preset.addItem("Vocal Clarity (Nitidezza voci e presenza)", "vocal_clarity")
-        self.combo_dsp_preset.addItem("Warm Analog (Calore sonoro analogico)", "warm_analog")
-        self.combo_dsp_preset.addItem("DJ Punch (Maggiore dinamica su cassa e rullante)", "dj_punch")
-        self.combo_dsp_preset.addItem("De-Clip & Clean (Eliminazione distorsioni e pulizia audio)", "declip_clean")
-        dsp_row.addWidget(self.combo_dsp_preset, 1)
-
-        dsp_row.addWidget(QLabel("Formato:"))
-        self.combo_dsp_format = QComboBox()
-        self.combo_dsp_format.addItem("MP3 (320 kbps Massima Qualità)", "mp3")
-        self.combo_dsp_format.addItem("MP3 (V0 Bitrate Variabile)", "mp3_v0")
-        self.combo_dsp_format.addItem("FLAC (Senza Perdita di Qualità)", "flac")
-        dsp_row.addWidget(self.combo_dsp_format)
-
-        dsp_opts_layout.addLayout(dsp_row)
-        act_layout.addWidget(self.frame_dsp_opts)
-
-        def _update_option_frames() -> None:
-            self.frame_loudnorm_opts.setEnabled(self.rad_loudnorm.isChecked())
-            self.frame_dsp_opts.setEnabled(self.rad_dsp.isChecked())
-
-        self.rad_replaygain.toggled.connect(lambda _: _update_option_frames())
-        self.rad_loudnorm.toggled.connect(lambda _: _update_option_frames())
-        self.rad_dsp.toggled.connect(lambda _: _update_option_frames())
-        _update_option_frames()
+        act_layout.addWidget(self.rad_loudnorm_copy)
+        act_layout.addWidget(self.rad_loudnorm_overwrite)
 
         layout.addWidget(grp_action)
 
@@ -575,7 +729,7 @@ class QualityDiagnosisDialog(QDialog):
         btn_close = QPushButton("Chiudi")
         btn_close.setStyleSheet("""
             QPushButton {
-                background-color: #f8f9fa;
+                background-color: #ffffff;
                 color: #212529;
                 border: 1px solid #ced4da;
                 padding: 8px 16px;
@@ -591,6 +745,47 @@ class QualityDiagnosisDialog(QDialog):
         btn_box.addWidget(btn_close)
         btn_box.addWidget(self.btn_apply)
         layout.addLayout(btn_box)
+
+    def _show_glossary(self) -> None:
+        """Opens audio quality terms glossary dialog."""
+        dlg = AudioGlossaryDialog(self)
+        dlg.exec()
+
+    def _on_reset_defaults(self) -> None:
+        """Resets target parameters to -10 LUFS, -1.0 dBTP, DJ Club preset, and MP3 320 kbps."""
+        idx_dj = self.combo_preset.findData("dj_club")
+        if idx_dj >= 0:
+            self.combo_preset.blockSignals(True)
+            self.combo_preset.setCurrentIndex(idx_dj)
+            self.combo_preset.blockSignals(False)
+
+        idx_mp3 = self.combo_format.findData("mp3")
+        if idx_mp3 >= 0:
+            self.combo_format.blockSignals(True)
+            self.combo_format.setCurrentIndex(idx_mp3)
+            self.combo_format.blockSignals(False)
+
+        self.slider_lufs.blockSignals(True)
+        self.slider_lufs.setValue(-10)
+        self.slider_lufs.blockSignals(False)
+        self.lbl_lufs_val.setText("-10.0 LUFS")
+
+        self.slider_tp.blockSignals(True)
+        self.slider_tp.setValue(-10)  # -1.0 dBTP
+        self.slider_tp.blockSignals(False)
+        self.lbl_tp_val.setText("-1.0 dBTP")
+
+        # Sync target combo
+        self.cmb_target.blockSignals(True)
+        for i in range(self.cmb_target.count()):
+            if abs(self.cmb_target.itemData(i) - (-10.0)) < 0.1:
+                self.cmb_target.setCurrentIndex(i)
+                break
+        self.cmb_target.blockSignals(False)
+
+        self.rad_loudnorm_copy.setChecked(True)
+        self._update_gain_needed()
+        self._update_waveform_preview()
 
     def _extract_waveform_peaks(self, filepath: str, num_points: int = 80) -> np.ndarray:
         """Extracts downsampled peak envelope for dual waveform preview."""
@@ -622,6 +817,43 @@ class QualityDiagnosisDialog(QDialog):
         max_tp = float(self.slider_tp.value()) / 10.0
         if hasattr(self, "waveform_widget"):
             self.waveform_widget.update_targets(target_lufs, max_tp)
+
+    def _on_preset_changed(self) -> None:
+        preset_key = self.combo_preset.currentData()
+        target_map = {
+            "dj_club": (-10.0, -1.0),
+            "streaming": (-14.0, -1.0),
+            "declip_clean": (-12.0, -1.5),
+            "warm_analog": (-11.0, -1.0),
+            "dj_punch": (-10.0, -1.0),
+            "vocal_clarity": (-12.0, -1.0),
+        }
+        if preset_key in target_map:
+            lufs, tp = target_map[preset_key]
+            self.slider_lufs.blockSignals(True)
+            self.slider_lufs.setValue(int(lufs))
+            self.slider_lufs.blockSignals(False)
+            self.lbl_lufs_val.setText(f"{lufs:.1f} LUFS")
+
+            self.slider_tp.blockSignals(True)
+            self.slider_tp.setValue(int(tp * 10.0))
+            self.slider_tp.blockSignals(False)
+            self.lbl_tp_val.setText(f"{tp:+.1f} dBTP")
+
+            # Sync target dropdown if matches
+            self.cmb_target.blockSignals(True)
+            matched = False
+            for i in range(self.cmb_target.count()):
+                if abs(self.cmb_target.itemData(i) - lufs) < 0.1:
+                    self.cmb_target.setCurrentIndex(i)
+                    matched = True
+                    break
+            if not matched:
+                self.cmb_target.setCurrentIndex(-1)
+            self.cmb_target.blockSignals(False)
+
+            self._update_gain_needed()
+            self._update_waveform_preview()
 
     def _on_combo_target_changed(self) -> None:
         target_val = self.cmb_target.currentData()
@@ -706,9 +938,11 @@ class QualityDiagnosisDialog(QDialog):
         self._update_waveform_preview()
 
     def _on_apply_normalization(self) -> None:
-        """Executes normalization according to chosen strategy."""
+        """Executes normalization according to chosen strategy, preset, and format."""
         target_lufs = float(self.slider_lufs.value())
         max_true_peak = self.slider_tp.value() / 10.0
+        preset = self.combo_preset.currentData() or "dj_club"
+        fmt = self.combo_format.currentData() or "mp3"
 
         if self.rad_replaygain.isChecked():
             res = self.normalizer.apply_replaygain(self.filepath, target_lufs=target_lufs, report=self.report)
@@ -719,44 +953,80 @@ class QualityDiagnosisDialog(QDialog):
                     f"Metadati ReplayGain scritti con successo nel file:\n"
                     f"• Gain Offset: {res.gain_applied_db:+.2f} dB\n"
                     f"• Target: {target_lufs:.1f} LUFS\n\n"
-                    f"Il player libVLC regolerà automaticamente il volume durante l'ascolto.",
+                    f"Il player libVLC regolerà automaticamente il volume durante l'ascolto senza modificare i dati audio fisici.",
                 )
                 self.normalization_applied.emit(self.filepath)
                 self.accept()
             else:
                 QMessageBox.critical(self, "Errore ReplayGain", f"Impossibile applicare ReplayGain:\n{res.error_message}")
+            return
 
-        elif self.rad_dsp.isChecked():
-            preset = self.combo_dsp_preset.currentData() or "club_master"
-            fmt = self.combo_dsp_format.currentData() or "mp3"
+        is_overwrite = self.rad_loudnorm_overwrite.isChecked()
+        save_as_fixed = not is_overwrite
+        create_backup = is_overwrite
+
+        # Check if DSP mastering preset or standard loudnorm
+        is_dsp = preset in ("declip_clean", "warm_analog", "dj_punch", "vocal_clarity")
+
+        if is_dsp:
+            backup_path = None
+            if is_overwrite:
+                src_path = Path(self.filepath)
+                orig_dir = src_path.parent / "_original"
+                orig_dir.mkdir(parents=True, exist_ok=True)
+                backup_path = orig_dir / src_path.name
+                if not backup_path.exists():
+                    try:
+                        shutil.copy2(str(src_path), str(backup_path))
+                    except Exception:
+                        pass
+
             res = self.normalizer.apply_dsp_enhancement(
                 self.filepath,
                 preset=preset,
                 output_format=fmt,
                 target_lufs=target_lufs,
                 max_true_peak=max_true_peak,
-                save_as_fixed=True,
+                save_as_fixed=save_as_fixed,
             )
+
+            if res.success and is_overwrite:
+                out_p = Path(res.output_filepath)
+                src_p = Path(self.filepath)
+                if out_p.exists() and out_p != src_p:
+                    try:
+                        shutil.move(str(out_p), str(src_p))
+                        res.output_filepath = str(src_p)
+                    except Exception:
+                        pass
+
             if res.success:
-                preset_name = self.combo_dsp_preset.currentText()
-                fmt_name = self.combo_dsp_format.currentText()
-                msg = f"Mastering DSP completato con successo!\n\n"
+                if self.db:
+                    try:
+                        from src.core.scanner import LibraryScanner
+                        LibraryScanner(self.db).scan_file(res.output_filepath)
+                    except Exception:
+                        pass
+
+                preset_name = self.combo_preset.currentText()
+                fmt_name = self.combo_format.currentText()
+                msg = f"Mastering Audio completato con successo!\n\n"
                 msg += f"• Preset: {preset_name}\n"
                 msg += f"• File generato: {res.output_filepath}\n"
                 msg += f"• Formato: {fmt_name}\n"
-                msg += f"• Target: {target_lufs:.1f} LUFS | Headroom: {max_true_peak:.1f} dBTP\n"
+                msg += f"• Target: {target_lufs:.1f} LUFS | Limiter Headroom: {max_true_peak:+.1f} dBTP\n"
                 msg += f"• Tag ID3 e Artwork: Copiati integralmente"
+                if backup_path and backup_path.exists():
+                    msg += f"\n• Copia originale salvata in: {backup_path}"
 
-                QMessageBox.information(self, "Mastering DSP Completato", msg)
+                QMessageBox.information(self, "Elaborazione Completata", msg)
                 self.normalization_applied.emit(res.output_filepath)
                 self.accept()
             else:
-                QMessageBox.critical(self, "Errore DSP", f"Impossibile applicare il processing DSP:\n{res.error_message}")
+                QMessageBox.critical(self, "Errore Mastering DSP", f"Impossibile elaborare il brano:\n{res.error_message}")
 
         else:
-            save_as_fixed = self.chk_save_fixed.isChecked()
-            create_backup = self.chk_backup_original.isChecked()
-
+            # Physical loudnorm (ITU-R BS.1770 / EBU R128)
             res = self.normalizer.apply_physical_loudnorm(
                 self.filepath,
                 target_lufs=target_lufs,
@@ -765,7 +1035,6 @@ class QualityDiagnosisDialog(QDialog):
                 create_backup=create_backup,
             )
             if res.success:
-                # Auto-index into SQLite immediately so the library table displays it right away
                 if self.db:
                     try:
                         from src.core.scanner import LibraryScanner
@@ -777,7 +1046,7 @@ class QualityDiagnosisDialog(QDialog):
                 msg += f"• File generato: {res.output_filepath}\n"
                 msg += f"• Formato: MP3 (320 kbps High Quality, libmp3lame)\n"
                 msg += f"• Target: {target_lufs:.1f} LUFS\n"
-                msg += f"• Limiter Headroom: {max_true_peak:.1f} dBTP (De-clipping applicato)\n"
+                msg += f"• Limiter Headroom: {max_true_peak:+.1f} dBTP (De-clipping applicato)\n"
                 msg += f"• Tag ID3 e Artwork: Copiati integralmente"
                 if res.backup_path:
                     msg += f"\n• Copia originale salvata in: {res.backup_path}"

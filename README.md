@@ -147,6 +147,17 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 - **Download Integrato in Streaming:** Barra di avanzamento con percentuale e MB scaricati in tempo reale, salvataggio nella cartella Download ed evidenziazione automatica nel file manager di sistema al completamento (`PathResolver.show_in_file_manager`).
 - **Verifica Manuale:** Disponibile in **Impostazioni > Info & Generale** con stato versione e feedback immediato.
 
+### 12. 🎧 Extended Top Charts, Re-Design Ottimizzazione Volume, Path Resolver & Guida Integrata
+- **Ampliamento Generi Top Charts:** Espanso il catalogo delle classifiche con 8 categorie essenziali ad alta rotazione per DJ: *Latin & Reggaeton / Urbano*, *Tech House / Techno*, *Afro House / Amapiano*, *Hip-Hop / Trap*, *R&B / Soul*, *Pop / Commerciale*, *Dance / EDM* e *Rock / Indie*. Mapping accurato con playlist editoriali Spotify e dataset offline estesi.
+- **Modulo Miglioramento Volume Re-Designed (`QualityDiagnosisDialog`):**
+  - **Menu Preset e Formati Sbloccati:** Scelta sempre attiva tra preset acustici (*DJ Club -10 LUFS*, *Streaming -14 LUFS*, *Anti-Clipping & Clean*, *Warm Analog*, *DJ Punch*, *Vocal Clarity*) e formati (*MP3 320 kbps*, *MP3 V0*, *FLAC*, *WAV*).
+  - **3 Modalità Esclusive Chiare:** Selezione radio esclusiva tra *ReplayGain (solo metadati)*, *Normalizzazione fisica (nuovo file MP3 _normalized.mp3)* e *Sovrascrittura sicura (con backup in _original/)*.
+  - **Glossario & Spiegazione Termini `[ℹ️ Spiegazione Termini]`:** Dialogo interattivo che illustra in modo chiaro il volume percepito (LUFS), l'headroom True Peak (dBTP) anti-clipping e la dinamica (LRA).
+  - **Pulsante di Reset `[↺ Ripristina Valori Predefiniti]`:** Reset a 1-click di target a -10.0 LUFS, -1.0 dBTP, preset DJ Club e MP3 320 kbps con aggiornamento live della forma d'onda prima/dopo.
+  - **Sfondi Puliti:** Eliminazione di sfondi grigio sporco residui, con interfaccia bianca pura (`#FFFFFF`), bordi `#E9ECEF` e testi ad alto contrasto.
+- **Risoluzione Percorsi Cliccabili & Selezione Nativa:** Risolto il bug di Windows Explorer grazie alla separazione degli argomenti `["explorer", "/select,", norm_path]` e conversione automatica token `[VOL:...]`/relativi in percorsi assoluti. Il click sui segmenti breadcrumb o sul percorso del file evidenzia all'istante il file esatto nel file manager di sistema.
+- **Guida all'Uso Integrata nelle Impostazioni (`[📖 Guida all'Uso]`):** Nuova scheda dedicata nelle preferenze strutturata in 4 sezioni pratiche: *1. Libreria & File Explorer*, *2. Analisi & Tagging Metadati*, *3. Miglioramento Audio & Normalizzazione*, *4. Trova Simili & Smart Crates*.
+
 ---
 
 ## 🛠️ Suite di Logging Avanzato & Troubleshooting

@@ -133,6 +133,7 @@
   "settings_tab_perf": "⚡  Performance & Hardware",
   "settings_tab_scrapers": "🌐  Scrapers & API Keys",
   "settings_tab_plugins": "🧩  Plugins & Extensions",
+  "settings_tab_guide": "📖  User Guide",
   "settings_lang_label": "Interface Language:",
   "settings_theme_label": "UI Theme:",
   "settings_dpi_label": "Display Scale (HiDPI Zoom):",

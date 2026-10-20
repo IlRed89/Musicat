@@ -342,23 +342,28 @@ class PathResolver:
             bool: True if process launched successfully, False otherwise.
         """
         try:
-            p = Path(file_path).resolve()
-            if not p.exists():
+            raw_str = str(file_path).strip()
+            if not raw_str:
                 return False
 
-            norm_p = os.path.normpath(str(p))
+            # Resolve portable or volume tokens ([VOL:...] / [APP]/...) if present
+            resolved_str = cls.to_absolute_path(raw_str)
+            if not os.path.exists(resolved_str):
+                return False
+
+            norm_p = os.path.normpath(resolved_str)
 
             if sys.platform == "win32":
-                # Windows Explorer: /select,<path> highlights the file
-                subprocess.Popen(["explorer", f"/select,{norm_p}"])
+                # Windows Explorer: '/select,' must be separate parameter so path is not mangled
+                subprocess.Popen(["explorer", "/select,", norm_p])
                 return True
             elif sys.platform == "darwin":
-                # macOS Finder: open -R <path> reveals the file
+                # macOS Finder: open -R reveals the file in Finder
                 subprocess.Popen(["open", "-R", norm_p])
                 return True
             else:
                 # Linux: open containing folder
-                target_dir = norm_p if p.is_dir() else str(p.parent)
+                target_dir = norm_p if os.path.isdir(norm_p) else os.path.dirname(norm_p)
                 subprocess.Popen(["xdg-open", target_dir])
                 return True
         except Exception:

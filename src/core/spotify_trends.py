@@ -82,27 +82,35 @@ TREND_PLATFORMS: List[Tuple[str, str]] = [
 PLATFORM_CATEGORIES: Dict[str, List[Tuple[str, str]]] = {
     "spotify": [
         ("global_50", "🌐 Global Top 50"),
-        ("dance_electro", "⚡ Dance / Electro"),
-        ("tech_house", "🎧 Tech House"),
-        ("techno", "🖤 Techno"),
-        ("pop_commercial", "📻 Pop / Commercial"),
-        ("hiphop_urban", "🎤 Hip-Hop / Urban"),
-        ("indie_rock", "🎸 Indie / Rock"),
+        ("latin_reggaeton", "🌴 Latin & Reggaeton / Urbano"),
+        ("tech_house_techno", "🎧 Tech House / Techno"),
+        ("afro_amapiano", "🌍 Afro House / Amapiano"),
+        ("hiphop_trap", "🎤 Hip-Hop / Trap"),
+        ("rnb_soul", "✨ R&B / Soul"),
+        ("pop_commercial", "📻 Pop / Commerciale"),
+        ("dance_edm", "⚡ Dance / EDM (Dance / Electro)"),
+        ("rock_indie", "🎸 Rock / Indie"),
     ],
     "soundcloud": [
         ("sc_trending_all", "🔥 Top Trending"),
-        ("sc_remix_hype", "⚡ Remix & Bootleg Hype"),
-        ("sc_electronic", "🎛️ Electronic & Bass"),
-        ("sc_house_tech", "🕺 Deep & Tech House"),
-        ("sc_underground_hiphop", "🎤 Underground Hip-Hop"),
+        ("sc_latin_urbano", "🌴 Latin & Reggaeton / Urbano"),
+        ("sc_tech_house_techno", "🎧 Tech House / Techno"),
+        ("sc_afro_amapiano", "🌍 Afro House / Amapiano"),
+        ("sc_hiphop_trap", "🎤 Hip-Hop / Trap"),
+        ("sc_rnb_soul", "✨ R&B / Soul"),
+        ("sc_pop_commercial", "📻 Pop / Commerciale"),
+        ("sc_dance_edm", "⚡ Dance / EDM & Hype"),
+        ("sc_rock_indie", "🎸 Rock / Indie"),
     ],
     "beatport": [
         ("bp_top_100", "🏆 Beatport Top 100"),
-        ("bp_tech_house", "🎧 Tech House Top"),
-        ("bp_techno_peak", "🖤 Techno (Peak Time)"),
-        ("bp_melodic_house", "🌅 Melodic House & Techno"),
+        ("bp_tech_house", "🎧 Tech House / Techno"),
+        ("bp_afro_house", "🌍 Afro House / Amapiano"),
         ("bp_house", "🪩 House Anthems"),
-        ("bp_drum_and_bass", "🥁 Drum & Bass Top"),
+        ("bp_melodic_house", "🌅 Melodic House & Techno"),
+        ("bp_dance_edm", "⚡ Dance / EDM & Mainstage"),
+        ("bp_drum_and_bass", "🥁 Drum & Bass"),
+        ("bp_latin_tech", "🌴 Latin House & Tribal"),
     ],
 }
 
@@ -111,12 +119,20 @@ TREND_CATEGORIES: List[Tuple[str, str]] = PLATFORM_CATEGORIES["spotify"]
 # Curated Editorial Playlist IDs on Spotify
 CATEGORY_PLAYLIST_MAP = {
     "global_50": "37i9dQZEVXbMDoHDwVN2tF",       # Top 50 - Global
-    "dance_electro": "37i9dQZF1DX4dyzvuaRJ0n",  # Mint (Electronic/Dance)
-    "tech_house": "37i9dQZF1DXdLEN7aqioXM",     # Tech House
-    "techno": "37i9dQZF1DX6J5NfMJS675",         # Techno State
-    "pop_commercial": "37i9dQZF1DXcBWIGoYBM5M", # Today's Top Hits
-    "hiphop_urban": "37i9dQZF1DX0XUsuxWHRQd",   # RapCaviar
-    "indie_rock": "37i9dQZF1DXdbXrPNafg9d",     # All New Rock
+    "latin_reggaeton": "37i9dQZF1DX10zKzsJ2jva", # Viva Latino
+    "tech_house_techno": "37i9dQZF1DXdLEN7aqioXM", # Tech House
+    "afro_amapiano": "37i9dQZF1DXa1HcpLqjFeK",   # Amapiano Grooves
+    "hiphop_trap": "37i9dQZF1DX0XUsuxWHRQd",     # RapCaviar
+    "rnb_soul": "37i9dQZF1DX4SBhb3fqApT",        # Are & Be
+    "pop_commercial": "37i9dQZF1DXcBWIGoYBM5M",  # Today's Top Hits
+    "dance_edm": "37i9dQZF1DX4dyzvuaRJ0n",       # Mint (Electronic/Dance)
+    "rock_indie": "37i9dQZF1DXdbXrPNafg9d",      # All New Rock
+    # Backward compatibility aliases
+    "dance_electro": "37i9dQZF1DX4dyzvuaRJ0n",
+    "tech_house": "37i9dQZF1DXdLEN7aqioXM",
+    "techno": "37i9dQZF1DX6J5NfMJS675",
+    "hiphop_urban": "37i9dQZF1DX0XUsuxWHRQd",
+    "indie_rock": "37i9dQZF1DXdbXrPNafg9d",
 }
 
 
@@ -608,7 +624,56 @@ class SpotifyTrendsManager:
                 ("Phoenix", "1901", "Wolfgang Amadeus Phoenix", "https://i.scdn.co/image/ab67616d0000b27318ec7e0fc21dae60e8d08587", 144.0, "2B", 90),
                 ("Foster The People", "Lost In Space", "Paradise State of Mind", "https://i.scdn.co/image/ab67616d0000b27303f269a212ca0584d94b0d07", 120.0, "9A", 87),
             ],
+            "latin_reggaeton": [
+                ("Bad Bunny", "MONACO", "nadie sabe lo que va a pasar mañana", "https://i.scdn.co/image/ab67616d0000b273b0a701887e5b5c7ef9518bf9", 140.0, "8A", 96),
+                ("Karol G & Peso Pluma", "QLONA", "MAÑANA SERÁ BONITO", "https://i.scdn.co/image/ab67616d0000b2734ec6c0bbf23e597df315f6ad", 85.0, "9A", 95),
+                ("Feid & Young Miko", "Classy 101", "Classy 101", "https://i.scdn.co/image/ab67616d0000b273f3b97b0a735d4fa3f619e0cf", 100.0, "10A", 94),
+                ("Myke Towers", "LALA", "LA VIDA ES UNA", "https://i.scdn.co/image/ab67616d0000b273c5a61623fa595cb3d4d428bf", 92.0, "11B", 95),
+                ("Rauw Alejandro & Bizarrap", "BABY HELLO", "PLAYA SATURNO", "https://i.scdn.co/image/ab67616d0000b273e97906d09c2a382cf8db01a2", 132.0, "6A", 93),
+                ("Bizarrap & Peso Pluma", "Bzrp Music Sessions, Vol. 55", "Bzrp Music Sessions, Vol. 55", "https://i.scdn.co/image/ab67616d0000b273b7a5e9559c8bf49a07153a8c", 133.0, "7B", 92),
+                ("J Balvin & Skrillex", "In Da Getto", "JOSE", "https://i.scdn.co/image/ab67616d0000b273dcf278ea242bb5d81b4f2c5a", 127.0, "6A", 93),
+                ("Daddy Yankee & Bad Bunny", "La Santa", "YHLQMDLG", "https://i.scdn.co/image/ab67616d0000b273f7c952b7190f845a7cbb0299", 94.0, "4A", 94),
+                ("Farruko", "Pepas", "La 167", "https://i.scdn.co/image/ab67616d0000b273a0e69a04a625cb22d0b67bf9", 130.0, "2A", 95),
+                ("Maluma & Carin Leon", "According to Who (Según Quién)", "Don Juan", "https://i.scdn.co/image/ab67616d0000b2731ea0c62b2339cbf493a999ad", 128.0, "8B", 91),
+                ("Ozuna", "Caramelo", "ENOC", "https://i.scdn.co/image/ab67616d0000b273c0049ba3876e5d89fb6a457c", 90.0, "1A", 90),
+                ("Quevedo & Bizarrap", "Quevedo: Bzrp Music Sessions, Vol. 52", "Bzrp Music Sessions, Vol. 52", "https://i.scdn.co/image/ab67616d0000b2733d1bcf55651c686d173e6cf5", 128.0, "11B", 97),
+                ("Rauw Alejandro", "Todo De Ti", "Vice Versa", "https://i.scdn.co/image/ab67616d0000b273832c3f91040854b73b5faefc", 128.0, "9B", 94),
+                ("Anuel AA", "Mejor Que Yo", "Mejor Que Yo", "https://i.scdn.co/image/ab67616d0000b27393d3958ca03ff11317ba9355", 96.0, "2A", 90),
+                ("Nicky Jam & J Balvin", "X", "Íntimo", "https://i.scdn.co/image/ab67616d0000b273cfcbcf0a1c1d063be3dbecbe", 90.0, "8A", 92),
+            ],
+            "afro_amapiano": [
+                ("Tyla", "Water", "TYLA", "https://i.scdn.co/image/ab67616d0000b273b0a701887e5b5c7ef9518bf9", 117.0, "10A", 96),
+                ("Burna Boy", "City Boys", "I Told Them...", "https://i.scdn.co/image/ab67616d0000b2734ec6c0bbf23e597df315f6ad", 112.0, "4A", 94),
+                ("Rema", "Calm Down", "Rave & Climax", "https://i.scdn.co/image/ab67616d0000b273f3b97b0a735d4fa3f619e0cf", 107.0, "11B", 97),
+                ("Asake & Olamide", "Amapiano", "Work of Art", "https://i.scdn.co/image/ab67616d0000b273c5a61623fa595cb3d4d428bf", 118.0, "8A", 92),
+                ("Uncle Waffles & Tony Duardo", "Tanzania", "Red Dragon", "https://i.scdn.co/image/ab67616d0000b273e97906d09c2a382cf8db01a2", 113.0, "9A", 91),
+                ("Tyler ICU & Tumelo.za", "Mnike", "Mnike Single", "https://i.scdn.co/image/ab67616d0000b273b7a5e9559c8bf49a07153a8c", 113.0, "11B", 93),
+                ("Kabza De Small & DJ Maphorisa", "Asibe Happy", "Rumble in the Jungle", "https://i.scdn.co/image/ab67616d0000b273dcf278ea242bb5d81b4f2c5a", 112.0, "6A", 90),
+                ("Wizkid & Tems", "Essence", "Made In Lagos", "https://i.scdn.co/image/ab67616d0000b273f7c952b7190f845a7cbb0299", 104.0, "7A", 95),
+                ("Ayra Starr", "Rush", "19 & Dangerous", "https://i.scdn.co/image/ab67616d0000b273a0e69a04a625cb22d0b67bf9", 100.0, "9A", 94),
+                ("Kizz Daniel & Tekno", "Buga (Lo Lo Lo)", "Buga", "https://i.scdn.co/image/ab67616d0000b2731ea0c62b2339cbf493a999ad", 108.0, "1B", 91),
+                ("Davido", "Unavailable", "Timeless", "https://i.scdn.co/image/ab67616d0000b273c0049ba3876e5d89fb6a457c", 114.0, "8A", 93),
+                ("CKay", "love nwantiti (ah ah ah)", "CKay The First", "https://i.scdn.co/image/ab67616d0000b2733d1bcf55651c686d173e6cf5", 93.0, "11A", 95),
+            ],
+            "rnb_soul": [
+                ("SZA", "Snooze", "SOS", "https://i.scdn.co/image/ab67616d0000b273b0a701887e5b5c7ef9518bf9", 143.0, "5A", 96),
+                ("Chris Brown", "Under The Influence", "Indigo", "https://i.scdn.co/image/ab67616d0000b2734ec6c0bbf23e597df315f6ad", 116.0, "8A", 94),
+                ("Daniel Caesar & H.E.R.", "Best Part", "Freudian", "https://i.scdn.co/image/ab67616d0000b273f3b97b0a735d4fa3f619e0cf", 75.0, "10B", 93),
+                ("Giveon", "Heartbreak Anniversary", "TAKE TIME", "https://i.scdn.co/image/ab67616d0000b273c5a61623fa595cb3d4d428bf", 98.0, "12B", 92),
+                ("Brent Faiyaz", "Trust", "Fuck the World", "https://i.scdn.co/image/ab67616d0000b273e97906d09c2a382cf8db01a2", 90.0, "2A", 91),
+                ("Summer Walker & Usher", "Come Thru", "Over It", "https://i.scdn.co/image/ab67616d0000b273b7a5e9559c8bf49a07153a8c", 136.0, "7A", 90),
+                ("Kehlani", "After Hours", "CRASH", "https://i.scdn.co/image/ab67616d0000b273dcf278ea242bb5d81b4f2c5a", 124.0, "4A", 92),
+                ("Steve Lacy", "Bad Habit", "Gemini Rights", "https://i.scdn.co/image/ab67616d0000b273f7c952b7190f845a7cbb0299", 169.0, "10B", 95),
+                ("Frank Ocean", "Lost", "channel ORANGE", "https://i.scdn.co/image/ab67616d0000b273a0e69a04a625cb22d0b67bf9", 123.0, "9A", 94),
+                ("Victoria Monét", "On My Mama", "JAGUAR II", "https://i.scdn.co/image/ab67616d0000b2731ea0c62b2339cbf493a999ad", 82.0, "1A", 91),
+                ("Bryson Tiller", "Don't", "T R A P S O U L", "https://i.scdn.co/image/ab67616d0000b273c0049ba3876e5d89fb6a457c", 97.0, "7A", 93),
+            ],
         }
+        # Backward-compatible & category aliases
+        data_spotify["dance_edm"] = data_spotify["dance_electro"]
+        data_spotify["tech_house_techno"] = data_spotify["tech_house"] + data_spotify.get("techno", [])
+        data_spotify["hiphop_trap"] = data_spotify["hiphop_urban"]
+        data_spotify["rock_indie"] = data_spotify["indie_rock"]
 
         data_soundcloud: Dict[str, List[Tuple[str, str, str, str, float, str, int]]] = {
             "sc_trending_all": [
@@ -854,9 +919,23 @@ class SpotifyTrendsManager:
                 ("Culture Shock", "Renaissance", "RAM Records", "https://i.scdn.co/image/ab67616d0000b273523f6eb7e7b686b24d77c44d", 174.0, "6A", 88),
                 ("S.P.Y", "Dusty Fingers", "DARKMTTR", "https://i.scdn.co/image/ab67616d0000b273ff3f07cf1923ce6174a9ab4a", 174.0, "1A", 87),
                 ("A.M.C", "Bass", "Titan Records", "https://i.scdn.co/image/ab67616d0000b27318ec7e0fc21dae60e8d08587", 175.0, "5A", 89),
-                ("Lenzman", "Broken Dreams", "Metalheadz", "https://i.scdn.co/image/ab67616d0000b27303f269a212ca0584d94b0d07", 174.0, "8A", 88),
             ],
         }
+
+        # SoundCloud Aliases & Mapping
+        data_soundcloud["sc_latin_urbano"] = data_spotify["latin_reggaeton"]
+        data_soundcloud["sc_tech_house_techno"] = data_soundcloud.get("sc_house_tech", [])
+        data_soundcloud["sc_afro_amapiano"] = data_spotify["afro_amapiano"]
+        data_soundcloud["sc_hiphop_trap"] = data_soundcloud.get("sc_underground_hiphop", [])
+        data_soundcloud["sc_rnb_soul"] = data_spotify["rnb_soul"]
+        data_soundcloud["sc_pop_commercial"] = data_spotify["pop_commercial"]
+        data_soundcloud["sc_dance_edm"] = data_soundcloud.get("sc_remix_hype", [])
+        data_soundcloud["sc_rock_indie"] = data_spotify["rock_indie"]
+
+        # Beatport Aliases & Mapping
+        data_beatport["bp_afro_house"] = data_spotify["afro_amapiano"]
+        data_beatport["bp_dance_edm"] = data_beatport.get("bp_top_100", [])
+        data_beatport["bp_latin_tech"] = data_spotify["latin_reggaeton"]
 
         # Select dataset by platform
         if platform == "soundcloud":

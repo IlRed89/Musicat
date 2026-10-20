@@ -147,6 +147,17 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 - **Integrated Streaming Downloader:** Live progress bar with download percentage and MB downloaded, saving directly to user's Downloads folder and highlighting the completed asset in Windows Explorer / macOS Finder (`PathResolver.show_in_file_manager`).
 - **Manual Check:** Always available from **Settings > Info & General** with real-time feedback.
 
+### 12. 🎧 Extended Top Charts, Overhauled Volume Enhancer, Path Resolver & Integrated User Guide
+- **Extended Top Charts Genres:** Expanded charts catalogue with 8 high-rotation DJ categories: *Latin & Reggaeton / Urbano*, *Tech House / Techno*, *Afro House / Amapiano*, *Hip-Hop / Trap*, *R&B / Soul*, *Pop / Commerciale*, *Dance / EDM*, and *Rock / Indie*. Fully mapped to Spotify playlists and offline fallback datasets.
+- **Overhauled Audio Enhancer (`QualityDiagnosisDialog`):**
+  - **Always-Unlocked Presets & Formats:** Free interactive selection between acoustic presets (*DJ Club -10 LUFS*, *Streaming -14 LUFS*, *Anti-Clipping & Clean*, *Warm Analog*, *DJ Punch*, *Vocal Clarity*) and formats (*MP3 320 kbps*, *MP3 V0*, *FLAC*, *WAV*).
+  - **3 Clear Exclusive Application Choices:** Grouped radio card selection: *ReplayGain (metadata only)*, *Physical Normalization (new MP3 _normalized.mp3)*, or *Safe Overwrite (with automatic backup in _original/)*.
+  - **Glossary & Explanation Dialog `[ℹ️ Spiegazione Termini]`:** Plain-language guide explaining perceived loudness (LUFS), True Peak anti-clipping headroom (dBTP), and dynamic range (LRA).
+  - **Reset Defaults Button `[↺ Ripristina Valori Predefiniti]`:** 1-click restore to -10.0 LUFS, -1.0 dBTP, DJ Club preset, and MP3 320 kbps with live dual waveform preview update.
+  - **Clean Flat Aesthetic:** Pure `#FFFFFF` backgrounds, `#E9ECEF` borders, high-contrast typography, eliminating all residual dirty gray tones.
+- **Clickable Filepath & Native Explorer Reveal:** Resolved Windows Explorer quoting bug by passing `["explorer", "/select,", norm_path]` as separate parameters and converting `[VOL:...]`/relative paths to absolute filesystem locations.
+- **Integrated User Guide in Settings (`[📖 Guida all'Uso]`):** Dedicated 6th settings category organized into 4 practical chapters: *1. Library & File Explorer*, *2. Acoustic Analysis & Metadata Tagging*, *3. Audio Enhancement & Normalization*, *4. Find Similar & Smart Crates*.
+
 ---
 
 ## 🛠️ Advanced Logging Suite & Troubleshooting

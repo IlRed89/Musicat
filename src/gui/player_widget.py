@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from ..audio.waveform import WaveformGenerator
 from ..core.memory_cache import WaveformMemoryCache
+from ..core.path_resolver import PathResolver
 from ..player.vlc_engine import VLCAudioPlayer
 from ..core.i18n import I18n, _t
 from .views import (
@@ -338,6 +339,7 @@ class MiniPlayerWidget(QFrame):
         # Bottom: Breadcrumbs Path Navigation Bar
         self.breadcrumb_bar = BreadcrumbBar(self)
         self.breadcrumb_bar.directory_selected.connect(self.directory_selected.emit)
+        self.breadcrumb_bar.show_in_folder_requested.connect(self.open_track_folder)
         outer_layout.addWidget(self.breadcrumb_bar)
 
     def _connect_signals(self) -> None:
@@ -370,12 +372,12 @@ class MiniPlayerWidget(QFrame):
     def load_track(self, track: Dict) -> None:
         """Loads and prepares track for playback."""
         self.current_track = track
-        filepath = track.get("filepath", "")
+        filepath = track.get("filepath", "") or track.get("file_path", "")
         is_url = filepath.startswith("http://") or filepath.startswith("https://")
         if is_url:
             self.breadcrumb_bar.set_path("🌐 Streaming Online (Anteprima 30s)")
         else:
-            self.breadcrumb_bar.set_path(filepath)
+            self.breadcrumb_bar.set_path(PathResolver.to_absolute_path(filepath))
 
         self.title_label.setText(track.get("title") or (Path(filepath).stem if not is_url else "Online Track"))
         self.artist_label.setText(track.get("artist") or "Unknown Artist")
@@ -574,6 +576,15 @@ class MiniPlayerWidget(QFrame):
         self.track_normalized.emit(normalized_path)
         if self.parent() and hasattr(self.parent(), "_refresh_library"):
             self.parent()._refresh_library()
+
+    def open_track_folder(self, filepath: Optional[str] = None) -> None:
+        """Reveals the given audio file (or current track) highlighted in the native OS file manager."""
+        target_path = filepath
+        if not target_path and self.current_track:
+            target_path = self.current_track.get("filepath") or self.current_track.get("file_path") or ""
+        if target_path:
+            abs_p = PathResolver.to_absolute_path(target_path)
+            PathResolver.show_in_file_manager(abs_p)
 
     def _retranslate_ui(self) -> None:
         """Dynamically retranslates mini player widgets."""
