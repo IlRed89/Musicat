@@ -831,6 +831,44 @@ QCheckBox::indicator:disabled {
     border-color: #ced4da;
 }
 
+/* RadioButton */
+QRadioButton {
+    color: #212529;
+    spacing: 8px;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #ced4da;
+    border-radius: 8px;
+    background-color: #ffffff;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #0d6efd;
+}
+
+QRadioButton::indicator:checked {
+    border: 5px solid #0d6efd;
+    background-color: #ffffff;
+}
+
+QRadioButton::indicator:disabled {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+
+QRadioButton#radReplayGain:checked,
+QRadioButton#radLoudnormCopy:checked,
+QRadioButton#radLoudnormOverwrite:checked,
+QRadioButton#radDsp:checked {
+    background-color: #e7f1ff;
+    border: 2px solid #0d6efd;
+    color: #0b5ed7;
+    font-weight: bold;
+}
+
 /* Badges / Labels */
 QLabel#CamelotBadge {
     background-color: #f3e8ff;

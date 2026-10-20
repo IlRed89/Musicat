@@ -292,10 +292,10 @@ class DualWaveformWidget(QWidget):
 class AudioGlossaryDialog(QDialog):
     """Informative modal providing clear explanations of LUFS, True Peak (dBTP), and Dynamic Range (LRA)."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None, section: Optional[str] = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("ℹ️ Guida & Glossario Audio — Termini e Standard")
-        self.resize(580, 500)
+        self.setWindowTitle("📖 Indice & Guida Termini Audio — Standard Broadcast")
+        self.resize(620, 540)
 
         from src.core.settings import SettingsManager
         theme = SettingsManager.get_instance().get("ui", "theme", "light")
@@ -303,7 +303,7 @@ class AudioGlossaryDialog(QDialog):
 
         bg_main = "#ffffff" if is_light else "#141722"
         card_bg = "#ffffff" if is_light else "#1a1e2d"
-        border_col = "#e9ecef" if is_light else "#2a3148"
+        border_col = "#dee2e6" if is_light else "#2a3148"
         text_col = "#212529" if is_light else "#f1f5f9"
         muted_col = "#495057" if is_light else "#94a3b8"
 
@@ -315,6 +315,7 @@ class AudioGlossaryDialog(QDialog):
             QLabel {{
                 color: {text_col};
                 font-size: 12px;
+                background-color: transparent;
             }}
             QGroupBox {{
                 border: 1px solid {border_col};
@@ -341,7 +342,7 @@ class AudioGlossaryDialog(QDialog):
         header.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
         layout.addWidget(header)
 
-        sub = QLabel("Musicat utilizza gli standard broadcast ITU-R BS.1770 ed EBU R128 per garantire che i tuoi brani suonino sempre al massimo senza distorsioni.")
+        sub = QLabel("Musicat utilizza gli standard broadcast internazionali ITU-R BS.1770 ed EBU R128 per garantire che i tuoi brani suonino sempre al massimo volume senza distorsioni o clipping.")
         sub.setWordWrap(True)
         sub.setStyleSheet(f"color: {muted_col}; font-size: 11px; margin-bottom: 4px;")
         layout.addWidget(sub)
@@ -351,13 +352,15 @@ class AudioGlossaryDialog(QDialog):
         lufs_layout = QVBoxLayout(grp_lufs)
         lufs_layout.setSpacing(6)
         lbl_lufs_desc = QLabel(
-            "<b>Che cos'è:</b> È la misura del <i>volume percepito dall'orecchio umano</i> calcolata sull'intera durata della traccia.<br><br>"
+            "<b>Che cos'è:</b> È la misura standard del <i>volume percepito dall'orecchio umano</i> calcolata sull'intera traccia (loudness integrato).<br><br>"
             "• <b>-10.0 LUFS (DJ & Club):</b> Volume ideale per discoteche, festival e set DJ. Massimizza l'impatto e la spinta dei bassi senza far saturare i mixer professionali.<br>"
-            "• <b>-14.0 LUFS (Streaming Spotify / Apple):</b> Standard di riferimento dello streaming. I brani a -14 LUFS non subiscono attenuazioni forzate dagli algoritmi delle piattaforme.<br>"
+            "• <b>-14.0 LUFS (Streaming Spotify / Apple Music):</b> Standard di riferimento dello streaming. I brani a -14 LUFS non subiscono abbassamenti forzati dagli algoritmi delle piattaforme.<br>"
             "• <b>-16.0 / -23.0 LUFS (Podcast & Radio/TV):</b> Standard broadcast tradizionale per il parlato o l'ascolto rilassato."
         )
         lbl_lufs_desc.setWordWrap(True)
         lufs_layout.addWidget(lbl_lufs_desc)
+        if section == "lufs":
+            grp_lufs.setStyleSheet("border: 2px solid #0d6efd; background-color: #f0f7ff;")
         layout.addWidget(grp_lufs)
 
         # 2. True Peak Group
@@ -366,10 +369,12 @@ class AudioGlossaryDialog(QDialog):
         tp_layout.setSpacing(6)
         lbl_tp_desc = QLabel(
             "<b>Che cos'è:</b> È il <i>picco reale del segnale analogico</i> ricostruito tra i singoli campioni digitali (inter-sample peak).<br><br>"
-            "• <b>Perché impostarlo a -1.0 dBTP (Headroom di Sicurezza):</b> Quando un file audio viene compresso in MP3/AAC o suonato ad altissimo volume, l'interpolazione può spingere i picchi oltre 0 dB causando clipping e gracchiamenti digitali. Lasciare un margine di -1.0 dBTP elimina totalmente questo rischio garantendo un suono pulito."
+            "• <b>Perché impostarlo a -1.0 dBTP (Headroom di Sicurezza):</b> Quando un file audio viene compresso in MP3/AAC o convertito da digitale ad analogico, l'interpolazione può spingere i picchi oltre 0 dB causando clipping e distorsione. Lasciare un margine di -1.0 dBTP elimina totalmente questo rischio garantendo un suono sempre pulito e cristallino."
         )
         lbl_tp_desc.setWordWrap(True)
         tp_layout.addWidget(lbl_tp_desc)
+        if section == "tp":
+            grp_tp.setStyleSheet("border: 2px solid #0d6efd; background-color: #f0f7ff;")
         layout.addWidget(grp_tp)
 
         # 3. LRA Group
@@ -383,6 +388,8 @@ class AudioGlossaryDialog(QDialog):
         )
         lbl_lra_desc.setWordWrap(True)
         lra_layout.addWidget(lbl_lra_desc)
+        if section == "lra":
+            grp_lra.setStyleSheet("border: 2px solid #0d6efd; background-color: #f0f7ff;")
         layout.addWidget(grp_lra)
 
         # Close button
@@ -425,39 +432,48 @@ class QualityDiagnosisDialog(QDialog):
         self.normalizer = VolumeNormalizer(db=self.db)
 
         self.setWindowTitle(f"🔊 Miglioramento & Normalizzazione Audio — {Path(filepath).name}")
-        self.resize(780, 710)
+        self.resize(800, 750)
         self.setStyleSheet("""
-            QDialog {
+            QDialog, QWidget {
                 background-color: #ffffff;
                 color: #212529;
             }
             QLabel {
+                background-color: transparent;
                 color: #212529;
                 font-size: 12px;
             }
+            QFrame {
+                background-color: transparent;
+            }
             QGroupBox {
-                border: 1px solid #e9ecef;
+                border: 1px solid #dee2e6;
                 border-radius: 6px;
                 margin-top: 10px;
                 font-weight: bold;
                 color: #0d6efd;
                 background-color: #ffffff;
-                padding-top: 12px;
+                padding-top: 14px;
+                padding-bottom: 8px;
+                padding-left: 10px;
+                padding-right: 10px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 6px;
                 background-color: #ffffff;
+                color: #0d6efd;
+                font-weight: bold;
             }
             QRadioButton {
                 color: #212529;
                 font-size: 11px;
-                padding: 8px 12px;
-                border: 1px solid #e9ecef;
+                padding: 10px 14px;
+                border: 1.5px solid #dee2e6;
                 border-radius: 6px;
                 background-color: #ffffff;
-                font-weight: 500;
+                font-weight: normal;
             }
             QRadioButton:hover {
                 border-color: #0d6efd;
@@ -513,7 +529,7 @@ class QualityDiagnosisDialog(QDialog):
         header_row.setSpacing(8)
 
         lbl_file = QLabel(f"<b>Brano:</b> {Path(self.filepath).name}")
-        lbl_file.setStyleSheet("font-size: 13px; color: #212529;")
+        lbl_file.setStyleSheet("font-size: 13px; color: #212529; background: transparent;")
         header_row.addWidget(lbl_file, 1)
 
         self.btn_reset = QPushButton("↺ Ripristina Valori Predefiniti")
@@ -537,8 +553,8 @@ class QualityDiagnosisDialog(QDialog):
         self.btn_reset.clicked.connect(self._on_reset_defaults)
         header_row.addWidget(self.btn_reset)
 
-        self.btn_glossary = QPushButton("ℹ️ Spiegazione Termini")
-        self.btn_glossary.setToolTip("Visualizza la spiegazione chiara di LUFS, True Peak (dBTP) e dinamica (LRA)")
+        self.btn_glossary = QPushButton("📖 Indice & Spiegazione Termini")
+        self.btn_glossary.setToolTip("Visualizza l'indice e la spiegazione chiara di LUFS, True Peak (dBTP) e dinamica (LRA)")
         self.btn_glossary.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
@@ -553,7 +569,7 @@ class QualityDiagnosisDialog(QDialog):
                 background-color: #f0f7ff;
             }
         """)
-        self.btn_glossary.clicked.connect(self._show_glossary)
+        self.btn_glossary.clicked.connect(lambda: self._show_glossary())
         header_row.addWidget(self.btn_glossary)
 
         layout.addLayout(header_row)
@@ -566,22 +582,121 @@ class QualityDiagnosisDialog(QDialog):
         self.waveform_widget = DualWaveformWidget(self)
         layout.addWidget(self.waveform_widget)
 
-        # 1. Diagnostics Group
+        # 1. Diagnostics Group - Pure white background with inline help buttons and quick legend
         grp_diag = QGroupBox("📊 Diagnosi e Livello Sonoro Rilevato")
         diag_layout = QVBoxLayout(grp_diag)
-        diag_layout.setSpacing(4)
+        diag_layout.setSpacing(5)
+        diag_layout.setContentsMargins(12, 14, 12, 10)
 
-        self.lbl_lufs = QLabel("Livello Volume Medio: Calcolo in corso...")
-        self.lbl_tp = QLabel("Picco Massimo del Suono: Calcolo in corso...")
-        self.lbl_lra = QLabel("Escursione Dinamica: Calcolo in corso...")
-        self.lbl_status = QLabel("Diagnosi Qualità: Calcolo in corso...")
-        self.lbl_gain_needed = QLabel("Regolazione Consigliata: ...")
+        # Row 1: LUFS
+        row_lufs = QHBoxLayout()
+        row_lufs.setSpacing(8)
+        self.lbl_lufs = QLabel("<b>Volume Medio (Loudness):</b> Calcolo in corso...")
+        self.lbl_lufs.setStyleSheet("background: transparent;")
+        btn_info_lufs = QPushButton("ℹ️ Cos'è LUFS?")
+        btn_info_lufs.setToolTip("Visualizza la guida sul volume percepito (LUFS)")
+        btn_info_lufs.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_info_lufs.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f7ff;
+                color: #0d6efd;
+                border: 1px solid #b6d4fe;
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #cfe2ff;
+            }
+        """)
+        btn_info_lufs.clicked.connect(lambda: self._show_glossary(section="lufs"))
+        row_lufs.addWidget(self.lbl_lufs, 1)
+        row_lufs.addWidget(btn_info_lufs)
+        diag_layout.addLayout(row_lufs)
 
-        diag_layout.addWidget(self.lbl_lufs)
-        diag_layout.addWidget(self.lbl_tp)
-        diag_layout.addWidget(self.lbl_lra)
+        # Row 2: True Peak
+        row_tp = QHBoxLayout()
+        row_tp.setSpacing(8)
+        self.lbl_tp = QLabel("<b>Picco Massimo del Suono (True Peak):</b> Calcolo in corso...")
+        self.lbl_tp.setStyleSheet("background: transparent;")
+        btn_info_tp = QPushButton("ℹ️ Cos'è True Peak?")
+        btn_info_tp.setToolTip("Visualizza la guida sui picchi reali e limiter anti-clipping (dBTP)")
+        btn_info_tp.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_info_tp.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f7ff;
+                color: #0d6efd;
+                border: 1px solid #b6d4fe;
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #cfe2ff;
+            }
+        """)
+        btn_info_tp.clicked.connect(lambda: self._show_glossary(section="tp"))
+        row_tp.addWidget(self.lbl_tp, 1)
+        row_tp.addWidget(btn_info_tp)
+        diag_layout.addLayout(row_tp)
+
+        # Row 3: LRA
+        row_lra = QHBoxLayout()
+        row_lra.setSpacing(8)
+        self.lbl_lra = QLabel("<b>Escursione Dinamica (LRA):</b> Calcolo in corso...")
+        self.lbl_lra.setStyleSheet("background: transparent;")
+        btn_info_lra = QPushButton("ℹ️ Cos'è LRA?")
+        btn_info_lra.setToolTip("Visualizza la guida sull'escursione dinamica (LRA)")
+        btn_info_lra.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_info_lra.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f7ff;
+                color: #0d6efd;
+                border: 1px solid #b6d4fe;
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #cfe2ff;
+            }
+        """)
+        btn_info_lra.clicked.connect(lambda: self._show_glossary(section="lra"))
+        row_lra.addWidget(self.lbl_lra, 1)
+        row_lra.addWidget(btn_info_lra)
+        diag_layout.addLayout(row_lra)
+
+        # Row 4: Status
+        self.lbl_status = QLabel("<b>Diagnosi Qualità:</b> Calcolo in corso...")
+        self.lbl_status.setStyleSheet("background: transparent;")
         diag_layout.addWidget(self.lbl_status)
+
+        # Row 5: Gain Needed
+        self.lbl_gain_needed = QLabel("<b>Regolazione Consigliata:</b> ...")
+        self.lbl_gain_needed.setStyleSheet("background: transparent;")
         diag_layout.addWidget(self.lbl_gain_needed)
+
+        # Row 6: Inline Quick Legend Card
+        lbl_legend = QLabel(
+            "💡 <b>Indice Rapido:</b> "
+            "<b>LUFS:</b> Volume percepito (-10 DJ/Club, -14 Streaming) &nbsp;|&nbsp; "
+            "<b>True Peak:</b> Picco analogico (Limiter a -1.0 dBTP elimina il clipping) &nbsp;|&nbsp; "
+            "<b>LRA:</b> Gamma dinamica"
+        )
+        lbl_legend.setStyleSheet("""
+            QLabel {
+                background-color: #f8faff;
+                color: #0b5ed7;
+                border: 1px solid #cce5ff;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+        """)
+        diag_layout.addWidget(lbl_legend)
         layout.addWidget(grp_diag)
 
         # 2. Strategy Selector Group
@@ -594,6 +709,7 @@ class QualityDiagnosisDialog(QDialog):
         preset_format_row.setSpacing(12)
 
         lbl_preset = QLabel("<b>Preset Audio:</b>")
+        lbl_preset.setStyleSheet("background: transparent;")
         preset_format_row.addWidget(lbl_preset)
 
         self.combo_preset = QComboBox()
@@ -608,6 +724,7 @@ class QualityDiagnosisDialog(QDialog):
         preset_format_row.addWidget(self.combo_preset, 2)
 
         lbl_format = QLabel("<b>Formato:</b>")
+        lbl_format.setStyleSheet("background: transparent;")
         preset_format_row.addWidget(lbl_format)
 
         self.combo_format = QComboBox()
@@ -631,6 +748,7 @@ class QualityDiagnosisDialog(QDialog):
 
         target_row = QHBoxLayout()
         lbl_target_title = QLabel("Volume Target:")
+        lbl_target_title.setStyleSheet("background: transparent;")
         lbl_target_title.setToolTip(lufs_tooltip)
         target_row.addWidget(lbl_target_title)
 
@@ -651,7 +769,7 @@ class QualityDiagnosisDialog(QDialog):
         target_row.addWidget(self.slider_lufs, 1)
 
         self.lbl_lufs_val = QLabel("-10.0 LUFS")
-        self.lbl_lufs_val.setStyleSheet("font-weight: bold; min-width: 65px; color: #0d6efd;")
+        self.lbl_lufs_val.setStyleSheet("font-weight: bold; min-width: 65px; color: #0d6efd; background: transparent;")
         target_row.addWidget(self.lbl_lufs_val)
         act_layout.addLayout(target_row)
 
@@ -663,6 +781,7 @@ class QualityDiagnosisDialog(QDialog):
         )
         tp_row = QHBoxLayout()
         lbl_tp_title = QLabel("Limiter Headroom:")
+        lbl_tp_title.setStyleSheet("background: transparent;")
         lbl_tp_title.setToolTip(tp_tooltip)
         tp_row.addWidget(lbl_tp_title)
 
@@ -674,27 +793,27 @@ class QualityDiagnosisDialog(QDialog):
         tp_row.addWidget(self.slider_tp, 1)
 
         self.lbl_tp_val = QLabel("-1.0 dBTP")
-        self.lbl_tp_val.setStyleSheet("font-weight: bold; min-width: 65px; color: #0d6efd;")
+        self.lbl_tp_val.setStyleSheet("font-weight: bold; min-width: 65px; color: #0d6efd; background: transparent;")
         tp_row.addWidget(self.lbl_tp_val)
         act_layout.addLayout(tp_row)
 
-        # 3 Exclusive Choice Cards in QButtonGroup
+        # 3 Exclusive Choice Cards in QButtonGroup - All 3 styled identically
         lbl_mode_title = QLabel("<b>Modalità di Applicazione:</b>")
-        lbl_mode_title.setStyleSheet("margin-top: 4px; color: #495057;")
+        lbl_mode_title.setStyleSheet("margin-top: 4px; color: #495057; background: transparent;")
         act_layout.addWidget(lbl_mode_title)
 
         self.radio_group = QButtonGroup(self)
 
-        self.rad_replaygain = QRadioButton("🏷️  ReplayGain (Solo Metadati — Non Distruttivo)")
+        self.rad_replaygain = QRadioButton("🏷️  ReplayGain (Solo Metadati — Non Distruttivo)\n    Preserva il file originale al 100%. Salva il volume nei tag senza alterare l'audio fisico.")
         self.rad_replaygain.setObjectName("radReplayGain")
         self.rad_replaygain.setToolTip("Aggiunge i tag di volume senza toccare i dati audio fisici. File originale preservato al 100%.")
 
-        self.rad_loudnorm_copy = QRadioButton("✨  Normalizzazione Fisica (Nuovo file esportato '_normalized.mp3')")
+        self.rad_loudnorm_copy = QRadioButton("✨  Normalizzazione Fisica (Crea nuovo file esportato '_normalized.mp3')\n    Applica il preset audio e il limiter anti-distorsione esportando in MP3 320k o Lossless.")
         self.rad_loudnorm_copy.setObjectName("radLoudnormCopy")
         self.rad_loudnorm_copy.setChecked(True)
         self.rad_loudnorm_copy.setToolTip("Crea una copia ottimizzata ad alto bitrate (320 kbps) preservando intatto il file originale.")
 
-        self.rad_loudnorm_overwrite = QRadioButton("💾  Sovrascrittura File Originale (Con Backup di Sicurezza)")
+        self.rad_loudnorm_overwrite = QRadioButton("💾  Sovrascrittura File Originale (Con Backup di Sicurezza)\n    Sostituisce il brano sorgente salvando prima una copia di sicurezza completa in '_original/'.")
         self.rad_loudnorm_overwrite.setObjectName("radLoudnormOverwrite")
         self.rad_loudnorm_overwrite.setToolTip("Sostituisce il file sorgente salvando prima una copia di sicurezza completa in '_original/'.")
 
@@ -746,9 +865,9 @@ class QualityDiagnosisDialog(QDialog):
         btn_box.addWidget(self.btn_apply)
         layout.addLayout(btn_box)
 
-    def _show_glossary(self) -> None:
+    def _show_glossary(self, section: Optional[str] = None) -> None:
         """Opens audio quality terms glossary dialog."""
-        dlg = AudioGlossaryDialog(self)
+        dlg = AudioGlossaryDialog(self, section=section)
         dlg.exec()
 
     def _on_reset_defaults(self) -> None:
