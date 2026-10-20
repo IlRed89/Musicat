@@ -589,85 +589,19 @@ class QualityDiagnosisDialog(QDialog):
         diag_layout.setContentsMargins(12, 14, 12, 10)
 
         # Row 1: LUFS
-        row_lufs = QHBoxLayout()
-        row_lufs.setSpacing(8)
         self.lbl_lufs = QLabel("<b>Volume Medio (Loudness):</b> Calcolo in corso...")
         self.lbl_lufs.setStyleSheet("background: transparent;")
-        btn_info_lufs = QPushButton("ℹ️ Cos'è LUFS?")
-        btn_info_lufs.setToolTip("Visualizza la guida sul volume percepito (LUFS)")
-        btn_info_lufs.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_info_lufs.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f7ff;
-                color: #0d6efd;
-                border: 1px solid #b6d4fe;
-                border-radius: 4px;
-                padding: 2px 8px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #cfe2ff;
-            }
-        """)
-        btn_info_lufs.clicked.connect(lambda: self._show_glossary(section="lufs"))
-        row_lufs.addWidget(self.lbl_lufs, 1)
-        row_lufs.addWidget(btn_info_lufs)
-        diag_layout.addLayout(row_lufs)
+        diag_layout.addWidget(self.lbl_lufs)
 
         # Row 2: True Peak
-        row_tp = QHBoxLayout()
-        row_tp.setSpacing(8)
         self.lbl_tp = QLabel("<b>Picco Massimo del Suono (True Peak):</b> Calcolo in corso...")
         self.lbl_tp.setStyleSheet("background: transparent;")
-        btn_info_tp = QPushButton("ℹ️ Cos'è True Peak?")
-        btn_info_tp.setToolTip("Visualizza la guida sui picchi reali e limiter anti-clipping (dBTP)")
-        btn_info_tp.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_info_tp.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f7ff;
-                color: #0d6efd;
-                border: 1px solid #b6d4fe;
-                border-radius: 4px;
-                padding: 2px 8px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #cfe2ff;
-            }
-        """)
-        btn_info_tp.clicked.connect(lambda: self._show_glossary(section="tp"))
-        row_tp.addWidget(self.lbl_tp, 1)
-        row_tp.addWidget(btn_info_tp)
-        diag_layout.addLayout(row_tp)
+        diag_layout.addWidget(self.lbl_tp)
 
         # Row 3: LRA
-        row_lra = QHBoxLayout()
-        row_lra.setSpacing(8)
         self.lbl_lra = QLabel("<b>Escursione Dinamica (LRA):</b> Calcolo in corso...")
         self.lbl_lra.setStyleSheet("background: transparent;")
-        btn_info_lra = QPushButton("ℹ️ Cos'è LRA?")
-        btn_info_lra.setToolTip("Visualizza la guida sull'escursione dinamica (LRA)")
-        btn_info_lra.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_info_lra.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f7ff;
-                color: #0d6efd;
-                border: 1px solid #b6d4fe;
-                border-radius: 4px;
-                padding: 2px 8px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #cfe2ff;
-            }
-        """)
-        btn_info_lra.clicked.connect(lambda: self._show_glossary(section="lra"))
-        row_lra.addWidget(self.lbl_lra, 1)
-        row_lra.addWidget(btn_info_lra)
-        diag_layout.addLayout(row_lra)
+        diag_layout.addWidget(self.lbl_lra)
 
         # Row 4: Status
         self.lbl_status = QLabel("<b>Diagnosi Qualità:</b> Calcolo in corso...")
