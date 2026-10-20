@@ -194,27 +194,48 @@ class GpuDiagnosticDialog(QDialog):
         button.setText("✓ Copiato!")
         QTimer.singleShot(2000, lambda: button.setText("📋 Copia"))
 
-    def _load_diagnostics(self) -> None:
+        parent = self.parent()
+        if parent and hasattr(parent, "chk_gpu"):
+            user_gpu_enabled = parent.chk_gpu.isChecked()
+        else:
+            from src.core.settings import SettingsManager
+            user_gpu_enabled = bool(SettingsManager.get_instance().get("performance", "gpu_acceleration", True))
+
         diag = GpuDetector.get_diagnostic_details()
         is_avail = diag.get("is_available", False)
         backend = diag.get("active_backend", "")
         hw_gpu = diag.get("hardware_gpu", "")
         status_msg = diag.get("status_message", "")
 
-        if is_avail:
+        if not user_gpu_enabled:
+            self.lbl_active_badge.setText("⚪ Accelerazione GPU Disattivata dall'Utente (CPU Fallback)")
+            self.lbl_active_badge.setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold;")
+            self.lbl_active_details.setText(
+                f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
+                f"<b>Stato Sistema:</b> L'accelerazione GPU è attualmente <b>disattivata</b> nelle Preferenze. "
+                f"Per attivarla, spunta la casella 'Abilita accelerazione spettrale' nella scheda <i>Prestazioni & Hardware</i>."
+            )
+        elif is_avail:
             self.lbl_active_badge.setText(f"🟢 Accelerazione GPU Attiva: {backend}")
             self.lbl_active_badge.setStyleSheet("color: #198754; font-size: 14px; font-weight: bold;")
+            self.lbl_active_details.setText(
+                f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
+                f"<b>Stato Sistema:</b> {status_msg}"
+            )
         elif hw_gpu and "CPU" not in hw_gpu:
             self.lbl_active_badge.setText(f"🟡 Accelerazione GPU: CPU Fallback Attivo ({hw_gpu} Rilevata)")
             self.lbl_active_badge.setStyleSheet("color: #d97706; font-size: 14px; font-weight: bold;")
+            self.lbl_active_details.setText(
+                f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
+                f"<b>Stato Sistema:</b> {status_msg}"
+            )
         else:
             self.lbl_active_badge.setText("⚪ Modalità CPU Multiprocessing (Nessuna GPU Dedicata)")
             self.lbl_active_badge.setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold;")
-
-        self.lbl_active_details.setText(
-            f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
-            f"<b>Stato Sistema:</b> {status_msg}"
-        )
+            self.lbl_active_details.setText(
+                f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
+                f"<b>Stato Sistema:</b> {status_msg}"
+            )
 
         # PyTorch
         pt = diag.get("pytorch", {})
@@ -977,7 +998,8 @@ class SettingsDialog(QDialog):
         gpu_layout = QVBoxLayout(grp_gpu)
 
         self.chk_gpu = QCheckBox("Abilita accelerazione spettrale su scheda grafica GPU")
-        self.chk_gpu.setChecked(False)
+        self.chk_gpu.setChecked(bool(self.settings.get("performance", "gpu_acceleration", True)))
+        self.chk_gpu.toggled.connect(self._on_gpu_toggled)
         gpu_layout.addWidget(self.chk_gpu)
 
         # Adaptive Status badge
@@ -1062,26 +1084,48 @@ class SettingsDialog(QDialog):
     def _update_gpu_badge(self) -> None:
         """Refreshes the GPU status badge display in the Performance page."""
         self.gpu_info = GpuDetector.get_gpu_info()
+        is_user_enabled = self.chk_gpu.isChecked() if hasattr(self, "chk_gpu") else bool(self.settings.get("performance", "gpu_acceleration", True))
+
         if hasattr(self, "lbl_gpu_device"):
             self.lbl_gpu_device.setText(f"<b>Dispositivo Rilevato:</b> {self.gpu_info.device_name}")
+
         if hasattr(self, "lbl_gpu_backend"):
-            self.lbl_gpu_backend.setText(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
+            if not is_user_enabled:
+                self.lbl_gpu_backend.setText("<b>Backend Computazionale:</b> Multiprocessing CPU (GPU Disattivata dall'Utente)")
+            else:
+                self.lbl_gpu_backend.setText(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
+
         if hasattr(self, "lbl_gpu_status"):
-            self.lbl_gpu_status.setText(f"<b>Stato:</b> {self.gpu_info.status_message}")
+            if not is_user_enabled:
+                self.lbl_gpu_status.setText("<b>Stato:</b> Accelerazione GPU disattivata nelle impostazioni. Elaborazione affidata al Multiprocessing CPU.")
+                self.lbl_gpu_status.setStyleSheet("color: #6c757d; font-weight: normal;")
+            elif self.gpu_info.is_available:
+                self.lbl_gpu_status.setText(f"<b>Stato:</b> {self.gpu_info.status_message}")
+                self.lbl_gpu_status.setStyleSheet("color: #198754; font-weight: bold;")
+            elif self.gpu_info.is_hardware_detected:
+                self.lbl_gpu_status.setText(f"<b>Stato:</b> {self.gpu_info.status_message}")
+                self.lbl_gpu_status.setStyleSheet("color: #d97706; font-weight: bold;")
+            else:
+                self.lbl_gpu_status.setText(f"<b>Stato:</b> {self.gpu_info.status_message}")
+                self.lbl_gpu_status.setStyleSheet("color: #6c757d;")
 
         if hasattr(self, "lbl_gpu_badge_title"):
-            if self.gpu_info.is_available:
-                self.lbl_gpu_status.setStyleSheet("color: #198754; font-weight: bold;")
+            if not is_user_enabled:
+                self.lbl_gpu_badge_title.setText("⚪ Accelerazione GPU Disattivata dall'Utente (CPU Fallback)")
+                self.lbl_gpu_badge_title.setStyleSheet("color: #6c757d; font-weight: bold; font-size: 13px;")
+            elif self.gpu_info.is_available:
                 self.lbl_gpu_badge_title.setText(f"🟢 Accelerazione GPU Attiva ({self.gpu_info.backend})")
                 self.lbl_gpu_badge_title.setStyleSheet("color: #198754; font-weight: bold; font-size: 13px;")
             elif self.gpu_info.is_hardware_detected:
-                self.lbl_gpu_status.setStyleSheet("color: #d97706; font-weight: bold;")
                 self.lbl_gpu_badge_title.setText(f"🟡 Accelerazione GPU: CPU Fallback Attivo ({self.gpu_info.device_name} Rilevata)")
                 self.lbl_gpu_badge_title.setStyleSheet("color: #d97706; font-weight: bold; font-size: 13px;")
             else:
-                self.lbl_gpu_status.setStyleSheet("color: #6c757d;")
                 self.lbl_gpu_badge_title.setText("⚪ Modalità CPU Multiprocessing (Nessuna GPU Rilevata)")
                 self.lbl_gpu_badge_title.setStyleSheet("color: #6c757d; font-weight: bold; font-size: 13px;")
+
+    def _on_gpu_toggled(self, checked: bool) -> None:
+        """Triggered immediately when user toggles the GPU checkbox."""
+        self._update_gpu_badge()
 
     def _on_open_gpu_diagnostics(self) -> None:
         """Opens interactive GPU diagnostics and package installer dialog."""
@@ -1806,7 +1850,8 @@ class SettingsDialog(QDialog):
             # Performance
             self.slider_perf_cores.setValue(self.settings.get("performance", "cpu_cores", max(1, (os.cpu_count() or 4) - 1)))
             self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 1024))
-            self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", False))
+            self.chk_gpu.setChecked(bool(self.settings.get("performance", "gpu_acceleration", True)))
+            self._update_gpu_badge()
 
             # Scrapers
             self.txt_discogs_token.setText(self.settings.get("scrapers", "discogs_token", ""))

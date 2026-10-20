@@ -34,16 +34,27 @@ class GpuAnalysisResult:
 class BatchGpuAcousticEngine:
     """Accelerated batch acoustic processor with GPU offloading and CPU fallback."""
 
-    def __init__(self, enable_gpu: bool = True, prefer_gpu: Optional[bool] = None) -> None:
-        self.enable_gpu = enable_gpu if prefer_gpu is None else prefer_gpu
+    def __init__(self, enable_gpu: Optional[bool] = None, prefer_gpu: Optional[bool] = None) -> None:
+        if enable_gpu is None and prefer_gpu is None:
+            try:
+                from src.core.settings import SettingsManager
+                self.enable_gpu = bool(SettingsManager.get_instance().get("performance", "gpu_acceleration", True))
+            except Exception:
+                self.enable_gpu = True
+        else:
+            self.enable_gpu = bool(enable_gpu if prefer_gpu is None else prefer_gpu)
         self.gpu_info: GpuInfo = GpuDetector.get_gpu_info()
-        self.can_use_gpu = self.enable_gpu and self.gpu_info.is_available
+        self.can_use_gpu = bool(self.enable_gpu and self.gpu_info.is_available)
 
     @property
     def device_type(self) -> str:
-        """Returns active compute device ('cuda', 'mps', or 'cpu')."""
+        """Returns active compute device ('cuda', 'mps', 'directml', or 'cpu')."""
         if self.can_use_gpu:
-            return "cuda" if self.gpu_info.backend == "CUDA" else "mps"
+            if self.gpu_info.backend == "CUDA":
+                return "cuda"
+            elif self.gpu_info.backend == "DirectML":
+                return "directml"
+            return "mps"
         return "cpu"
 
     @property
