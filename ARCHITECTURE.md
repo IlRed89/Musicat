@@ -255,6 +255,21 @@ Musicat employs an intelligent multi-source cascading pipeline to resolve missin
 
 ---
 
+### I. Asynchronous Auto-Update Subsystem (`src/core/updater.py`, `src/gui/updater_dialog.py`)
+- **Non-Blocking Query Engine (`UpdateCheckerWorker`):** Asynchronously queries `GET https://api.github.com/repos/IlRed89/Musicat/releases/latest` using `requests` with standard timeouts and rate-limit guardrails (HTTP 403 / 60 requests/hr).
+- **SemVer Version Comparison:** Normalizes version tags (strips `v`/`V`) and evaluates newer releases via `packaging.version` (with tuple fallback).
+- **Asset Selection Matrix (`find_compatible_asset`):** Automatically selects the appropriate package based on `sys.platform` and `PathResolver.is_portable_mode()`:
+  - Windows Portable -> `.zip`
+  - Windows Standard -> `.exe` (Setup Installer)
+  - macOS -> `.dmg` or `.zip`
+- **Streaming In-App Downloader (`UpdateDownloadWorker`):** 64KB chunk streaming to user's system Downloads folder with `.part` atomic completion rename, cancellation support (`requestInterruption`), and file manager reveal via `PathResolver.show_in_file_manager`.
+- **UI Integration:**
+  - Non-blocking notification dialog (`UpdateNotificationDialog`) with Markdown release notes and live progress tracking.
+  - Startup check via `QTimer.singleShot(2500, ...)` if `updates.check_on_startup` is enabled (default `True`).
+  - Manual check button with feedback alerts in **Impostazioni > Info & Generale**.
+
+---
+
 ## 3. Database Schema / Schema SQLite
 
 ```sql

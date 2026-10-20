@@ -67,6 +67,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "youtube": {"connected": False, "username": "", "token": ""},
         "discogs": {"connected": False, "username": "", "token": ""},
     },
+    "updates": {
+        "check_on_startup": True,
+    },
 }
 
 

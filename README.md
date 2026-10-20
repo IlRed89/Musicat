@@ -140,6 +140,13 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 - **Modalità Portable:** Estrazione pulita su qualsiasi chiavetta o SSD esterno. La presenza di `portable.lock` forza il salvataggio di impostazioni, database e log esclusivamente nella cartella locale dell'app (`./logs/`, `./musicat_data/`).
 - **Risolutore Volume Serial Number (`[VOL:XXXXXXXX]`):** Converte i path assoluti in percorsi relativi al drive fisico, consentendo di spostare lo stesso SSD tra Windows e macOS senza perdere il catalogo.
 
+### 11. 🔄 Controllo Aggiornamenti Asincrono & In-App Downloader
+- **Verifica Asincrona all'Avvio:** Controllo non bloccante via thread separato interrogando le API REST di GitHub Releases (`GET /repos/IlRed89/Musicat/releases/latest`). In assenza di connessione o in caso di rate limit, l'avvio prosegue silenziosamente senza errori.
+- **Rilevamento Automatico Asset per OS & Modalità:** Selezione intelligente tra `.zip` (versione Portable Windows) o `.exe` (Installer Windows), e `.dmg` per macOS.
+- **Finestra di Notifica & Visualizzatore Markdown:** Presenta la nuova versione a confronto con quella attuale, dimensione del pacchetto e note di rilascio formattate in Markdown.
+- **Download Integrato in Streaming:** Barra di avanzamento con percentuale e MB scaricati in tempo reale, salvataggio nella cartella Download ed evidenziazione automatica nel file manager di sistema al completamento (`PathResolver.show_in_file_manager`).
+- **Verifica Manuale:** Disponibile in **Impostazioni > Info & Generale** con stato versione e feedback immediato.
+
 ---
 
 ## 🛠️ Suite di Logging Avanzato & Troubleshooting

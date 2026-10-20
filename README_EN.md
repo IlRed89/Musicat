@@ -140,6 +140,13 @@ Managing 50,000+ digital music tracks on high-capacity external drives introduce
 - **Portable Mode (`portable.lock`):** Extracts cleanly to any external SSD or USB drive; database, configurations, and logs remain entirely self-contained (`./logs/`, `./musicat_data/`).
 - **Volume Serial Resolver (`[VOL:XXXXXXXX]`):** Converts physical drive paths into volume-serial-relative URIs, allowing identical SSDs to move between Windows machines and macOS mount points without database breakage.
 
+### 11. 🔄 Asynchronous Auto-Update Checker & In-App Downloader
+- **Asynchronous Startup Check:** Non-blocking background worker thread querying GitHub Releases REST API (`GET /repos/IlRed89/Musicat/releases/latest`). Gracefully and silently handles offline state and API rate limits.
+- **Smart OS & Mode Asset Detection:** Automatically chooses between `.zip` (Windows Portable) vs `.exe` (Windows Setup Installer), and `.dmg` for macOS.
+- **Notification Dialog & Markdown Viewer:** Compares remote vs current installed version, displays package size, and renders full release notes in Markdown.
+- **Integrated Streaming Downloader:** Live progress bar with download percentage and MB downloaded, saving directly to user's Downloads folder and highlighting the completed asset in Windows Explorer / macOS Finder (`PathResolver.show_in_file_manager`).
+- **Manual Check:** Always available from **Settings > Info & General** with real-time feedback.
+
 ---
 
 ## 🛠️ Advanced Logging Suite & Troubleshooting

@@ -42,11 +42,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src import __version__
 from src.core.gpu_detector import GpuDetector, GpuInfo
 from src.core.hardware_monitor import HardwareMonitor
 from src.core.i18n import I18n, _t
 from src.core.oauth_manager import OAuthManager
 from src.core.settings import SettingsManager
+from src.core.updater import UpdateCheckerWorker, UpdateInfo
+from src.gui.updater_dialog import UpdateNotificationDialog
 from src.plugins.manager import PluginManager
 
 
@@ -70,6 +73,8 @@ class SettingsDialog(QDialog):
         self.oauth_manager.auth_completed.connect(self._on_auth_completed)
         self.oauth_manager.auth_failed.connect(self._on_auth_failed)
         self.account_widgets: Dict[str, Dict[str, Any]] = {}
+        self._manual_updater_worker: Optional[UpdateCheckerWorker] = None
+        self._update_dialog: Optional[UpdateNotificationDialog] = None
 
         self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
         self.resize(860, 620)
@@ -90,7 +95,7 @@ class SettingsDialog(QDialog):
         self.sidebar.setFixedWidth(210)
 
         categories = [
-            ("🎨  Grafica & UI", 0),
+            ("ℹ️  Info & Generale", 0),
             ("🎵  Audio & libVLC", 1),
             ("⚡  Prestazioni & Hardware", 2),
             ("🌐  Account & Servizi", 3),
@@ -302,6 +307,35 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(widget)
         layout.setSpacing(12)
 
+        # Software Updates & Version Info Group
+        self.grp_updates = QGroupBox(_t("settings_updates_group", "🚀 Aggiornamenti Software"))
+        updates_layout = QVBoxLayout(self.grp_updates)
+        updates_layout.setSpacing(10)
+
+        self.lbl_installed_ver = QLabel(
+            _t("settings_updates_installed", "Versione installata: v{version}", version=__version__)
+        )
+        self.lbl_installed_ver.setStyleSheet("font-weight: 600; font-size: 13px;")
+        updates_layout.addWidget(self.lbl_installed_ver)
+
+        self.chk_check_updates = QCheckBox(
+            _t("settings_updates_chk_startup", "Controlla automaticamente la presenza di aggiornamenti all'avvio")
+        )
+        self.chk_check_updates.setChecked(True)
+        updates_layout.addWidget(self.chk_check_updates)
+
+        btn_row = QHBoxLayout()
+        self.btn_check_updates_now = QPushButton(
+            _t("settings_updates_btn_check", "🔄 Verifica Aggiornamenti Adesso")
+        )
+        self.btn_check_updates_now.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_check_updates_now.clicked.connect(self._on_manual_check_updates)
+        btn_row.addWidget(self.btn_check_updates_now)
+        btn_row.addStretch()
+        updates_layout.addLayout(btn_row)
+
+        layout.addWidget(self.grp_updates)
+
         # Theme & Scaling Group
         self.grp_theme = QGroupBox("🎨 Aspetto & Tema Visivo")
         form_theme = QFormLayout(self.grp_theme)
@@ -359,6 +393,53 @@ class SettingsDialog(QDialog):
 
         layout.addStretch()
         return widget
+
+    def _on_manual_check_updates(self) -> None:
+        """Triggers manual update check against GitHub Releases."""
+        self.btn_check_updates_now.setEnabled(False)
+        self.btn_check_updates_now.setText(_t("settings_updates_checking", "Verifica in corso..."))
+
+        self._manual_updater_worker = UpdateCheckerWorker(
+            current_version=__version__,
+            is_manual=True,
+            parent=self,
+        )
+        self._manual_updater_worker.update_available.connect(self._on_manual_update_available)
+        self._manual_updater_worker.update_not_available.connect(self._on_manual_update_not_available)
+        self._manual_updater_worker.check_failed.connect(self._on_manual_update_failed)
+        self._manual_updater_worker.start()
+
+    def _on_manual_update_available(self, info: UpdateInfo) -> None:
+        self.btn_check_updates_now.setEnabled(True)
+        self.btn_check_updates_now.setText(_t("settings_updates_btn_check", "🔄 Verifica Aggiornamenti Adesso"))
+        self._update_dialog = UpdateNotificationDialog(info, self)
+        self._update_dialog.exec()
+
+    def _on_manual_update_not_available(self, version: str) -> None:
+        self.btn_check_updates_now.setEnabled(True)
+        self.btn_check_updates_now.setText(_t("settings_updates_btn_check", "🔄 Verifica Aggiornamenti Adesso"))
+        QMessageBox.information(
+            self,
+            _t("settings_updates_uptodate_title", "Musicat è Aggiornato"),
+            _t(
+                "settings_updates_uptodate_msg",
+                "Stai già utilizzando la versione più recente di Musicat (v{version}).",
+                version=version,
+            ),
+        )
+
+    def _on_manual_update_failed(self, error_msg: str) -> None:
+        self.btn_check_updates_now.setEnabled(True)
+        self.btn_check_updates_now.setText(_t("settings_updates_btn_check", "🔄 Verifica Aggiornamenti Adesso"))
+        QMessageBox.warning(
+            self,
+            _t("settings_updates_error_title", "Verifica Aggiornamenti"),
+            _t(
+                "settings_updates_error_msg",
+                "Impossibile verificare gli aggiornamenti:\n{error}",
+                error=error_msg,
+            ),
+        )
 
     # -------------------------------------------------------------
     # Category 2: Audio & Engine libVLC
@@ -1074,6 +1155,8 @@ class SettingsDialog(QDialog):
 
         self.spin_font_size.setValue(self.settings.get("ui", "font_size", 12))
         self.spin_row_height.setValue(self.settings.get("ui", "row_height", 28))
+        if hasattr(self, "chk_check_updates"):
+            self.chk_check_updates.setChecked(self.settings.get("updates", "check_on_startup", True))
 
         # Audio
         self.slider_buffer.setValue(self.settings.get("audio", "buffer_ms", 150))
@@ -1117,7 +1200,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
 
         categories = [
-            _t("settings_tab_ui", "🎨  Grafica & UI"),
+            _t("settings_tab_ui", "ℹ️  Info & Generale"),
             _t("settings_tab_audio", "🎵  Audio & libVLC"),
             _t("settings_tab_perf", "⚡  Prestazioni & Hardware"),
             _t("settings_tab_accounts", "🌐  Account & Servizi"),
@@ -1130,6 +1213,15 @@ class SettingsDialog(QDialog):
         self.btn_reset.setText(_t("settings_btn_reset", "Ripristina Predefiniti"))
         self.btn_cancel.setText(_t("settings_btn_cancel", "Annulla"))
         self.btn_save.setText(_t("settings_btn_save", "Salva ed Applica"))
+
+        if hasattr(self, "grp_updates"):
+            self.grp_updates.setTitle(_t("settings_updates_group", "🚀 Aggiornamenti Software"))
+        if hasattr(self, "lbl_installed_ver"):
+            self.lbl_installed_ver.setText(_t("settings_updates_installed", "Versione installata: v{version}", version=__version__))
+        if hasattr(self, "chk_check_updates"):
+            self.chk_check_updates.setText(_t("settings_updates_chk_startup", "Controlla automaticamente la presenza di aggiornamenti all'avvio"))
+        if hasattr(self, "btn_check_updates_now"):
+            self.btn_check_updates_now.setText(_t("settings_updates_btn_check", "🔄 Verifica Aggiornamenti Adesso"))
 
         if hasattr(self, "lbl_language"):
             self.lbl_language.setText(_t("settings_lang_label", "Lingua dell'Interfaccia:"))
@@ -1164,6 +1256,10 @@ class SettingsDialog(QDialog):
         self.settings.set("ui", "dpi_scale", dpi_vals[self.cmb_dpi.currentIndex()])
         self.settings.set("ui", "font_size", self.spin_font_size.value())
         self.settings.set("ui", "row_height", self.spin_row_height.value())
+
+        # Updates
+        if hasattr(self, "chk_check_updates"):
+            self.settings.set("updates", "check_on_startup", self.chk_check_updates.isChecked())
 
         # Audio
         self.settings.set("audio", "buffer_ms", self.slider_buffer.value())

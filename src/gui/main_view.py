@@ -72,6 +72,9 @@ from .views import (
     OrganizerView,
 )
 from .styles import get_theme_stylesheet
+from .. import __version__
+from ..core.updater import UpdateCheckerWorker, UpdateInfo
+from .updater_dialog import UpdateNotificationDialog
 
 
 class HardwareProgressBar(QProgressBar):
@@ -361,6 +364,8 @@ class MainWindow(QMainWindow):
         self._mp3tag_window: Optional[Mp3tagWorkspaceWindow] = None
         self._custom_columns_active: bool = False
         self.analysis_worker: Optional[AsyncAnalysisWorker] = None
+        self._startup_updater_worker: Optional[UpdateCheckerWorker] = None
+        self._update_dialog: Optional[UpdateNotificationDialog] = None
 
         self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
         self.resize(1300, 820)
@@ -373,6 +378,9 @@ class MainWindow(QMainWindow):
         self._retranslate_ui()
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
         self.showMaximized()
+
+        if self.settings_manager.get("updates", "check_on_startup", True):
+            QTimer.singleShot(2500, self._check_for_updates_on_startup)
 
     def _init_ui(self) -> None:
         central_widget = QWidget(self)
@@ -2099,8 +2107,35 @@ class MainWindow(QMainWindow):
                 )
             )
 
+    def _check_for_updates_on_startup(self) -> None:
+        """Asynchronously checks for new GitHub updates at application startup."""
+        try:
+            MusicatLogger.info("UPDATER", "Initiating background startup check for updates...")
+            self._startup_updater_worker = UpdateCheckerWorker(
+                current_version=__version__,
+                is_manual=False,
+                parent=self,
+            )
+            self._startup_updater_worker.update_available.connect(self._show_update_dialog)
+            self._startup_updater_worker.start()
+        except Exception as exc:
+            MusicatLogger.warning("UPDATER", f"Background startup update check encountered an error: {exc}")
+
+    def _show_update_dialog(self, info: UpdateInfo) -> None:
+        """Displays update notification dialog with release notes and downloader."""
+        try:
+            self._update_dialog = UpdateNotificationDialog(info, self)
+            self._update_dialog.show()
+            self._update_dialog.raise_()
+            self._update_dialog.activateWindow()
+        except Exception as exc:
+            MusicatLogger.error("UPDATER", f"Failed to display update dialog: {exc}", exc_info=True)
+
     def cleanup(self) -> None:
         """Explicitly cleans up child components, stopping threads and audio engine."""
+        if hasattr(self, "_startup_updater_worker") and self._startup_updater_worker and self._startup_updater_worker.isRunning():
+            self._startup_updater_worker.quit()
+            self._startup_updater_worker.wait(1000)
         if hasattr(self, "_hw_timer") and self._hw_timer.isActive():
             self._hw_timer.stop()
         if hasattr(self, "home_view") and hasattr(self.home_view, "cleanup"):
