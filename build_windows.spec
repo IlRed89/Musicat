@@ -51,11 +51,13 @@ hiddenimports = [
     'src.plugins.quality_analyzer',
     'src.plugins.quality_analyzer.analyzer',
     'src.plugins.quality_analyzer.normalizer',
+    'onnxruntime',
 ]
 
 datas = [
     (str(project_root / 'locales'), 'locales'),
     (str(project_root / 'assets'), 'assets'),
+    (str(project_root / 'bin'), 'bin'),
 ]
 
 # Collect soundfile and pedalboard bundled files
@@ -67,6 +69,11 @@ try:
     datas += collect_data_files('pedalboard')
 except Exception:
     pass
+try:
+    datas += collect_data_files('onnxruntime')
+except Exception:
+    pass
+
 
 a = Analysis(
     [str(project_root / 'main.py')],

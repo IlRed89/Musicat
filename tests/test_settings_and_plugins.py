@@ -143,5 +143,39 @@ class TestPluginSystem(unittest.TestCase):
         self.assertTrue(any(item.get("key") == "prefer_synced" for item in schema_lyrics))
 
 
+class TestThemeAndHardwareFeatures(unittest.TestCase):
+    """Tests for dynamic theme indicator styling, default ffmpeg resolution and GPU diagnostics."""
+
+    def test_ffmpeg_resolution_and_validation(self):
+        """Bundled or system ffmpeg should be resolved and validated."""
+        from src.core.path_resolver import PathResolver
+        ffmpeg_path = PathResolver.get_default_ffmpeg_path()
+        self.assertTrue(len(ffmpeg_path) > 0, "Default ffmpeg path should not be empty")
+        is_valid, msg = PathResolver.validate_ffmpeg(ffmpeg_path)
+        self.assertTrue(is_valid, f"FFmpeg validation failed: {msg}")
+        self.assertTrue(msg.startswith("v"), f"Expected version string starting with 'v', got: {msg}")
+
+    def test_theme_checkbox_and_groupbox_indicators(self):
+        """Stylesheets must define 18px indicators for both QCheckBox and QGroupBox across themes."""
+        from src.gui.styles import get_theme_stylesheet
+        for theme_id in ["light", "dark_dj", "high_contrast"]:
+            qss = get_theme_stylesheet(theme_id)
+            self.assertIn("QCheckBox::indicator, QGroupBox::indicator", qss, f"Indicator grouping missing in {theme_id}")
+            self.assertIn("width: 18px;", qss, f"18px width indicator missing in {theme_id}")
+            self.assertIn("height: 18px;", qss, f"18px height indicator missing in {theme_id}")
+
+    def test_gpu_diagnostic_details(self):
+        """GpuDetector.get_diagnostic_details returns hardware and runtime breakdown."""
+        from src.core.gpu_detector import GpuDetector
+        diag = GpuDetector.get_diagnostic_details()
+        self.assertIsInstance(diag, dict)
+        self.assertIn("hardware_gpu", diag)
+        self.assertIn("pytorch", diag)
+        self.assertIn("onnxruntime", diag)
+        self.assertIn("active_backend", diag)
+        self.assertIn("is_available", diag)
+
+
 if __name__ == "__main__":
     unittest.main()
+

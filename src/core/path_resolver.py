@@ -368,3 +368,102 @@ class PathResolver:
                 return True
         except Exception:
             return False
+
+    @classmethod
+    def get_default_ffmpeg_path(cls) -> str:
+        """Finds bundled ffmpeg executable or falls back to system PATH.
+
+        Searches:
+        1. PyInstaller _MEIPASS/bin/ffmpeg.exe
+        2. Application directory /bin/ffmpeg.exe or root /ffmpeg.exe
+        3. Project workspace /bin/ffmpeg.exe
+        4. System PATH via shutil.which('ffmpeg')
+        5. Standard Windows fallback directories
+        """
+        import shutil
+        exe_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+
+        # 1. Bundled in PyInstaller frozen environment
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            cand = Path(sys._MEIPASS) / "bin" / exe_name
+            if cand.is_file():
+                return str(cand)
+            cand_root = Path(sys._MEIPASS) / exe_name
+            if cand_root.is_file():
+                return str(cand_root)
+
+        # 2. Application folder (portable or installed)
+        app_dir = cls.get_app_dir()
+        for sub in ["bin", "assets/bin", ""]:
+            cand = app_dir / sub / exe_name if sub else app_dir / exe_name
+            if cand.is_file():
+                return str(cand)
+
+        # 3. Development root
+        dev_root = Path(__file__).resolve().parent.parent.parent
+        dev_cand = dev_root / "bin" / exe_name
+        if dev_cand.is_file():
+            return str(dev_cand)
+
+        # 4. System PATH
+        sys_which = shutil.which("ffmpeg")
+        if sys_which:
+            return str(sys_which)
+
+        # 5. Standard Windows installation paths
+        if sys.platform == "win32":
+            for win_p in [
+                r"C:\ffmpeg\bin\ffmpeg.exe",
+                r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+                r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+            ]:
+                if os.path.isfile(win_p):
+                    return win_p
+
+        return ""
+
+    @classmethod
+    def validate_ffmpeg(cls, path_or_cmd: str) -> tuple[bool, str]:
+        """Tests if the given ffmpeg executable exists and responds to -version.
+
+        Returns:
+            tuple[bool, str]: (is_valid, version_or_error_message)
+        """
+        raw = (path_or_cmd or "").strip()
+        if not raw:
+            return False, "Nessun percorso specificato"
+
+        # If it's an absolute or relative path pointing to a file
+        if os.path.sep in raw or "/" in raw:
+            norm = os.path.normpath(raw)
+            if not os.path.isfile(norm):
+                return False, "File non trovato o percorso non valido"
+
+        kwargs: Dict[str, Any] = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+        try:
+            proc = subprocess.run(
+                [raw, "-version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=1.2,
+                **kwargs,
+            )
+            if proc.returncode == 0:
+                first_line = proc.stdout.splitlines()[0] if proc.stdout else ""
+                match = re.search(r"ffmpeg version\s+([^\s,]+)", first_line, re.IGNORECASE)
+                if match:
+                    ver = match.group(1).split("-")[0]
+                    return True, f"v{ver}" if not ver.startswith("v") else ver
+                return True, "Attivo"
+            return False, f"Errore esecuzione (codice {proc.returncode})"
+        except subprocess.TimeoutExpired:
+            return False, "Timeout verifica eseguibile"
+        except FileNotFoundError:
+            return False, "Eseguibile non trovato nel sistema"
+        except Exception as e:
+            return False, f"Errore: {e}"
+

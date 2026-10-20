@@ -89,12 +89,19 @@ class GpuDetector:
 
     @classmethod
     def is_directml_available(cls) -> bool:
-        """Checks if DirectML is usable."""
+        """Checks if DirectML is usable via onnxruntime or torch_directml."""
+        try:
+            import onnxruntime as ort
+            if "DmlExecutionProvider" in ort.get_available_providers():
+                return True
+        except Exception:
+            pass
         try:
             import torch_directml
             return bool(torch_directml.is_available())
         except Exception:
-            return False
+            pass
+        return False
 
     @classmethod
     def is_mps_available(cls) -> bool:
@@ -103,7 +110,86 @@ class GpuDetector:
             import torch
             return bool(hasattr(torch.backends, "mps") and torch.backends.mps.is_available())
         except Exception:
-            return False
+            pass
+        return False
+
+    @classmethod
+    def is_cuda_available(cls) -> bool:
+        """Checks if CUDA is usable via PyTorch, ONNX Runtime, or CuPy."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return True
+        except Exception:
+            pass
+        try:
+            import onnxruntime as ort
+            if "CUDAExecutionProvider" in ort.get_available_providers():
+                return True
+        except Exception:
+            pass
+        try:
+            import cupy
+            if cupy.cuda.is_available() and cupy.cuda.runtime.getDeviceCount() > 0:
+                return True
+        except Exception:
+            pass
+        return False
+
+    @classmethod
+    def get_diagnostic_details(cls) -> dict:
+        """Returns deep diagnostic breakdown of all compute runtimes and physical GPU."""
+        cls._ensure_external_compute_paths()
+
+        hw_name, hw_mem = cls._detect_native_hardware()
+
+        pytorch_info = {"installed": False, "version": "", "cuda": False, "mps": False, "device_name": ""}
+        try:
+            import torch
+            pytorch_info["installed"] = True
+            pytorch_info["version"] = str(torch.__version__)
+            if torch.cuda.is_available():
+                pytorch_info["cuda"] = True
+                pytorch_info["device_name"] = torch.cuda.get_device_name(0)
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                pytorch_info["mps"] = True
+        except Exception:
+            pass
+
+        ort_info = {"installed": False, "version": "", "providers": [], "directml": False, "cuda": False}
+        try:
+            import onnxruntime as ort
+            ort_info["installed"] = True
+            ort_info["version"] = str(ort.__version__)
+            provs = ort.get_available_providers()
+            ort_info["providers"] = provs
+            ort_info["directml"] = "DmlExecutionProvider" in provs
+            ort_info["cuda"] = "CUDAExecutionProvider" in provs
+        except Exception:
+            pass
+
+        cupy_info = {"installed": False, "version": "", "cuda": False}
+        try:
+            import cupy
+            cupy_info["installed"] = True
+            cupy_info["version"] = str(cupy.__version__)
+            cupy_info["cuda"] = bool(cupy.cuda.is_available() and cupy.cuda.runtime.getDeviceCount() > 0)
+        except Exception:
+            pass
+
+        current_info = cls.get_gpu_info()
+
+        return {
+            "hardware_gpu": hw_name or "Nessuna GPU dedicata rilevata",
+            "hardware_memory_mb": hw_mem,
+            "pytorch": pytorch_info,
+            "onnxruntime": ort_info,
+            "cupy": cupy_info,
+            "active_backend": current_info.backend,
+            "active_device": current_info.device_name,
+            "is_available": current_info.is_available,
+            "status_message": current_info.status_message,
+        }
 
     @classmethod
     def _ensure_external_compute_paths(cls) -> None:
@@ -129,7 +215,7 @@ class GpuDetector:
                 if os.path.isdir(sp) and sp not in candidates:
                     candidates.append(sp)
 
-        # 2. LocalAppData Python installations (e.g. %LOCALAPPDATA%\Programs\Python\Python3*\Lib\site-packages)
+        # 2. LocalAppData Python installations (e.g. %LOCALAPPDATA%\\Programs\\Python\\Python3*\\Lib\\site-packages)
         local_app = os.environ.get("LOCALAPPDATA", "")
         if local_app:
             found = glob.glob(os.path.join(local_app, "Programs", "Python", "Python3*", "Lib", "site-packages"))
@@ -145,7 +231,7 @@ class GpuDetector:
                 if p not in candidates:
                     candidates.append(p)
 
-        # 4. System Drive Python installations (e.g. C:\Python3*)
+        # 4. System Drive Python installations (e.g. C:\\Python3*)
         sys_drive = os.environ.get("SystemDrive", "C:")
         found = glob.glob(os.path.join(sys_drive + "\\", "Python3*", "Lib", "site-packages"))
         for p in sorted(found, reverse=True):
@@ -184,7 +270,7 @@ class GpuDetector:
                 mem = int(torch.cuda.get_device_properties(dev_idx).total_memory / (1024 * 1024))
                 return GpuInfo(
                     is_available=True,
-                    backend="CUDA",
+                    backend=GpuBackend.CUDA,
                     device_name=name,
                     device_memory_mb=mem,
                     is_hardware_detected=True,
@@ -195,7 +281,7 @@ class GpuDetector:
             if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 return GpuInfo(
                     is_available=True,
-                    backend="MPS",
+                    backend=GpuBackend.MPS,
                     device_name="Apple Silicon GPU (Metal)",
                     device_memory_mb=0,
                     is_hardware_detected=True,
@@ -204,39 +290,70 @@ class GpuDetector:
         except Exception:
             pass
 
-        # 2. Check DirectML
+        # 2. Check ONNX Runtime CUDA
         try:
-            import torch_directml
-
-            if torch_directml.is_available():
-                name = torch_directml.device_name(0)
+            import onnxruntime as ort
+            providers = ort.get_available_providers()
+            if "CUDAExecutionProvider" in providers:
+                hw_name, hw_mem = cls._detect_native_hardware()
+                name = hw_name or "NVIDIA CUDA GPU"
                 return GpuInfo(
                     is_available=True,
-                    backend="DirectML",
+                    backend=GpuBackend.CUDA,
                     device_name=name,
-                    device_memory_mb=0,
+                    device_memory_mb=hw_mem,
                     is_hardware_detected=True,
-                    status_message=f"Accelerazione DirectX DirectML attiva ({name})",
+                    status_message=f"Accelerazione NVIDIA CUDA (ONNX Runtime) attiva ({name})",
                 )
         except Exception:
             pass
 
-        # 3. Detect physical hardware if torch is absent
+        # 3. Check CuPy CUDA
+        try:
+            import cupy
+            if cupy.cuda.is_available() and cupy.cuda.runtime.getDeviceCount() > 0:
+                hw_name, hw_mem = cls._detect_native_hardware()
+                name = hw_name or "NVIDIA GPU (CuPy)"
+                return GpuInfo(
+                    is_available=True,
+                    backend=GpuBackend.CUDA,
+                    device_name=name,
+                    device_memory_mb=hw_mem,
+                    is_hardware_detected=True,
+                    status_message=f"Accelerazione NVIDIA CUDA (CuPy) attiva ({name})",
+                )
+        except Exception:
+            pass
+
+        # 4. Check DirectML (via onnxruntime or torch_directml)
+        if cls.is_directml_available():
+            hw_name, hw_mem = cls._detect_native_hardware()
+            name = hw_name or "DirectML DirectX 12 Compute"
+            return GpuInfo(
+                is_available=True,
+                backend=GpuBackend.DIRECTML,
+                device_name=name,
+                device_memory_mb=hw_mem,
+                is_hardware_detected=True,
+                status_message=f"Accelerazione DirectX DirectML attiva ({name})",
+            )
+
+        # 5. Detect physical hardware if compute frameworks are absent
         hardware_name, hardware_mem = cls._detect_native_hardware()
 
         if hardware_name:
             return GpuInfo(
                 is_available=False,
-                backend="CPU Fallback",
+                backend=GpuBackend.CPU,
                 device_name=hardware_name,
                 device_memory_mb=hardware_mem,
                 is_hardware_detected=True,
-                status_message=f"Rilevata GPU {hardware_name} (librerie compute non installate, fallback su Multiprocessing CPU)",
+                status_message=f"Accelerazione GPU: CPU Fallback Attivo ({hardware_name} Rilevata)",
             )
 
         return GpuInfo(
             is_available=False,
-            backend="CPU Fallback",
+            backend=GpuBackend.CPU,
             device_name="Standard CPU",
             device_memory_mb=0,
             is_hardware_detected=False,

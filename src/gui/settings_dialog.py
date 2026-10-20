@@ -53,6 +53,210 @@ from src.gui.updater_dialog import UpdateNotificationDialog
 from src.plugins.manager import PluginManager
 
 
+class GpuDiagnosticDialog(QDialog):
+    """Interactive hardware & GPU acceleration diagnostics dialog."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Musicat — Diagnostica Hardware & Accelerazione GPU")
+        self.resize(680, 560)
+        self.setMinimumSize(600, 480)
+        self._init_ui()
+        self._load_diagnostics()
+
+    def _init_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(18, 18, 18, 18)
+
+        # Header Title
+        self.lbl_title = QLabel("<h3>⚡ Diagnostica Hardware & Accelerazione GPU</h3>")
+        self.lbl_title.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
+        layout.addWidget(self.lbl_title)
+
+        # Active Backend Status Card
+        self.active_card = QFrame()
+        self.active_card.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1px solid #ced4da;
+                border-radius: 8px;
+                padding: 12px;
+            }
+        """)
+        ac_layout = QVBoxLayout(self.active_card)
+        ac_layout.setSpacing(6)
+
+        self.lbl_active_badge = QLabel()
+        self.lbl_active_badge.setStyleSheet("font-size: 14px; font-weight: bold;")
+        ac_layout.addWidget(self.lbl_active_badge)
+
+        self.lbl_active_details = QLabel()
+        self.lbl_active_details.setStyleSheet("color: #495057; font-size: 12px;")
+        self.lbl_active_details.setWordWrap(True)
+        ac_layout.addWidget(self.lbl_active_details)
+
+        layout.addWidget(self.active_card)
+
+        # Frameworks Breakdown
+        grp_runtimes = QGroupBox("📦 Framework Computazionali & Provider")
+        rt_layout = QVBoxLayout(grp_runtimes)
+        rt_layout.setSpacing(8)
+
+        self.lbl_rt_pytorch = QLabel()
+        self.lbl_rt_onnx = QLabel()
+        self.lbl_rt_cupy = QLabel()
+
+        for lbl in (self.lbl_rt_pytorch, self.lbl_rt_onnx, self.lbl_rt_cupy):
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            lbl.setWordWrap(True)
+            rt_layout.addWidget(lbl)
+
+        layout.addWidget(grp_runtimes)
+
+        # Commands & Quick Install Card
+        grp_commands = QGroupBox("💡 Installazione Pacchetti di Accelerazione")
+        cmd_layout = QVBoxLayout(grp_commands)
+        cmd_layout.setSpacing(8)
+
+        desc_install = QLabel(
+            "Per abilitare o estendere l'accelerazione hardware sulla tua scheda grafica, "
+            "puoi installare i pacchetti consigliati tramite il terminale o copiare il comando rapido:"
+        )
+        desc_install.setWordWrap(True)
+        desc_install.setStyleSheet("color: #6c757d; font-size: 11px;")
+        cmd_layout.addWidget(desc_install)
+
+        commands_data = [
+            (
+                "DirectML (Universale per qualsiasi GPU su Windows — Consigliato):",
+                "pip install onnxruntime-directml",
+            ),
+            (
+                "NVIDIA CUDA Dedicato (PyTorch con accelerazione CUDA 12.4):",
+                "pip install torch --index-url https://download.pytorch.org/whl/cu124",
+            ),
+            (
+                "CuPy per CUDA (Accelerazione matriciale ad alte prestazioni):",
+                "pip install cupy-cuda12x",
+            ),
+        ]
+
+        for title_text, cmd_text in commands_data:
+            c_row = QHBoxLayout()
+            c_info = QVBoxLayout()
+            c_info.setSpacing(2)
+
+            t_lbl = QLabel(f"<b>{title_text}</b>")
+            t_lbl.setStyleSheet("font-size: 11px; color: #212529;")
+            c_info.addWidget(t_lbl)
+
+            code_lbl = QLineEdit(cmd_text)
+            code_lbl.setReadOnly(True)
+            code_lbl.setStyleSheet("background-color: #f1f3f5; font-family: monospace; font-size: 11px; border: 1px solid #dee2e6;")
+            c_info.addWidget(code_lbl)
+
+            c_row.addLayout(c_info, stretch=1)
+
+            btn_copy = QPushButton("📋 Copia")
+            btn_copy.setFixedWidth(75)
+            btn_copy.setFixedHeight(28)
+            btn_copy.clicked.connect(lambda ch=False, c=cmd_text, b=btn_copy: self._copy_command(c, b))
+            c_row.addWidget(btn_copy)
+
+            cmd_layout.addLayout(c_row)
+
+        layout.addWidget(grp_commands)
+
+        layout.addStretch()
+
+        # Bottom Bar
+        bottom_bar = QHBoxLayout()
+        self.btn_refresh = QPushButton("🔄 Riavvia Verifica Hardware")
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh.clicked.connect(self._on_refresh_clicked)
+        bottom_bar.addWidget(self.btn_refresh)
+
+        bottom_bar.addStretch()
+
+        self.btn_close = QPushButton("Chiudi")
+        self.btn_close.clicked.connect(self.accept)
+        bottom_bar.addWidget(self.btn_close)
+
+        layout.addLayout(bottom_bar)
+
+    def _copy_command(self, cmd_text: str, button: QPushButton) -> None:
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QTimer
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(cmd_text)
+        button.setText("✓ Copiato!")
+        QTimer.singleShot(2000, lambda: button.setText("📋 Copia"))
+
+    def _load_diagnostics(self) -> None:
+        diag = GpuDetector.get_diagnostic_details()
+        is_avail = diag.get("is_available", False)
+        backend = diag.get("active_backend", "")
+        hw_gpu = diag.get("hardware_gpu", "")
+        status_msg = diag.get("status_message", "")
+
+        if is_avail:
+            self.lbl_active_badge.setText(f"🟢 Accelerazione GPU Attiva: {backend}")
+            self.lbl_active_badge.setStyleSheet("color: #198754; font-size: 14px; font-weight: bold;")
+        elif hw_gpu and "CPU" not in hw_gpu:
+            self.lbl_active_badge.setText(f"🟡 Accelerazione GPU: CPU Fallback Attivo ({hw_gpu} Rilevata)")
+            self.lbl_active_badge.setStyleSheet("color: #d97706; font-size: 14px; font-weight: bold;")
+        else:
+            self.lbl_active_badge.setText("⚪ Modalità CPU Multiprocessing (Nessuna GPU Dedicata)")
+            self.lbl_active_badge.setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold;")
+
+        self.lbl_active_details.setText(
+            f"<b>Dispositivo Hardware:</b> {hw_gpu}<br>"
+            f"<b>Stato Sistema:</b> {status_msg}"
+        )
+
+        # PyTorch
+        pt = diag.get("pytorch", {})
+        if pt.get("installed"):
+            cuda_txt = "🟢 CUDA Abilitata" if pt.get("cuda") else ("🟢 Apple Silicon MPS" if pt.get("mps") else "⚪ Solo CPU")
+            self.lbl_rt_pytorch.setText(f"• <b>PyTorch:</b> v{pt.get('version')} ({cuda_txt})")
+        else:
+            self.lbl_rt_pytorch.setText("• <b>PyTorch:</b> <i>Non installato</i>")
+
+        # ONNX Runtime
+        ort = diag.get("onnxruntime", {})
+        if ort.get("installed"):
+            provs = ", ".join(ort.get("providers", []))
+            dml_badge = "🟢 DirectML Attivo" if ort.get("directml") else "⚪ CPU Fallback"
+            self.lbl_rt_onnx.setText(f"• <b>ONNX Runtime:</b> v{ort.get('version')} ({dml_badge}) — <i>Provider: {provs}</i>")
+        else:
+            self.lbl_rt_onnx.setText("• <b>ONNX Runtime:</b> <i>Non installato</i>")
+
+        # CuPy
+        cupy = diag.get("cupy", {})
+        if cupy.get("installed"):
+            self.lbl_rt_cupy.setText(f"• <b>CuPy:</b> v{cupy.get('version')} (🟢 CUDA Abilitata)")
+        else:
+            self.lbl_rt_cupy.setText("• <b>CuPy:</b> <i>Non installato</i>")
+
+    def _on_refresh_clicked(self) -> None:
+        self.btn_refresh.setEnabled(False)
+        self.btn_refresh.setText("Verifica in corso...")
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        GpuDetector.get_gpu_info(force_refresh=True)
+        self._load_diagnostics()
+
+        parent = self.parent()
+        if hasattr(parent, "_update_gpu_badge"):
+            parent._update_gpu_badge()
+
+        self.btn_refresh.setEnabled(True)
+        self.btn_refresh.setText("🔄 Riavvia Verifica Hardware")
+
+
 class SettingsDialog(QDialog):
     """Modular preferences dialog with category sidebar."""
 
@@ -175,14 +379,20 @@ class SettingsDialog(QDialog):
 
     def _apply_theme_styling(self, theme_id: str) -> None:
         """Adapts settings dialog, sidebar navigation, and stacked panels to the active theme."""
-        is_light = ("light" in theme_id)
+        from src.core.path_resolver import PathResolver
+        check_path = str(PathResolver.get_resource_path("assets/check_white.png")).replace("\\", "/")
+
+        is_contrast = ("high" in theme_id or "contrast" in theme_id)
+        is_dark = ("dark" in theme_id) and not is_contrast
+        is_light = not is_contrast and not is_dark
+
         if is_light:
-            self.setStyleSheet("""
-                QDialog {
+            self.setStyleSheet(f"""
+                QDialog {{
                     background-color: #f8f9fa;
                     color: #212529;
-                }
-                QGroupBox {
+                }}
+                QGroupBox {{
                     background-color: transparent;
                     border: 1px solid #dee2e6;
                     border-radius: 6px;
@@ -190,39 +400,78 @@ class SettingsDialog(QDialog):
                     padding-top: 14px;
                     font-weight: bold;
                     color: #0d6efd;
-                }
-                QGroupBox::title {
+                }}
+                QGroupBox::title {{
                     subcontrol-origin: margin;
                     subcontrol-position: top left;
                     padding: 0 6px;
                     background-color: transparent;
                     color: #0d6efd;
-                }
-                QLabel {
+                }}
+                QGroupBox::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    background-color: #ffffff;
+                    margin-right: 6px;
+                }}
+                QGroupBox::indicator:hover {{
+                    border-color: #0d6efd;
+                }}
+                QGroupBox::indicator:checked {{
+                    background-color: #0d6efd;
+                    border: 1px solid #0d6efd;
+                    image: url("{check_path}");
+                }}
+                QCheckBox {{
                     color: #212529;
-                }
-                QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+                    spacing: 8px;
+                }}
+                QCheckBox::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1px solid #ced4da;
+                    border-radius: 4px;
+                    background-color: #ffffff;
+                }}
+                QCheckBox::indicator:hover {{
+                    border-color: #0d6efd;
+                }}
+                QCheckBox::indicator:checked {{
+                    background-color: #0d6efd;
+                    border: 1px solid #0d6efd;
+                    image: url("{check_path}");
+                }}
+                QCheckBox::indicator:disabled, QGroupBox::indicator:disabled {{
+                    background-color: #e9ecef;
+                    border-color: #ced4da;
+                }}
+                QLabel {{
+                    color: #212529;
+                }}
+                QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
                     background-color: #ffffff;
                     border: 1px solid #ced4da;
                     border-radius: 4px;
                     color: #212529;
                     padding: 5px 8px;
-                }
-                QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+                }}
+                QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{
                     border: 1px solid #0d6efd;
-                }
-                QPushButton {
+                }}
+                QPushButton {{
                     background-color: #ffffff;
                     border: 1px solid #ced4da;
                     border-radius: 4px;
                     padding: 5px 12px;
                     color: #212529;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #f1f3f5;
                     border-color: #0d6efd;
                     color: #0d6efd;
-                }
+                }}
             """)
             self.sidebar.setStyleSheet("""
                 QListWidget {
@@ -257,14 +506,164 @@ class SettingsDialog(QDialog):
                         padding: 10px;
                     }
                 """)
-            if hasattr(self, "lbl_gpu_status"):
-                self.lbl_gpu_status.setStyleSheet("color: #198754; font-weight: bold;" if self.gpu_info.is_available else "color: #6c757d;")
+        elif is_contrast:
+            self.setStyleSheet(f"""
+                QDialog {{
+                    background-color: #000000;
+                    color: #ffffff;
+                }}
+                QGroupBox {{
+                    background-color: transparent;
+                    border: 2px solid #00ffff;
+                    border-radius: 6px;
+                    margin-top: 14px;
+                    padding-top: 14px;
+                    font-weight: bold;
+                    color: #00ffff;
+                }}
+                QGroupBox::title {{
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 0 6px;
+                    background-color: #000000;
+                    color: #00ffff;
+                }}
+                QGroupBox::indicator, QCheckBox::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid #00ffff;
+                    border-radius: 4px;
+                    background-color: #000000;
+                    margin-right: 6px;
+                }}
+                QGroupBox::indicator:hover, QCheckBox::indicator:hover {{
+                    border-color: #ffff00;
+                }}
+                QGroupBox::indicator:checked, QCheckBox::indicator:checked {{
+                    background-color: #00ffff;
+                    border: 2px solid #00ffff;
+                    image: url("{check_path}");
+                }}
+                QLabel {{
+                    color: #ffffff;
+                }}
+                QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+                    background-color: #0a0a0a;
+                    border: 2px solid #ffffff;
+                    border-radius: 4px;
+                    color: #ffffff;
+                    padding: 4px 8px;
+                }}
+                QPushButton {{
+                    background-color: #111111;
+                    color: #00ffff;
+                    border: 2px solid #00ffff;
+                    border-radius: 4px;
+                    padding: 5px 12px;
+                }}
+                QPushButton:hover {{
+                    background-color: #00ffff;
+                    color: #000000;
+                }}
+            """)
+            self.sidebar.setStyleSheet("""
+                QListWidget {
+                    background-color: #050505;
+                    border: 2px solid #00ffff;
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                QListWidget::item {
+                    padding: 10px 12px;
+                    border-radius: 4px;
+                    color: #ffffff;
+                    font-weight: bold;
+                    font-size: 13px;
+                }
+                QListWidget::item:hover {
+                    background-color: #111111;
+                    color: #00ffff;
+                }
+                QListWidget::item:selected {
+                    background-color: #00ffff;
+                    color: #000000;
+                    font-weight: bold;
+                }
+            """)
+            self.stack.setStyleSheet("QStackedWidget { background-color: #000000; }")
+            if hasattr(self, "badge_frame"):
+                self.badge_frame.setStyleSheet("""
+                    QFrame {
+                        background-color: #0a0a0a;
+                        border: 2px solid #00ffff;
+                        border-radius: 6px;
+                        padding: 10px;
+                    }
+                """)
         else:
-            self.setStyleSheet("""
-                QDialog {
+            self.setStyleSheet(f"""
+                QDialog {{
                     background-color: #121316;
                     color: #e0e2ec;
-                }
+                }}
+                QGroupBox {{
+                    background-color: transparent;
+                    border: 1px solid #282c3c;
+                    border-radius: 6px;
+                    margin-top: 14px;
+                    padding-top: 14px;
+                    font-weight: bold;
+                    color: #00d2ff;
+                }}
+                QGroupBox::title {{
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    padding: 0 6px;
+                    background-color: transparent;
+                    color: #00d2ff;
+                }}
+                QGroupBox::indicator, QCheckBox::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1px solid #4a5168;
+                    border-radius: 4px;
+                    background-color: #1a1c24;
+                    margin-right: 6px;
+                }}
+                QGroupBox::indicator:hover, QCheckBox::indicator:hover {{
+                    border-color: #00d2ff;
+                }}
+                QGroupBox::indicator:checked, QCheckBox::indicator:checked {{
+                    background-color: #0d6efd;
+                    border: 1px solid #0d6efd;
+                    image: url("{check_path}");
+                }}
+                QCheckBox {{
+                    color: #e0e2ec;
+                    spacing: 8px;
+                }}
+                QLabel {{
+                    color: #e0e2ec;
+                }}
+                QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+                    background-color: #1a1c22;
+                    border: 1px solid #2c303d;
+                    border-radius: 4px;
+                    color: #ffffff;
+                    padding: 5px 8px;
+                }}
+                QPushButton {{
+                    background-color: #1f222a;
+                    border: 1px solid #2c303d;
+                    border-radius: 4px;
+                    padding: 5px 12px;
+                    color: #ffffff;
+                }}
+                QPushButton:hover {{
+                    background-color: #282d38;
+                    border-color: #00d2ff;
+                    color: #00d2ff;
+                }}
             """)
             self.sidebar.setStyleSheet("""
                 QListWidget {
@@ -299,8 +698,33 @@ class SettingsDialog(QDialog):
                         padding: 10px;
                     }
                 """)
-            if hasattr(self, "lbl_gpu_status"):
-                self.lbl_gpu_status.setStyleSheet("color: #00d2ff;" if self.gpu_info.is_available else "color: #94a3b8;")
+
+        if hasattr(self, "_update_gpu_badge"):
+            self._update_gpu_badge()
+
+    def _on_theme_changed(self, index: int) -> None:
+        """Applies theme change dynamically without closing or recreating the dialog."""
+        if getattr(self, "_is_loading", False):
+            return
+        theme_names = ["light", "dark_dj", "high_contrast"]
+        if 0 <= index < len(theme_names):
+            chosen_theme = theme_names[index]
+            self.settings.set("ui", "theme", chosen_theme)
+
+            from src.gui.styles import get_theme_stylesheet
+            from PySide6.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app:
+                app.setStyleSheet(get_theme_stylesheet(chosen_theme))
+
+            self._apply_theme_styling(chosen_theme)
+
+            self.style().unpolish(self)
+            self.style().polish(self)
+            self.update()
+
+            self.settings_applied.emit({"theme": chosen_theme})
+
 
     # -------------------------------------------------------------
     # Category 1: Grafica & UI
@@ -353,6 +777,7 @@ class SettingsDialog(QDialog):
         self.lbl_theme = QLabel("Tema Interfaccia:")
         self.cmb_theme = QComboBox()
         self.cmb_theme.addItems(["Tema Chiaro (Predefinito)", "Dark DJ Console", "High-Contrast Club Booth"])
+        self.cmb_theme.currentIndexChanged.connect(self._on_theme_changed)
         form_theme.addRow(self.lbl_theme, self.cmb_theme)
 
         self.lbl_dpi = QLabel("Scala Display (HiDPI Zoom):")
@@ -558,6 +983,11 @@ class SettingsDialog(QDialog):
         # Adaptive Status badge
         self.badge_frame = QFrame()
         badge_layout = QVBoxLayout(self.badge_frame)
+        badge_layout.setSpacing(6)
+
+        self.lbl_gpu_badge_title = QLabel()
+        self.lbl_gpu_badge_title.setStyleSheet("font-size: 13px; font-weight: bold;")
+        badge_layout.addWidget(self.lbl_gpu_badge_title)
 
         self.lbl_gpu_device = QLabel(f"<b>Dispositivo Rilevato:</b> {self.gpu_info.device_name}")
         self.lbl_gpu_backend = QLabel(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
@@ -567,6 +997,17 @@ class SettingsDialog(QDialog):
         badge_layout.addWidget(self.lbl_gpu_backend)
         badge_layout.addWidget(self.lbl_gpu_status)
         gpu_layout.addWidget(self.badge_frame)
+
+        # Interactive Diagnostic & Package Installation Button
+        gpu_btn_row = QHBoxLayout()
+        self.btn_gpu_diagnostics = QPushButton("⚡ Diagnostica & Installazione Pacchetto GPU")
+        self.btn_gpu_diagnostics.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_gpu_diagnostics.clicked.connect(self._on_open_gpu_diagnostics)
+        gpu_btn_row.addWidget(self.btn_gpu_diagnostics)
+        gpu_btn_row.addStretch()
+        gpu_layout.addLayout(gpu_btn_row)
+
+        self._update_gpu_badge()
 
         layout.addWidget(grp_gpu)
 
@@ -617,6 +1058,37 @@ class SettingsDialog(QDialog):
             )
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile creare il pacchetto log:\n{e}")
+
+    def _update_gpu_badge(self) -> None:
+        """Refreshes the GPU status badge display in the Performance page."""
+        self.gpu_info = GpuDetector.get_gpu_info()
+        if hasattr(self, "lbl_gpu_device"):
+            self.lbl_gpu_device.setText(f"<b>Dispositivo Rilevato:</b> {self.gpu_info.device_name}")
+        if hasattr(self, "lbl_gpu_backend"):
+            self.lbl_gpu_backend.setText(f"<b>Backend Computazionale:</b> {self.gpu_info.backend}")
+        if hasattr(self, "lbl_gpu_status"):
+            self.lbl_gpu_status.setText(f"<b>Stato:</b> {self.gpu_info.status_message}")
+
+        if hasattr(self, "lbl_gpu_badge_title"):
+            if self.gpu_info.is_available:
+                self.lbl_gpu_status.setStyleSheet("color: #198754; font-weight: bold;")
+                self.lbl_gpu_badge_title.setText(f"🟢 Accelerazione GPU Attiva ({self.gpu_info.backend})")
+                self.lbl_gpu_badge_title.setStyleSheet("color: #198754; font-weight: bold; font-size: 13px;")
+            elif self.gpu_info.is_hardware_detected:
+                self.lbl_gpu_status.setStyleSheet("color: #d97706; font-weight: bold;")
+                self.lbl_gpu_badge_title.setText(f"🟡 Accelerazione GPU: CPU Fallback Attivo ({self.gpu_info.device_name} Rilevata)")
+                self.lbl_gpu_badge_title.setStyleSheet("color: #d97706; font-weight: bold; font-size: 13px;")
+            else:
+                self.lbl_gpu_status.setStyleSheet("color: #6c757d;")
+                self.lbl_gpu_badge_title.setText("⚪ Modalità CPU Multiprocessing (Nessuna GPU Rilevata)")
+                self.lbl_gpu_badge_title.setStyleSheet("color: #6c757d; font-weight: bold; font-size: 13px;")
+
+    def _on_open_gpu_diagnostics(self) -> None:
+        """Opens interactive GPU diagnostics and package installer dialog."""
+        dlg = GpuDiagnosticDialog(self)
+        dlg.exec()
+        self._update_gpu_badge()
+
 
     # -------------------------------------------------------------
     # Category 4: Account & Servizi (One-Click Browser OAuth + Collapsible API Keys)
@@ -1101,21 +1573,90 @@ class SettingsDialog(QDialog):
                     f_type = field.get("type", "str")
                     cur_val = self.plugin_manager.get_plugin_setting(plugin.plugin_id, k, field.get("default", ""))
 
-                    if f_type == "bool":
+                    if k == "ffmpeg_path" or "ffmpeg" in k.lower():
+                        from src.core.path_resolver import PathResolver
+                        default_ffmpeg = PathResolver.get_default_ffmpeg_path()
+                        if not cur_val or cur_val == "ffmpeg":
+                            cur_val = default_ffmpeg or "ffmpeg"
+
+                        container_ff = QWidget()
+                        ff_vbox = QVBoxLayout(container_ff)
+                        ff_vbox.setContentsMargins(0, 0, 0, 0)
+                        ff_vbox.setSpacing(4)
+
+                        ff_row = QHBoxLayout()
+                        ff_row.setSpacing(6)
+
+                        txt_ff = QLineEdit()
+                        txt_ff.setText(str(cur_val))
+                        txt_ff.setPlaceholderText("Percorso a ffmpeg.exe...")
+                        ff_row.addWidget(txt_ff, stretch=1)
+
+                        btn_browse_ff = QPushButton("📁 Sfoglia...")
+                        btn_browse_ff.setCursor(Qt.CursorShape.PointingHandCursor)
+                        ff_row.addWidget(btn_browse_ff)
+                        ff_vbox.addLayout(ff_row)
+
+                        lbl_ff_badge = QLabel()
+                        ff_vbox.addWidget(lbl_ff_badge)
+
+                        def _make_ff_updater(target_txt: QLineEdit, target_lbl: QLabel):
+                            def _update():
+                                p_str = target_txt.text().strip()
+                                is_valid, msg = PathResolver.validate_ffmpeg(p_str)
+                                if is_valid:
+                                    target_lbl.setText(f"🟢 FFmpeg Rilevato e Funzionante ({msg})")
+                                    target_lbl.setStyleSheet("color: #198754; font-weight: bold; font-size: 11px;")
+                                else:
+                                    target_lbl.setText(f"🔴 File non valido o eseguibile mancante ({msg})")
+                                    target_lbl.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 11px;")
+                            return _update
+
+                        def _make_ff_browser(target_txt: QLineEdit):
+                            def _browse():
+                                from PySide6.QtWidgets import QFileDialog
+                                cur_dir = os.path.dirname(target_txt.text().strip()) if target_txt.text().strip() else ""
+                                chosen, _ = QFileDialog.getOpenFileName(
+                                    self,
+                                    "Seleziona Eseguibile FFmpeg",
+                                    cur_dir,
+                                    "Eseguibili (*.exe);;Tutti i file (*.*)" if sys.platform == "win32" else "Tutti i file (*)",
+                                )
+                                if chosen:
+                                    target_txt.setText(os.path.normpath(chosen))
+                            return _browse
+
+                        updater_fn = _make_ff_updater(txt_ff, lbl_ff_badge)
+                        btn_browse_ff.clicked.connect(_make_ff_browser(txt_ff))
+                        txt_ff.textChanged.connect(lambda _: updater_fn())
+                        updater_fn()
+
+                        form.addRow(lbl + ":", container_ff)
+                        field_widgets[k] = txt_ff
+                    elif f_type == "bool":
                         w = QCheckBox(lbl)
                         w.setChecked(bool(cur_val))
                         form.addRow(w)
+                        field_widgets[k] = w
                     elif f_type == "password":
                         w = QLineEdit()
                         w.setEchoMode(QLineEdit.EchoMode.Password)
                         w.setText(str(cur_val))
                         form.addRow(lbl + ":", w)
+                        field_widgets[k] = w
+                    elif f_type == "choice":
+                        w = QComboBox()
+                        choices = field.get("choices", [])
+                        w.addItems(choices)
+                        if str(cur_val) in choices:
+                            w.setCurrentText(str(cur_val))
+                        form.addRow(lbl + ":", w)
+                        field_widgets[k] = w
                     else:
                         w = QLineEdit()
                         w.setText(str(cur_val))
                         form.addRow(lbl + ":", w)
-
-                    field_widgets[k] = w
+                        field_widgets[k] = w
 
                 grp_layout.addLayout(form)
 
@@ -1226,55 +1767,61 @@ class SettingsDialog(QDialog):
     # -------------------------------------------------------------
     def _load_values(self) -> None:
         """Fills UI fields with current values from SettingsManager."""
-        # UI
-        lang = self.settings.get("ui", "language", "it")
-        self._current_saved_lang = lang
-        idx = self.cmb_language.findData(lang)
-        if idx >= 0:
-            self.cmb_language.blockSignals(True)
-            self.cmb_language.setCurrentIndex(idx)
-            self.cmb_language.blockSignals(False)
+        self._is_loading = True
+        try:
+            # UI
+            lang = self.settings.get("ui", "language", "it")
+            self._current_saved_lang = lang
+            idx = self.cmb_language.findData(lang)
+            if idx >= 0:
+                self.cmb_language.blockSignals(True)
+                self.cmb_language.setCurrentIndex(idx)
+                self.cmb_language.blockSignals(False)
 
-        theme = self.settings.get("ui", "theme", "light")
-        if "dark" in theme:
-            self.cmb_theme.setCurrentIndex(1)
-        elif "high" in theme or "contrast" in theme:
-            self.cmb_theme.setCurrentIndex(2)
-        else:
-            self.cmb_theme.setCurrentIndex(0)
+            theme = self.settings.get("ui", "theme", "light")
+            self.cmb_theme.blockSignals(True)
+            if "dark" in theme:
+                self.cmb_theme.setCurrentIndex(1)
+            elif "high" in theme or "contrast" in theme:
+                self.cmb_theme.setCurrentIndex(2)
+            else:
+                self.cmb_theme.setCurrentIndex(0)
+            self.cmb_theme.blockSignals(False)
 
-        dpi = self.settings.get("ui", "dpi_scale", "auto")
-        dpi_map = {"auto": 0, "100%": 1, "125%": 2, "150%": 3}
-        self.cmb_dpi.setCurrentIndex(dpi_map.get(dpi, 0))
+            dpi = self.settings.get("ui", "dpi_scale", "auto")
+            dpi_map = {"auto": 0, "100%": 1, "125%": 2, "150%": 3}
+            self.cmb_dpi.setCurrentIndex(dpi_map.get(dpi, 0))
 
-        self.spin_font_size.setValue(self.settings.get("ui", "font_size", 12))
-        self.spin_row_height.setValue(self.settings.get("ui", "row_height", 28))
-        if hasattr(self, "chk_check_updates"):
-            self.chk_check_updates.setChecked(self.settings.get("updates", "check_on_startup", True))
+            self.spin_font_size.setValue(self.settings.get("ui", "font_size", 12))
+            self.spin_row_height.setValue(self.settings.get("ui", "row_height", 28))
+            if hasattr(self, "chk_check_updates"):
+                self.chk_check_updates.setChecked(self.settings.get("updates", "check_on_startup", True))
 
-        # Audio
-        self.slider_buffer.setValue(self.settings.get("audio", "buffer_ms", 150))
-        self.chk_autoplay.setChecked(self.settings.get("audio", "autoplay_on_click", False))
-        pitch_r = self.settings.get("audio", "pitch_range", 8)
-        self.cmb_pitch_range.setCurrentIndex(1 if pitch_r == 16 else 2 if pitch_r == 50 else 0)
+            # Audio
+            self.slider_buffer.setValue(self.settings.get("audio", "buffer_ms", 150))
+            self.chk_autoplay.setChecked(self.settings.get("audio", "autoplay_on_click", False))
+            pitch_r = self.settings.get("audio", "pitch_range", 8)
+            self.cmb_pitch_range.setCurrentIndex(1 if pitch_r == 16 else 2 if pitch_r == 50 else 0)
 
-        # Performance
-        self.slider_perf_cores.setValue(self.settings.get("performance", "cpu_cores", max(1, (os.cpu_count() or 4) - 1)))
-        self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 1024))
-        self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", False))
+            # Performance
+            self.slider_perf_cores.setValue(self.settings.get("performance", "cpu_cores", max(1, (os.cpu_count() or 4) - 1)))
+            self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 1024))
+            self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", False))
 
-        # Scrapers
-        self.txt_discogs_token.setText(self.settings.get("scrapers", "discogs_token", ""))
-        self.txt_spotify_id.setText(self.settings.get("scrapers", "spotify_client_id", ""))
-        self.txt_spotify_secret.setText(self.settings.get("scrapers", "spotify_client_secret", ""))
-        self.txt_soundcloud_key.setText(self.settings.get("scrapers", "soundcloud_key", ""))
-        self.txt_youtube_key.setText(self.settings.get("scrapers", "youtube_api_key", ""))
-        self.txt_bp_user.setText(self.settings.get("scrapers", "beatport_username", ""))
-        self.txt_bp_pass.setText(self.settings.get("scrapers", "beatport_password", ""))
-        self.txt_bp_token.setText(self.settings.get("scrapers", "beatport_token", ""))
+            # Scrapers
+            self.txt_discogs_token.setText(self.settings.get("scrapers", "discogs_token", ""))
+            self.txt_spotify_id.setText(self.settings.get("scrapers", "spotify_client_id", ""))
+            self.txt_spotify_secret.setText(self.settings.get("scrapers", "spotify_client_secret", ""))
+            self.txt_soundcloud_key.setText(self.settings.get("scrapers", "soundcloud_key", ""))
+            self.txt_youtube_key.setText(self.settings.get("scrapers", "youtube_api_key", ""))
+            self.txt_bp_user.setText(self.settings.get("scrapers", "beatport_username", ""))
+            self.txt_bp_pass.setText(self.settings.get("scrapers", "beatport_password", ""))
+            self.txt_bp_token.setText(self.settings.get("scrapers", "beatport_token", ""))
 
-        # Accounts & Services
-        self._refresh_all_account_cards()
+            # Accounts & Services
+            self._refresh_all_account_cards()
+        finally:
+            self._is_loading = False
 
     def _on_language_changed(self, index: int) -> None:
         """Applies language change dynamically across the application."""
@@ -1389,6 +1936,8 @@ class SettingsDialog(QDialog):
             for key, widget in controls["fields"].items():
                 if isinstance(widget, QCheckBox):
                     val = widget.isChecked()
+                elif isinstance(widget, QComboBox):
+                    val = widget.currentText()
                 elif isinstance(widget, QLineEdit):
                     val = widget.text().strip()
                 else:
