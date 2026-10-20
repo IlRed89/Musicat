@@ -1620,7 +1620,7 @@ class SettingsDialog(QDialog):
                     if k == "ffmpeg_path" or "ffmpeg" in k.lower():
                         from src.core.path_resolver import PathResolver
                         default_ffmpeg = PathResolver.get_default_ffmpeg_path()
-                        if not cur_val or cur_val == "ffmpeg":
+                        if not cur_val or cur_val == "ffmpeg" or "_MEI" in str(cur_val) or not os.path.exists(str(cur_val)):
                             cur_val = default_ffmpeg or "ffmpeg"
 
                         container_ff = QWidget()
@@ -1633,12 +1633,19 @@ class SettingsDialog(QDialog):
 
                         txt_ff = QLineEdit()
                         txt_ff.setText(str(cur_val))
-                        txt_ff.setPlaceholderText("Percorso a ffmpeg.exe...")
+                        txt_ff.setPlaceholderText(default_ffmpeg or "Percorso a bin/ffmpeg.exe...")
                         ff_row.addWidget(txt_ff, stretch=1)
 
                         btn_browse_ff = QPushButton("📁 Sfoglia...")
                         btn_browse_ff.setCursor(Qt.CursorShape.PointingHandCursor)
+                        btn_browse_ff.setToolTip("Seleziona manualmente un file eseguibile ffmpeg.exe personalizzato")
                         ff_row.addWidget(btn_browse_ff)
+
+                        btn_reset_ff = QPushButton("↺ Predefinito")
+                        btn_reset_ff.setCursor(Qt.CursorShape.PointingHandCursor)
+                        btn_reset_ff.setToolTip("Ripristina il percorso all'eseguibile incluso nella cartella del programma (bin/ffmpeg.exe)")
+                        ff_row.addWidget(btn_reset_ff)
+
                         ff_vbox.addLayout(ff_row)
 
                         lbl_ff_badge = QLabel()
@@ -1670,8 +1677,16 @@ class SettingsDialog(QDialog):
                                     target_txt.setText(os.path.normpath(chosen))
                             return _browse
 
+                        def _make_ff_reset(target_txt: QLineEdit):
+                            def _reset():
+                                d_path = PathResolver.get_default_ffmpeg_path()
+                                if d_path:
+                                    target_txt.setText(d_path)
+                            return _reset
+
                         updater_fn = _make_ff_updater(txt_ff, lbl_ff_badge)
                         btn_browse_ff.clicked.connect(_make_ff_browser(txt_ff))
+                        btn_reset_ff.clicked.connect(_make_ff_reset(txt_ff))
                         txt_ff.textChanged.connect(lambda _: updater_fn())
                         updater_fn()
 

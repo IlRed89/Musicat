@@ -119,7 +119,15 @@ class PluginManager:
     def get_plugin_setting(self, plugin_id: str, key: str, default: Any = None) -> Any:
         """Retrieves custom setting for a specific plugin."""
         with self._lock:
-            return self._settings.get("plugins", f"{plugin_id}_{key}", default)
+            val = self._settings.get("plugins", f"{plugin_id}_{key}", default)
+            if key == "ffmpeg_path" or "ffmpeg" in key.lower():
+                import os
+                from src.core.path_resolver import PathResolver
+                if not val or val == "ffmpeg" or "_MEI" in str(val) or not os.path.exists(str(val)):
+                    default_path = PathResolver.get_default_ffmpeg_path()
+                    if default_path:
+                        return default_path
+            return val
 
     def set_plugin_setting(self, plugin_id: str, key: str, value: Any) -> None:
         """Saves custom setting for a specific plugin."""

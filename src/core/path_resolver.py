@@ -383,7 +383,21 @@ class PathResolver:
         import shutil
         exe_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
 
-        # 1. Bundled in PyInstaller frozen environment
+        # 1. Application folder (portable or installed directory on disk)
+        app_dir = cls.get_app_dir()
+        for sub in ["bin", "assets/bin", ""]:
+            cand = app_dir / sub / exe_name if sub else app_dir / exe_name
+            if cand.is_file():
+                return str(cand.resolve())
+
+        # 2. Development root
+        dev_root = Path(__file__).resolve().parent.parent.parent
+        for sub in ["bin", "assets/bin", ""]:
+            cand = dev_root / sub / exe_name if sub else dev_root / exe_name
+            if cand.is_file():
+                return str(cand.resolve())
+
+        # 3. Bundled in PyInstaller frozen environment (_MEIPASS fallback)
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             cand = Path(sys._MEIPASS) / "bin" / exe_name
             if cand.is_file():
@@ -392,31 +406,25 @@ class PathResolver:
             if cand_root.is_file():
                 return str(cand_root)
 
-        # 2. Application folder (portable or installed)
-        app_dir = cls.get_app_dir()
-        for sub in ["bin", "assets/bin", ""]:
-            cand = app_dir / sub / exe_name if sub else app_dir / exe_name
-            if cand.is_file():
-                return str(cand)
-
-        # 3. Development root
-        dev_root = Path(__file__).resolve().parent.parent.parent
-        dev_cand = dev_root / "bin" / exe_name
-        if dev_cand.is_file():
-            return str(dev_cand)
-
         # 4. System PATH
         sys_which = shutil.which("ffmpeg")
         if sys_which:
             return str(sys_which)
 
-        # 5. Standard Windows installation paths
+        # 5. Standard Windows installation paths and WinGet Packages
         if sys.platform == "win32":
-            for win_p in [
+            candidates = [
                 r"C:\ffmpeg\bin\ffmpeg.exe",
                 r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
                 r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-            ]:
+            ]
+            winget_pkgs = Path.home() / "AppData/Local/Microsoft/WinGet/Packages"
+            if winget_pkgs.exists():
+                for found_ff in winget_pkgs.glob("**/ffmpeg.exe"):
+                    candidates.append(str(found_ff))
+                    break
+
+            for win_p in candidates:
                 if os.path.isfile(win_p):
                     return win_p
 

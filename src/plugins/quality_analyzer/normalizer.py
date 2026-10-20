@@ -459,50 +459,24 @@ class VolumeNormalizer:
 
     def _find_ffmpeg_executable(self) -> Optional[str]:
         """Resolves path to working ffmpeg executable."""
-        # 1. Custom path configured
-        if self.ffmpeg_path and shutil.which(self.ffmpeg_path):
-            return self.ffmpeg_path
+        # 1. Custom path configured if valid and existing
+        if self.ffmpeg_path and self.ffmpeg_path != "ffmpeg" and "_MEI" not in self.ffmpeg_path:
+            if os.path.isfile(self.ffmpeg_path) or shutil.which(self.ffmpeg_path):
+                return self.ffmpeg_path
 
-        # 2. PATH resolution
-        found = shutil.which("ffmpeg")
-        if found:
-            return found
-
-        # 3. Application directory / bundled / portable bin
+        # 2. Centralized resolver (prioritizes bundled application bin/ffmpeg.exe)
         try:
-            from ...core.path_resolver import PathResolver
-            app_root = PathResolver.get_app_root()
-            app_candidates = [
-                app_root / "bin" / "ffmpeg.exe",
-                app_root / "ffmpeg.exe",
-                Path(sys.executable).parent / "bin" / "ffmpeg.exe",
-                Path(sys.executable).parent / "ffmpeg.exe",
-            ]
-            for c in app_candidates:
-                if c.exists():
-                    return str(c)
+            from src.core.path_resolver import PathResolver
+            resolved = PathResolver.get_default_ffmpeg_path()
+            if resolved:
+                return resolved
         except Exception:
             pass
 
-        # 4. Common Windows locations & Winget Packages
-        if sys.platform == "win32":
-            candidates = [
-                Path(__file__).resolve().parents[3] / "bin" / "ffmpeg.exe",
-                Path("C:/ffmpeg/bin/ffmpeg.exe"),
-                Path("C:/Program Files/ffmpeg/bin/ffmpeg.exe"),
-                Path.home() / "scoop/shims/ffmpeg.exe",
-                Path.home() / "AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe",
-            ]
-            winget_pkgs = Path.home() / "AppData/Local/Microsoft/WinGet/Packages"
-            if winget_pkgs.exists():
-                for found_ff in winget_pkgs.glob("**/ffmpeg.exe"):
-                    candidates.append(found_ff)
-                    break
-
-            for c in candidates:
-                if c.exists():
-                    return str(c)
-
+        # 3. Direct PATH resolution
+        found = shutil.which("ffmpeg")
+        if found:
+            return found
         return None
 
     def _parse_loudnorm_json(self, output: str) -> Optional[Dict[str, Any]]:

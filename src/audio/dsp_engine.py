@@ -192,28 +192,28 @@ class LibavfilterDspEngine:
         if custom_env and Path(custom_env).exists():
             return str(Path(custom_env))
 
-        # Check portable directory
-        app_dir = Path(__file__).resolve().parent.parent.parent
-        portable_ffmpeg = app_dir / "bin" / ("ffmpeg.exe" if sys.platform == "win32" else "ffmpeg")
-        if portable_ffmpeg.exists():
-            return str(portable_ffmpeg)
+        # Check configured path in Settings
+        try:
+            from src.core.settings import SettingsManager
+            cfg_path = SettingsManager.get_instance().get("plugins", "audio_quality_normalizer_ffmpeg_path", "")
+            if cfg_path and cfg_path != "ffmpeg" and "_MEI" not in cfg_path and Path(cfg_path).exists():
+                return str(Path(cfg_path))
+        except Exception:
+            pass
+
+        # Centralized PathResolver (prioritizes bundled application bin/ffmpeg.exe)
+        try:
+            from src.core.path_resolver import PathResolver
+            resolved = PathResolver.get_default_ffmpeg_path()
+            if resolved:
+                return resolved
+        except Exception:
+            pass
 
         # Standard PATH lookup
         system_bin = shutil.which("ffmpeg")
         if system_bin:
             return system_bin
-
-        # Common Windows paths
-        if sys.platform == "win32":
-            candidates = [
-                r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-                r"C:\ffmpeg\bin\ffmpeg.exe",
-                r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
-                r"C:\Program Files\VideoLAN\VLC\ffmpeg.exe",
-            ]
-            for cand in candidates:
-                if Path(cand).exists():
-                    return cand
 
         return None
 
