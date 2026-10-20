@@ -308,7 +308,7 @@ class AcousticAnalysisDialog(QDialog):
 
         # Write physical tags checkbox
         self.check_write_tags = QCheckBox("Scrivi metadati (BPM, Chiave Camelot) nei file fisici (ID3 / Vorbis)")
-        self.check_write_tags.setChecked(True)
+        self.check_write_tags.setChecked(False)
         config_layout.addWidget(self.check_write_tags, 2, 0, 1, 3)
 
         main_layout.addWidget(config_group)

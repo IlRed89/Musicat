@@ -345,6 +345,35 @@ QLabel#BpmBadge {
     font-weight: bold;
     padding: 2px 6px;
 }
+
+/* CheckBox */
+QCheckBox {
+    color: #e0e2ec;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #4a5168;
+    border-radius: 3px;
+    background-color: #1a1c24;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #00d2ff;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0d6efd;
+    border: 1px solid #0d6efd;
+    image: url("__CHECK_WHITE_ICON__");
+}
+
+QCheckBox::indicator:disabled {
+    background-color: #1e2028;
+    border-color: #2c303d;
+}
 """
 
 HIGH_CONTRAST_THEME_QSS = """
@@ -776,7 +805,7 @@ QSplitter::handle {
 /* CheckBox */
 QCheckBox {
     color: #212529;
-    spacing: 6px;
+    spacing: 8px;
 }
 
 QCheckBox::indicator {
@@ -787,9 +816,19 @@ QCheckBox::indicator {
     background-color: #ffffff;
 }
 
+QCheckBox::indicator:hover {
+    border-color: #0d6efd;
+}
+
 QCheckBox::indicator:checked {
     background-color: #0d6efd;
-    border-color: #0d6efd;
+    border: 1px solid #0d6efd;
+    image: url("__CHECK_WHITE_ICON__");
+}
+
+QCheckBox::indicator:disabled {
+    background-color: #e9ecef;
+    border-color: #ced4da;
 }
 
 /* Badges / Labels */
@@ -838,8 +877,17 @@ def get_theme_stylesheet(theme_id: str) -> str:
     """Returns the appropriate QSS stylesheet for the given theme ID. Defaults to Light theme."""
     t = (theme_id or "").lower().strip()
     if "high" in t or "contrast" in t:
-        return HIGH_CONTRAST_THEME_QSS
+        base = HIGH_CONTRAST_THEME_QSS
     elif "dark" in t:
-        return DARK_THEME_QSS
-    return LIGHT_THEME_QSS
+        base = DARK_THEME_QSS
+    else:
+        base = LIGHT_THEME_QSS
+
+    try:
+        from src.core.path_resolver import PathResolver
+        check_path = str(PathResolver.get_resource_path("assets/check_white.png")).replace("\\", "/")
+        base = base.replace("__CHECK_WHITE_ICON__", check_path)
+    except Exception:
+        pass
+    return base
 

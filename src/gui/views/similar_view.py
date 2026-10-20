@@ -430,10 +430,14 @@ class SimilarTracksView(QWidget):
 
         if is_light:
             self.setStyleSheet("""
-                QFrame#similarEmptyCard, QFrame#similarHeaderFrame {
+                QFrame#similarEmptyCard {
+                    background-color: transparent;
+                    border: none;
+                }
+                QFrame#similarHeaderFrame {
                     background-color: #ffffff;
-                    border: 1px solid #d0d7de;
-                    border-radius: 8px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
                 }
                 QTabWidget::pane {
                     border: 1px solid #dee2e6;
@@ -483,10 +487,14 @@ class SimilarTracksView(QWidget):
             """)
         else:
             self.setStyleSheet("""
-                QFrame#similarEmptyCard, QFrame#similarHeaderFrame {
-                    background-color: #181b26;
-                    border: 1px solid #282e42;
-                    border-radius: 8px;
+                QFrame#similarEmptyCard {
+                    background-color: transparent;
+                    border: none;
+                }
+                QFrame#similarHeaderFrame {
+                    background-color: #141720;
+                    border: 1px solid #232838;
+                    border-radius: 6px;
                 }
                 QTabWidget::pane {
                     border: 1px solid #232838;

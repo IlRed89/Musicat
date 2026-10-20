@@ -420,13 +420,13 @@ class MainWindow(QMainWindow):
         nav_layout.addWidget(self.btn_nav_similar)
         nav_layout.addWidget(self.btn_nav_organizer)
         nav_layout.addWidget(self.btn_nav_crates)
+        nav_layout.addStretch()
 
-        # Dedicated Settings button in navbar, neatly grouped with function buttons
+        # Dedicated Settings button positioned exclusively at the far right
         self.btn_nav_settings = QPushButton(_t("nav_settings", "⚙️  Impostazioni"))
         self.btn_nav_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nav_settings.clicked.connect(self._on_open_settings)
         nav_layout.addWidget(self.btn_nav_settings)
-        nav_layout.addStretch()
 
         main_layout.addWidget(self.nav_bar)
 
@@ -886,7 +886,7 @@ class MainWindow(QMainWindow):
 
         # Auto-scroll checkbox
         self.chk_log_autoscroll = QCheckBox(_t("chk_auto_scroll", "Auto-scroll"))
-        self.chk_log_autoscroll.setChecked(True)
+        self.chk_log_autoscroll.setChecked(False)
         toolbar_row.addWidget(self.chk_log_autoscroll)
 
         toolbar_row.addStretch()

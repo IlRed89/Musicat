@@ -128,7 +128,7 @@ class CamelotWheelDialog(QDialog):
         # Bottom Controls
         bottom_box = QHBoxLayout()
         self.chk_harmonic_only = QCheckBox("Filter 'Harmonic Matches Only' in Library")
-        self.chk_harmonic_only.setChecked(True)
+        self.chk_harmonic_only.setChecked(False)
         self.chk_harmonic_only.setStyleSheet("color: #38bdf8; font-weight: bold;")
         bottom_box.addWidget(self.chk_harmonic_only)
 
@@ -614,7 +614,7 @@ class LiveFilterBar(QFrame):
         self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.chk_harmonic_only = QCheckBox("Solo Armonici")
-        self.chk_harmonic_only.setChecked(True)
+        self.chk_harmonic_only.setChecked(False)
         self.chk_harmonic_only.setToolTip("Mostra solo chiavi armonicamente compatibili (±1, Relativo, +2 Boost)")
         self.chk_harmonic_only.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
@@ -1054,7 +1054,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_min.setValue(0)
         self.spin_bpm_max.setValue(0)
         self.cmb_camelot.setCurrentIndex(0)
-        self.chk_harmonic_only.setChecked(True)
+        self.chk_harmonic_only.setChecked(False)
         self.cmb_folder.setCurrentIndex(0)
         self.cmb_cover.setCurrentIndex(0)
         self.cmb_decade.setCurrentIndex(0)

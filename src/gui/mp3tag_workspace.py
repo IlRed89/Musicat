@@ -172,7 +172,7 @@ class TrackNumberingWizardDialog(QDialog):
         grid.addWidget(self.spn_start, 0, 1)
 
         self.chk_leading_zero = QCheckBox("Aggiungi zero iniziale (01, 02, ...)")
-        self.chk_leading_zero.setChecked(True)
+        self.chk_leading_zero.setChecked(False)
         self.chk_leading_zero.toggled.connect(self._update_preview)
         grid.addWidget(self.chk_leading_zero, 0, 2)
 

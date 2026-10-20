@@ -175,7 +175,7 @@ class SettingsDialog(QDialog):
                     color: #212529;
                 }
                 QGroupBox {
-                    background-color: #ffffff;
+                    background-color: transparent;
                     border: 1px solid #dee2e6;
                     border-radius: 6px;
                     margin-top: 14px;
@@ -187,7 +187,7 @@ class SettingsDialog(QDialog):
                     subcontrol-origin: margin;
                     subcontrol-position: top left;
                     padding: 0 6px;
-                    background-color: #ffffff;
+                    background-color: transparent;
                     color: #0d6efd;
                 }
                 QLabel {
@@ -341,10 +341,10 @@ class SettingsDialog(QDialog):
         info_cols = QFrame()
         info_cols.setStyleSheet("""
             QFrame {
-                background-color: #ffffff;
+                background-color: transparent;
                 border: 1px solid #dee2e6;
                 border-radius: 6px;
-                padding: 10px;
+                padding: 8px 12px;
             }
         """)
         info_layout = QHBoxLayout(info_cols)
@@ -468,7 +468,7 @@ class SettingsDialog(QDialog):
         gpu_layout = QVBoxLayout(grp_gpu)
 
         self.chk_gpu = QCheckBox("Abilita accelerazione spettrale su scheda grafica GPU")
-        self.chk_gpu.setChecked(self.gpu_info.is_available)
+        self.chk_gpu.setChecked(False)
         gpu_layout.addWidget(self.chk_gpu)
 
         # Adaptive Status badge
@@ -574,8 +574,8 @@ class SettingsDialog(QDialog):
             card.setObjectName(f"card_{svc_id}")
             card.setStyleSheet("""
                 QFrame {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
+                    background-color: #ffffff;
+                    border: 1px solid #e9ecef;
                     border-radius: 6px;
                     padding: 6px 10px;
                 }
@@ -1077,14 +1077,14 @@ class SettingsDialog(QDialog):
 
         # Audio
         self.slider_buffer.setValue(self.settings.get("audio", "buffer_ms", 150))
-        self.chk_autoplay.setChecked(self.settings.get("audio", "autoplay_on_click", True))
+        self.chk_autoplay.setChecked(self.settings.get("audio", "autoplay_on_click", False))
         pitch_r = self.settings.get("audio", "pitch_range", 8)
         self.cmb_pitch_range.setCurrentIndex(1 if pitch_r == 16 else 2 if pitch_r == 50 else 0)
 
         # Performance
         self.slider_perf_cores.setValue(self.settings.get("performance", "cpu_cores", max(1, (os.cpu_count() or 4) - 1)))
         self.slider_perf_ram.setValue(self.settings.get("performance", "ram_cache_mb", 1024))
-        self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", True))
+        self.chk_gpu.setChecked(self.settings.get("performance", "gpu_acceleration", False))
 
         # Scrapers
         self.txt_discogs_token.setText(self.settings.get("scrapers", "discogs_token", ""))

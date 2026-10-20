@@ -424,17 +424,17 @@ class ReconciliationDialog(QDialog):
         src_box = QHBoxLayout()
         src_box.addWidget(QLabel(_t("reconciler_lbl_sources", "Fonti:")))
         self.chk_bp = QCheckBox("Beatport")
-        self.chk_bp.setChecked(True)
+        self.chk_bp.setChecked(False)
         self.chk_tx = QCheckBox("Traxsource")
-        self.chk_tx.setChecked(True)
+        self.chk_tx.setChecked(False)
         self.chk_disc = QCheckBox("Discogs")
-        self.chk_disc.setChecked(True)
+        self.chk_disc.setChecked(False)
         self.chk_mb = QCheckBox("MusicBrainz")
-        self.chk_mb.setChecked(True)
+        self.chk_mb.setChecked(False)
         self.chk_soc = QCheckBox("Social/Remixes")
-        self.chk_soc.setChecked(True)
+        self.chk_soc.setChecked(False)
         self.chk_hd = QCheckBox("Apple Music HD Covers")
-        self.chk_hd.setChecked(True)
+        self.chk_hd.setChecked(False)
 
         for c in (self.chk_bp, self.chk_tx, self.chk_disc, self.chk_mb, self.chk_soc, self.chk_hd):
             src_box.addWidget(c)
@@ -481,7 +481,7 @@ class ReconciliationDialog(QDialog):
         self.cmb_art_options.currentIndexChanged.connect(self._on_artwork_selected)
 
         self.chk_save_folder_copy = QCheckBox(_t("reconciler_chk_save_local", "Salva copia come cover.jpg"))
-        self.chk_save_folder_copy.setChecked(True)
+        self.chk_save_folder_copy.setChecked(False)
 
         art_layout.addWidget(self.lbl_cover_preview, alignment=Qt.AlignmentFlag.AlignCenter)
         art_layout.addWidget(self.lbl_art_info)

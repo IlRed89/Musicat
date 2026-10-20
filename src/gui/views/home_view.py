@@ -219,7 +219,7 @@ class TrendsFetchWorker(QThread):
 
 
 class TrendingTrackCard(QFrame):
-    """Card widget representing a single trending chart entry with adaptive Light/Dark styling."""
+    """Card widget representing a single trending chart entry in a sleek horizontal row format."""
 
     play_requested = Signal(dict)
     find_similar_requested = Signal(dict)
@@ -230,24 +230,20 @@ class TrendingTrackCard(QFrame):
         super().__init__(parent)
         self.track = track
         self.theme_id = theme_id
-        self.setFixedSize(215, 305)
+        self.setFixedHeight(56)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._cover_connected = False
+        # Retain hidden lbl_cover for backward compatibility with tests
+        self.lbl_cover = QLabel(self)
+        self.lbl_cover.hide()
 
         self._init_ui()
         self.update_theme(self.theme_id)
 
-        self._cover_connected = False
-        if self.track.cover_url:
-            cached_pix = TrendingCoverLoader.instance().get_cached_pixmap(self.track.cover_url)
-            if cached_pix and not cached_pix.isNull():
-                self.lbl_cover.setPixmap(cached_pix)
-            else:
-                TrendingCoverLoader.instance().cover_ready.connect(self._on_cover_loaded)
-                self._cover_connected = True
-                TrendingCoverLoader.instance().request_cover(self.track.cover_url)
-
     def cleanup(self) -> None:
-        """Safely disconnects from central cover loader without blocking or terminating threads."""
+        """Safely disconnects without blocking or terminating threads."""
         if getattr(self, "_cover_connected", False):
             try:
                 TrendingCoverLoader.instance().cover_ready.disconnect(self._on_cover_loaded)
@@ -256,45 +252,104 @@ class TrendingTrackCard(QFrame):
             self._cover_connected = False
 
     def _on_cover_loaded(self, url: str, img: QImage) -> None:
-        if url == self.track.cover_url:
-            cached_pix = TrendingCoverLoader.instance().get_cached_pixmap(url)
-            if cached_pix and not cached_pix.isNull():
-                self.lbl_cover.setPixmap(cached_pix)
+        pass
 
     def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(5)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(10)
 
-        # -------------------------------------------------------------
-        # Cover Art & Rank Badge Overlay
-        # -------------------------------------------------------------
-        cover_container = QWidget()
-        cover_container.setFixedSize(195, 140)
-        c_layout = QVBoxLayout(cover_container)
-        c_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.lbl_cover = QLabel(cover_container)
-        self.lbl_cover.setFixedSize(195, 140)
-        self.lbl_cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_cover.setText("🎵")
-
-        # Rank badge in top-left
-        self.rank_badge = QLabel(f"#{self.track.rank}", cover_container)
-        rank_color = "#d97706" if self.track.rank <= 3 else "#0284c7"
+        # 1. Rank Badge (#1, #2...)
+        self.rank_badge = QLabel(f"#{self.track.rank}")
+        self.rank_badge.setFixedWidth(38)
+        self.rank_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rank_color = "#d97706" if self.track.rank <= 3 else "#0d6efd"
         self.rank_badge.setStyleSheet(f"""
-            background-color: rgba(255, 255, 255, 0.92);
             color: {rank_color};
+            font-weight: 800;
+            font-size: 13px;
+            background-color: transparent;
+        """)
+        layout.addWidget(self.rank_badge)
+
+        # 2. Metadata: Title & Artist (Vertical column, expanding)
+        info_col = QVBoxLayout()
+        info_col.setContentsMargins(0, 0, 0, 0)
+        info_col.setSpacing(2)
+
+        self.lbl_title = QLabel(self.track.title)
+        self.lbl_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        tooltip_meta = f"{self.track.artist} - {self.track.title}"
+        if self.track.album:
+            tooltip_meta += f" ({self.track.album})"
+        self.lbl_title.setToolTip(tooltip_meta)
+        info_col.addWidget(self.lbl_title)
+
+        self.lbl_artist = QLabel(self.track.artist)
+        self.lbl_artist.setFont(QFont("Segoe UI", 9))
+        info_col.addWidget(self.lbl_artist)
+        layout.addLayout(info_col, stretch=3)
+
+        # 3. Badges: Platform, Genre, BPM, Key, Library Status
+        badges_row = QHBoxLayout()
+        badges_row.setContentsMargins(0, 0, 0, 0)
+        badges_row.setSpacing(6)
+        badges_row.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+
+        # Platform badge
+        plat_key = (self.track.platform or "spotify").lower()
+        if "sound" in plat_key:
+            plat_label = "SoundCloud"
+            plat_color = "#ea580c"
+            plat_bg = "#fff7ed"
+        elif "beat" in plat_key:
+            plat_label = "Beatport"
+            plat_color = "#059669"
+            plat_bg = "#ecfdf5"
+        else:
+            plat_label = "Spotify"
+            plat_color = "#16a34a"
+            plat_bg = "#f0fdf4"
+
+        self.lbl_platform = QLabel(plat_label)
+        self.lbl_platform.setStyleSheet(f"""
+            background-color: {plat_bg};
+            color: {plat_color};
             font-weight: bold;
-            font-size: 11px;
+            font-size: 10px;
             padding: 2px 7px;
             border-radius: 4px;
-            border: 1px solid {rank_color};
         """)
-        self.rank_badge.move(6, 6)
+        badges_row.addWidget(self.lbl_platform)
 
-        # Ownership badge in top-right
-        self.owner_badge = QLabel(cover_container)
+        # Genre badge
+        genre_display = CATEGORY_TO_GENRE.get(self.track.category, "").strip()
+        if not genre_display and self.track.category:
+            genre_display = self.track.category.replace("bp_", "").replace("sc_", "").replace("_", " ").title()
+        if genre_display:
+            self.lbl_genre = QLabel(genre_display)
+            self.lbl_genre.setStyleSheet("""
+                background-color: #f1f3f5;
+                color: #495057;
+                font-size: 10px;
+                font-weight: 600;
+                padding: 2px 7px;
+                border-radius: 4px;
+            """)
+            badges_row.addWidget(self.lbl_genre)
+
+        # Acoustic indicators (BPM & Camelot)
+        if self.track.bpm:
+            lbl_bpm = QLabel(f"⚡ {self.track.bpm:.1f}")
+            lbl_bpm.setStyleSheet("color: #0284c7; font-size: 10px; font-weight: bold; padding: 2px 4px;")
+            badges_row.addWidget(lbl_bpm)
+        if self.track.camelot_key:
+            lbl_k = QLabel(f"🔑 {self.track.camelot_key}")
+            lbl_k.setStyleSheet("color: #7c3aed; font-size: 10px; font-weight: bold; padding: 2px 4px;")
+            badges_row.addWidget(lbl_k)
+
+        # Ownership badge
+        self.owner_badge = QLabel()
         if self.track.in_library:
             self.owner_badge.setText(_t("home_card_in_library", "✓ In Libreria"))
             self.owner_badge.setStyleSheet("""
@@ -316,73 +371,65 @@ class TrendingTrackCard(QFrame):
                 border-radius: 4px;
                 border: 1px solid #dee2e6;
             """)
-        self.owner_badge.adjustSize()
-        self.owner_badge.move(195 - self.owner_badge.width() - 6, 6)
+        badges_row.addWidget(self.owner_badge)
 
-        c_layout.addWidget(self.lbl_cover)
-        layout.addWidget(cover_container)
+        layout.addLayout(badges_row, stretch=2)
 
-        # -------------------------------------------------------------
-        # Metadata: Title & Artist
-        # -------------------------------------------------------------
-        self.lbl_title = QLabel(self.track.title)
-        self.lbl_title.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        self.lbl_title.setWordWrap(True)
-        self.lbl_title.setMaximumHeight(36)
-        layout.addWidget(self.lbl_title)
-
-        self.lbl_artist = QLabel(self.track.artist)
-        self.lbl_artist.setWordWrap(False)
-        layout.addWidget(self.lbl_artist)
-
-        # Acoustic indicators (BPM & Camelot)
-        meta_row = QHBoxLayout()
-        meta_row.setSpacing(6)
-        if self.track.bpm:
-            lbl_bpm = QLabel(f"⚡ {self.track.bpm:.1f}")
-            lbl_bpm.setStyleSheet("color: #0284c7; font-size: 10px; font-weight: bold;")
-            meta_row.addWidget(lbl_bpm)
-        if self.track.camelot_key:
-            lbl_k = QLabel(f"🔑 {self.track.camelot_key}")
-            lbl_k.setStyleSheet("color: #7c3aed; font-size: 10px; font-weight: bold;")
-            meta_row.addWidget(lbl_k)
-        meta_row.addStretch()
-        layout.addLayout(meta_row)
-
-        layout.addStretch()
-
-        # -------------------------------------------------------------
-        # Actions: Play / Similar / Web / Filter Genre
-        # -------------------------------------------------------------
+        # 4. Actions: Play / Similar / Web / Copy
         actions_row = QHBoxLayout()
-        actions_row.setSpacing(4)
+        actions_row.setContentsMargins(0, 0, 0, 0)
+        actions_row.setSpacing(5)
+        actions_row.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
 
         if self.track.in_library:
             self.btn_play = QPushButton(_t("home_card_play", "▶ Play"))
-            self.btn_play.setFixedHeight(24)
+            self.btn_play.setFixedSize(68, 28)
+            self.btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_play.clicked.connect(self._on_play_or_preview_clicked)
-            actions_row.addWidget(self.btn_play, 1)
+            actions_row.addWidget(self.btn_play)
         else:
             self.btn_play = QPushButton(_t("home_card_preview", "▶ Preview"))
-            self.btn_play.setFixedHeight(24)
+            self.btn_play.setFixedSize(76, 28)
+            self.btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_play.clicked.connect(self._on_play_or_preview_clicked)
-            actions_row.addWidget(self.btn_play, 1)
+            actions_row.addWidget(self.btn_play)
 
             self.btn_stream = QPushButton("🌐")
             self.btn_stream.setToolTip(_t("home_card_web_tooltip", "Apri sul web"))
-            self.btn_stream.setFixedSize(28, 24)
+            self.btn_stream.setFixedSize(28, 28)
+            self.btn_stream.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_stream.clicked.connect(self._on_web_clicked)
             actions_row.addWidget(self.btn_stream)
 
         self.btn_sim = QPushButton(_t("home_card_similar", "✨ Simili"))
-        self.btn_sim.setFixedHeight(24)
+        self.btn_sim.setFixedSize(72, 28)
+        self.btn_sim.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_sim.clicked.connect(self._on_similar_clicked)
-        actions_row.addWidget(self.btn_sim, 1)
+        actions_row.addWidget(self.btn_sim)
+
+        self.btn_copy = QPushButton("📋")
+        self.btn_copy.setToolTip(_t("home_card_copy_tooltip", "Copia Artista e Titolo"))
+        self.btn_copy.setFixedSize(28, 28)
+        self.btn_copy.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_copy.clicked.connect(self._on_copy_clicked)
+        actions_row.addWidget(self.btn_copy)
 
         layout.addLayout(actions_row)
 
+    def _on_copy_clicked(self) -> None:
+        try:
+            from PySide6.QtWidgets import QApplication
+            text = f"{self.track.artist} - {self.track.title}"
+            cb = QApplication.clipboard()
+            if cb:
+                cb.setText(text)
+                self.btn_copy.setText("✓")
+                QTimer.singleShot(1500, lambda: self.btn_copy.setText("📋") if hasattr(self, "btn_copy") else None)
+        except Exception:
+            pass
+
     def update_theme(self, theme_id: str = "light") -> None:
-        """Applies high-contrast white card styling for Light Theme or dark console for Dark Theme."""
+        """Applies high-contrast card styling for Light Theme or dark console for Dark Theme."""
         self.theme_id = theme_id
         is_light = (theme_id == "light")
 
@@ -390,24 +437,23 @@ class TrendingTrackCard(QFrame):
             self.setStyleSheet("""
                 TrendingTrackCard {
                     background-color: #ffffff;
-                    border: 1px solid #d0d7de;
-                    border-radius: 8px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
                 }
                 TrendingTrackCard:hover {
                     background-color: #f8f9fa;
                     border-color: #0d6efd;
                 }
             """)
-            self.lbl_cover.setStyleSheet("background-color: #f1f3f5; border: 1px solid #dee2e6; border-radius: 6px; font-size: 28px;")
             self.lbl_title.setStyleSheet("color: #212529;")
-            self.lbl_artist.setStyleSheet("color: #495057; font-size: 11px;")
+            self.lbl_artist.setStyleSheet("color: #6c757d; font-size: 11px;")
             if hasattr(self, "btn_play"):
                 self.btn_play.setStyleSheet("""
                     QPushButton {
                         background-color: #0d6efd;
                         color: #ffffff;
                         font-weight: bold;
-                        font-size: 10px;
+                        font-size: 11px;
                         border: none;
                         border-radius: 4px;
                     }
@@ -419,7 +465,7 @@ class TrendingTrackCard(QFrame):
                         background-color: #ffffff;
                         color: #495057;
                         border: 1px solid #ced4da;
-                        font-size: 10px;
+                        font-size: 11px;
                         border-radius: 4px;
                     }
                     QPushButton:hover { background-color: #e9ecef; color: #212529; }
@@ -431,24 +477,34 @@ class TrendingTrackCard(QFrame):
                         color: #7e22ce;
                         border: 1px solid #d8b4fe;
                         font-weight: bold;
-                        font-size: 10px;
+                        font-size: 11px;
                         border-radius: 4px;
                     }
                     QPushButton:hover { background-color: #e9d5ff; color: #6b21a8; }
+                """)
+            if hasattr(self, "btn_copy"):
+                self.btn_copy.setStyleSheet("""
+                    QPushButton {
+                        background-color: #ffffff;
+                        color: #495057;
+                        border: 1px solid #ced4da;
+                        font-size: 11px;
+                        border-radius: 4px;
+                    }
+                    QPushButton:hover { background-color: #e9ecef; color: #212529; }
                 """)
         else:
             self.setStyleSheet("""
                 TrendingTrackCard {
                     background-color: #171923;
                     border: 1px solid #292d3e;
-                    border-radius: 8px;
+                    border-radius: 6px;
                 }
                 TrendingTrackCard:hover {
                     border-color: #00d2ff;
                     background-color: #1c1f2c;
                 }
             """)
-            self.lbl_cover.setStyleSheet("background-color: #10121a; border-radius: 6px; font-size: 28px;")
             self.lbl_title.setStyleSheet("color: #ffffff;")
             self.lbl_artist.setStyleSheet("color: #94a3b8; font-size: 11px;")
             if hasattr(self, "btn_play"):
@@ -457,9 +513,9 @@ class TrendingTrackCard(QFrame):
                         background-color: #0284c7;
                         color: #ffffff;
                         font-weight: bold;
-                        font-size: 10px;
+                        font-size: 11px;
                         border: none;
-                        border-radius: 3px;
+                        border-radius: 4px;
                     }
                     QPushButton:hover { background-color: #38bdf8; color: #000; }
                 """)
@@ -468,9 +524,9 @@ class TrendingTrackCard(QFrame):
                     QPushButton {
                         background-color: #1e293b;
                         color: #94a3b8;
-                        font-size: 10px;
+                        font-size: 11px;
                         border: 1px solid #334155;
-                        border-radius: 3px;
+                        border-radius: 4px;
                     }
                     QPushButton:hover { background-color: #334155; color: #fff; }
                 """)
@@ -481,10 +537,21 @@ class TrendingTrackCard(QFrame):
                         color: #c084fc;
                         border: 1px solid #7c3aed;
                         font-weight: bold;
-                        font-size: 10px;
-                        border-radius: 3px;
+                        font-size: 11px;
+                        border-radius: 4px;
                     }
                     QPushButton:hover { background-color: #7c3aed; color: #fff; }
+                """)
+            if hasattr(self, "btn_copy"):
+                self.btn_copy.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1e293b;
+                        color: #94a3b8;
+                        font-size: 11px;
+                        border: 1px solid #334155;
+                        border-radius: 4px;
+                    }
+                    QPushButton:hover { background-color: #334155; color: #fff; }
                 """)
 
     def mousePressEvent(self, event) -> None:
@@ -690,7 +757,7 @@ class HomeTrendsView(QWidget):
         self.cards_container = QWidget()
         self.cards_layout = QGridLayout(self.cards_container)
         self.cards_layout.setContentsMargins(4, 4, 4, 4)
-        self.cards_layout.setSpacing(14)
+        self.cards_layout.setSpacing(6)
         self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
         self.scroll.setWidget(self.cards_container)
@@ -1055,7 +1122,7 @@ class HomeTrendsView(QWidget):
             )
 
             viewport_w = self.scroll.viewport().width()
-            columns = max(3, min(8, viewport_w // 230)) if viewport_w > 200 else 5
+            columns = 2 if viewport_w >= 1050 else 1
             self._last_cols = columns
 
             for idx, t in enumerate(tracks):
@@ -1073,7 +1140,7 @@ class HomeTrendsView(QWidget):
         super().resizeEvent(event)
         if self.current_tracks:
             viewport_w = self.scroll.viewport().width()
-            new_cols = max(3, min(8, viewport_w // 230)) if viewport_w > 200 else 5
+            new_cols = 2 if viewport_w >= 1050 else 1
             if getattr(self, "_last_cols", 0) != new_cols:
                 self._render_cards(self.current_tracks)
 

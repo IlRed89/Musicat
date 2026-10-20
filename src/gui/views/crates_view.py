@@ -392,7 +392,7 @@ class SmartCratesView(QWidget):
         f_key.addRow("Chiave Camelot:", self.cmb_camelot)
 
         self.chk_harmonic_compatible = QCheckBox("Includi chiavi compatibili armonicamente (±1, Relativo, +2 Energy)")
-        self.chk_harmonic_compatible.setChecked(True)
+        self.chk_harmonic_compatible.setChecked(False)
         self.chk_harmonic_compatible.toggled.connect(self._trigger_preview_update)
         f_key.addRow("", self.chk_harmonic_compatible)
         center_layout.addWidget(grp_key)
@@ -772,7 +772,7 @@ class SmartCratesView(QWidget):
         self.spin_min_bpm.setValue(0)
         self.spin_max_bpm.setValue(0)
         self.cmb_camelot.setCurrentIndex(0)
-        self.chk_harmonic_compatible.setChecked(True)
+        self.chk_harmonic_compatible.setChecked(False)
         self.spin_year_min.setValue(0)
         self.spin_year_max.setValue(0)
         self.cmb_quality.setCurrentIndex(0)

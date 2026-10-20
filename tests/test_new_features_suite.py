@@ -147,9 +147,14 @@ class TestAdvancedMp3tagToolset(unittest.TestCase):
     def test_track_numbering_wizard_options(self):
         wizard = TrackNumberingWizardDialog(self.sample_tracks)
 
-        # Default: 01, 02, 03
+        # Default unchecked: 1, 2, 3
         nums = wizard.get_track_numbers()
-        self.assertEqual(nums, ["01", "02", "03"])
+        self.assertEqual(nums, ["1", "2", "3"])
+
+        # With leading zero: 01, 02, 03
+        wizard.chk_leading_zero.setChecked(True)
+        nums_zero = wizard.get_track_numbers()
+        self.assertEqual(nums_zero, ["01", "02", "03"])
 
         # With denominator (total = 3): 01/03, 02/03, 03/03
         wizard.chk_total_denominator.setChecked(True)
