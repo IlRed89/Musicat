@@ -76,7 +76,7 @@ class SettingsDialog(QDialog):
         self._manual_updater_worker: Optional[UpdateCheckerWorker] = None
         self._update_dialog: Optional[UpdateNotificationDialog] = None
 
-        self.setWindowTitle(_t("settings_title", "Musicat — Preferenze di Sistema"))
+        self.setWindowTitle(f"⚙️ {_t('settings_title', 'Preferenze di Sistema')} — Musicat v{__version__}")
         self.resize(860, 620)
         self.setMinimumSize(800, 540)
 
@@ -91,6 +91,9 @@ class SettingsDialog(QDialog):
         main_layout.setSpacing(14)
 
         # 1. Left Sidebar Navigation
+        sidebar_layout = QVBoxLayout()
+        sidebar_layout.setSpacing(8)
+
         self.sidebar = QListWidget()
         self.sidebar.setFixedWidth(210)
 
@@ -107,7 +110,35 @@ class SettingsDialog(QDialog):
             item = QListWidgetItem(text)
             self.sidebar.addItem(item)
 
-        main_layout.addWidget(self.sidebar)
+        sidebar_layout.addWidget(self.sidebar, 1)
+
+        # Version & Info Box at bottom of sidebar
+        ver_card = QFrame()
+        ver_card.setStyleSheet("""
+            QFrame {
+                background-color: #f8faff;
+                border: 1px solid #cce5ff;
+                border-radius: 6px;
+                padding: 6px 10px;
+            }
+        """)
+        ver_layout = QVBoxLayout(ver_card)
+        ver_layout.setContentsMargins(6, 6, 6, 6)
+        ver_layout.setSpacing(2)
+
+        lbl_v_app = QLabel("<b>Musicat</b>")
+        lbl_v_app.setStyleSheet("color: #0d6efd; font-size: 13px; background: transparent;")
+        lbl_v_num = QLabel(f"Versione <b>v{__version__}</b>")
+        lbl_v_num.setStyleSheet("color: #212529; font-size: 11px; background: transparent;")
+        lbl_v_rel = QLabel("● Release Ufficiale", ver_card)
+        lbl_v_rel.setStyleSheet("color: #198754; font-size: 10px; font-weight: bold; background: transparent;")
+
+        ver_layout.addWidget(lbl_v_app)
+        ver_layout.addWidget(lbl_v_num)
+        ver_layout.addWidget(lbl_v_rel)
+        sidebar_layout.addWidget(ver_card)
+
+        main_layout.addLayout(sidebar_layout)
 
         # 2. Right Content Area (Stacked Widget + Buttons)
         right_container = QVBoxLayout()
@@ -142,6 +173,10 @@ class SettingsDialog(QDialog):
         self.btn_reset = QPushButton(_t("settings_btn_reset", "Ripristina Predefiniti"))
         self.btn_reset.clicked.connect(self._on_reset_defaults)
         btn_bar.addWidget(self.btn_reset)
+
+        self.lbl_ver_badge = QLabel(f"Versione: v{__version__}")
+        self.lbl_ver_badge.setStyleSheet("color: #0d6efd; font-weight: bold; font-size: 11px; background-color: #f0f7ff; border: 1px solid #b6d4fe; border-radius: 4px; padding: 4px 10px;")
+        btn_bar.addWidget(self.lbl_ver_badge)
 
         btn_bar.addStretch()
 
@@ -1146,7 +1181,7 @@ class SettingsDialog(QDialog):
         layout.setSpacing(14)
         layout.setContentsMargins(10, 8, 14, 14)
 
-        header = QLabel("<h2>📖 Guida all'Uso & Manuale Operativo Musicat</h2>")
+        header = QLabel(f"<h2>📖 Guida all'Uso & Manuale Operativo — Musicat v{__version__}</h2>")
         header.setStyleSheet("color: #0d6efd; margin-bottom: 2px;")
         layout.addWidget(header)
 
@@ -1305,9 +1340,12 @@ class SettingsDialog(QDialog):
             if i < self.sidebar.count():
                 self.sidebar.item(i).setText(text)
 
+        self.setWindowTitle(f"⚙️ {_t('settings_title', 'Preferenze di Sistema')} — Musicat v{__version__}")
         self.btn_reset.setText(_t("settings_btn_reset", "Ripristina Predefiniti"))
         self.btn_cancel.setText(_t("settings_btn_cancel", "Annulla"))
         self.btn_save.setText(_t("settings_btn_save", "Salva ed Applica"))
+        if hasattr(self, "lbl_ver_badge"):
+            self.lbl_ver_badge.setText(f"{_t('settings_version_label', 'Versione')}: v{__version__}")
 
         if hasattr(self, "grp_updates"):
             self.grp_updates.setTitle(_t("settings_updates_group", "🚀 Aggiornamenti Software"))

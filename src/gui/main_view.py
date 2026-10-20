@@ -367,7 +367,7 @@ class MainWindow(QMainWindow):
         self._startup_updater_worker: Optional[UpdateCheckerWorker] = None
         self._update_dialog: Optional[UpdateNotificationDialog] = None
 
-        self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
+        self.setWindowTitle(f"Musicat v{__version__} — {_t('app_title', 'DJ Catalog & Smart Organizer')}")
         self.resize(1300, 820)
 
         self._init_ui()
@@ -2032,7 +2032,7 @@ class MainWindow(QMainWindow):
 
     def _retranslate_ui(self) -> None:
         """Dynamically retranslates all top-level main window components."""
-        self.setWindowTitle(_t("app_title", "Musicat — DJ Catalog & Smart Organizer"))
+        self.setWindowTitle(f"Musicat v{__version__} — {_t('app_title', 'DJ Catalog & Smart Organizer')}")
         if hasattr(self, "btn_nav_library"):
             self.btn_nav_library.setText(_t("nav_library", "📁  Libreria"))
         if hasattr(self, "btn_nav_trends"):
