@@ -11,6 +11,7 @@ Detects graphics acceleration capabilities across:
 from __future__ import annotations
 
 import ctypes
+import glob
 import os
 import platform
 import subprocess
@@ -105,8 +106,74 @@ class GpuDetector:
             return False
 
     @classmethod
+    def _ensure_external_compute_paths(cls) -> None:
+        """If running frozen (e.g. PyInstaller standalone) or if PyTorch is not yet in sys.path,
+        discover host PyTorch / CUDA libraries and make them dynamically available."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return
+        except Exception:
+            pass
+
+        if sys.platform != "win32":
+            return
+
+        candidates: list[str] = []
+
+        # 1. Active virtualenv or conda environment
+        for env_var in ("VIRTUAL_ENV", "CONDA_PREFIX"):
+            val = os.environ.get(env_var)
+            if val:
+                sp = os.path.join(val, "Lib", "site-packages")
+                if os.path.isdir(sp) and sp not in candidates:
+                    candidates.append(sp)
+
+        # 2. LocalAppData Python installations (e.g. %LOCALAPPDATA%\Programs\Python\Python3*\Lib\site-packages)
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        if local_app:
+            found = glob.glob(os.path.join(local_app, "Programs", "Python", "Python3*", "Lib", "site-packages"))
+            for p in sorted(found, reverse=True):
+                if p not in candidates:
+                    candidates.append(p)
+
+        # 3. Program Files Python installations
+        prog_files = os.environ.get("ProgramFiles", "")
+        if prog_files:
+            found = glob.glob(os.path.join(prog_files, "Python3*", "Lib", "site-packages"))
+            for p in sorted(found, reverse=True):
+                if p not in candidates:
+                    candidates.append(p)
+
+        # 4. System Drive Python installations (e.g. C:\Python3*)
+        sys_drive = os.environ.get("SystemDrive", "C:")
+        found = glob.glob(os.path.join(sys_drive + "\\", "Python3*", "Lib", "site-packages"))
+        for p in sorted(found, reverse=True):
+            if p not in candidates:
+                candidates.append(p)
+
+        # Try to locate torch and its DLLs in candidate directories
+        for sp in candidates:
+            torch_dir = os.path.join(sp, "torch")
+            torch_lib = os.path.join(torch_dir, "lib")
+            if os.path.isdir(torch_lib):
+                try:
+                    if hasattr(os, "add_dll_directory"):
+                        os.add_dll_directory(torch_lib)
+                    os.environ["PATH"] = torch_lib + os.pathsep + os.environ.get("PATH", "")
+                    if sp not in sys.path:
+                        sys.path.insert(0, sp)
+                    import torch
+                    if torch.cuda.is_available():
+                        return
+                except Exception:
+                    continue
+
+    @classmethod
     def _detect_gpu(cls) -> GpuInfo:
         """Runs multi-tier GPU detection across frameworks and OS drivers."""
+        cls._ensure_external_compute_paths()
+
         # 1. Check PyTorch CUDA
         try:
             import torch
