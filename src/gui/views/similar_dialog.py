@@ -270,8 +270,20 @@ class SimilarTracksDialog(QDialog):
         ])
         self.table_local.verticalHeader().setDefaultSectionSize(38)
         self.table_local.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table_local.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table_local.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header_local = self.table_local.horizontalHeader()
+        header_local.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header_local.setStretchLastSection(False)
+        header_local.setMinimumSectionSize(35)
+        header_local.setSectionsMovable(True)
+        self.table_local.setColumnWidth(0, 45)    # #
+        self.table_local.setColumnWidth(1, 110)   # Affinità
+        self.table_local.setColumnWidth(2, 280)   # Titolo
+        self.table_local.setColumnWidth(3, 200)   # Artista
+        self.table_local.setColumnWidth(4, 85)    # BPM
+        self.table_local.setColumnWidth(5, 85)    # Camelot
+        self.table_local.setColumnWidth(6, 140)   # Genere
+        self.table_local.setColumnWidth(7, 280)   # Motivo Affinità
+        self.table_local.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table_local.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_local.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_local.customContextMenuRequested.connect(self._on_local_context_menu)
@@ -303,8 +315,18 @@ class SimilarTracksDialog(QDialog):
         ])
         self.table_online.verticalHeader().setDefaultSectionSize(38)
         self.table_online.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table_online.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table_online.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header_online = self.table_online.horizontalHeader()
+        header_online.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header_online.setStretchLastSection(False)
+        header_online.setMinimumSectionSize(35)
+        header_online.setSectionsMovable(True)
+        self.table_online.setColumnWidth(0, 100)  # Fonte
+        self.table_online.setColumnWidth(1, 110)  # Affinità
+        self.table_online.setColumnWidth(2, 280)  # Titolo
+        self.table_online.setColumnWidth(3, 200)  # Artista
+        self.table_online.setColumnWidth(4, 160)  # Stato
+        self.table_online.setColumnWidth(5, 180)  # Ascolta Online
+        self.table_online.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table_online.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         online_layout.addWidget(self.table_online)
 
