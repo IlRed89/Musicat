@@ -1029,7 +1029,7 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self.grid.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.grid.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.grid.verticalHeader().setDefaultSectionSize(32)
-        self.grid.horizontalHeader().setStretchLastSection(True)
+        self.grid.horizontalHeader().setStretchLastSection(False)
         self.grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
 
         self.grid.itemSelectionChanged.connect(self._on_grid_selection_changed)
@@ -1055,6 +1055,13 @@ class Mp3tagWorkspaceWindow(QMainWindow):
                 self.grid.setItem(row, col, item)
 
         self.grid.blockSignals(False)
+
+        # Auto-fit columns to text width with comfortable padding, leaving them user-resizable
+        self.grid.resizeColumnsToContents()
+        for col in range(self.grid.columnCount()):
+            cur_w = self.grid.columnWidth(col)
+            self.grid.setColumnWidth(col, max(80, cur_w + 20))
+
         if self.tracks:
             self.grid.selectRow(0)
 

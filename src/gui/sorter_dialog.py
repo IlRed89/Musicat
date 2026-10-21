@@ -66,7 +66,7 @@ class SorterDialog(QDialog):
         main_layout.addWidget(desc_lbl)
 
         # Config Panel
-        config_group = QGroupBox(_t("sorter_group_rules", "Regole di Smistamento & Destinazioni"))
+        config_group = QGroupBox(_t("sorter_group_rules", "Regole di Smistamento && Destinazioni"))
         cfg_layout = QVBoxLayout(config_group)
 
         # Source Selection
@@ -81,6 +81,13 @@ class SorterDialog(QDialog):
         self.txt_src_folder = QLineEdit()
         self.btn_browse_src = QPushButton(_t("sorter_browse", "Sfoglia..."))
         self.btn_browse_src.clicked.connect(self._browse_src)
+
+        def _update_src_mode(folder_mode: bool):
+            self.txt_src_folder.setEnabled(folder_mode)
+            self.btn_browse_src.setEnabled(folder_mode)
+
+        self.radio_folder.toggled.connect(_update_src_mode)
+        _update_src_mode(self.radio_folder.isChecked())
 
         src_row.addWidget(self.radio_selected)
         src_row.addWidget(self.radio_folder)

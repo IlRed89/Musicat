@@ -378,6 +378,38 @@ QCheckBox::indicator:disabled, QGroupBox::indicator:disabled {
     background-color: #1e2028;
     border-color: #2c303d;
 }
+
+/* RadioButton */
+QRadioButton {
+    color: #e0e2ec;
+    spacing: 8px;
+}
+
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #4a5168;
+    border-radius: 9px;
+    background-color: #1a1c24;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #00d2ff;
+}
+
+QRadioButton::indicator:checked {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #0d6efd;
+    border-radius: 9px;
+    background-color: #0d6efd;
+    image: url("__RADIO_WHITE_ICON__");
+}
+
+QRadioButton::indicator:disabled {
+    background-color: #1e2028;
+    border-color: #2c303d;
+}
 """
 
 
@@ -473,6 +505,38 @@ QCheckBox::indicator:checked, QGroupBox::indicator:checked {
 }
 
 QCheckBox::indicator:disabled, QGroupBox::indicator:disabled {
+    background-color: #222222;
+    border-color: #555555;
+}
+
+/* RadioButton */
+QRadioButton {
+    color: #ffffff;
+    spacing: 8px;
+}
+
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #00ffff;
+    border-radius: 9px;
+    background-color: #000000;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #ffffff;
+}
+
+QRadioButton::indicator:checked {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #00ffff;
+    border-radius: 9px;
+    background-color: #00ffff;
+    image: url("__RADIO_BLACK_ICON__");
+}
+
+QRadioButton::indicator:disabled {
     background-color: #222222;
     border-color: #555555;
 }
@@ -881,10 +945,10 @@ QRadioButton {
 }
 
 QRadioButton::indicator {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border: 1.5px solid #ced4da;
-    border-radius: 8px;
+    border-radius: 9px;
     background-color: #ffffff;
 }
 
@@ -893,8 +957,12 @@ QRadioButton::indicator:hover {
 }
 
 QRadioButton::indicator:checked {
-    border: 5px solid #0d6efd;
-    background-color: #ffffff;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #0d6efd;
+    border-radius: 9px;
+    background-color: #0d6efd;
+    image: url("__RADIO_WHITE_ICON__");
 }
 
 QRadioButton::indicator:disabled {
@@ -968,6 +1036,10 @@ def get_theme_stylesheet(theme_id: str) -> str:
         from src.core.path_resolver import PathResolver
         check_path = str(PathResolver.get_resource_path("assets/check_white.png")).replace("\\", "/")
         base = base.replace("__CHECK_WHITE_ICON__", check_path)
+        radio_path = str(PathResolver.get_resource_path("assets/radio_white.png")).replace("\\", "/")
+        base = base.replace("__RADIO_WHITE_ICON__", radio_path)
+        radio_b_path = str(PathResolver.get_resource_path("assets/radio_black.png")).replace("\\", "/")
+        base = base.replace("__RADIO_BLACK_ICON__", radio_b_path)
     except Exception:
         pass
     return base

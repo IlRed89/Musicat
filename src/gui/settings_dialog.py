@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -51,6 +51,34 @@ from src.core.settings import SettingsManager
 from src.core.updater import UpdateCheckerWorker, UpdateInfo
 from src.gui.updater_dialog import UpdateNotificationDialog
 from src.plugins.manager import PluginManager
+
+
+class GpuPackageInstallerWorker(QThread):
+    finished = Signal(bool, str)
+
+    def __init__(self, cmd_text: str, parent=None):
+        super().__init__(parent)
+        self.cmd_text = cmd_text
+
+    def run(self):
+        import subprocess, sys, shutil
+        try:
+            py_exe = sys.executable
+            if getattr(sys, "frozen", False):
+                py_exe = shutil.which("python") or shutil.which("python3")
+                if not py_exe:
+                    self.finished.emit(False, "Python non trovato nel PATH per eseguire l'installazione via pip. Copia il comando ed eseguilo da terminale.")
+                    return
+
+            pkg_args = self.cmd_text.replace("pip install", "").strip().split()
+            args = [py_exe, "-m", "pip", "install"] + pkg_args
+            proc = subprocess.run(args, capture_output=True, text=True, timeout=180)
+            if proc.returncode == 0:
+                self.finished.emit(True, "Installazione completata con successo!")
+            else:
+                self.finished.emit(False, proc.stderr or proc.stdout or "Installazione non riuscita.")
+        except Exception as e:
+            self.finished.emit(False, str(e))
 
 
 class GpuDiagnosticDialog(QDialog):
@@ -121,7 +149,7 @@ class GpuDiagnosticDialog(QDialog):
 
         desc_install = QLabel(
             "Per abilitare o estendere l'accelerazione hardware sulla tua scheda grafica, "
-            "puoi installare i pacchetti consigliati tramite il terminale o copiare il comando rapido:"
+            "puoi installare i pacchetti consigliati tramite il terminale o avviare l'installazione rapida:"
         )
         desc_install.setWordWrap(True)
         desc_install.setStyleSheet("color: #6c757d; font-size: 11px;")
@@ -164,6 +192,14 @@ class GpuDiagnosticDialog(QDialog):
             btn_copy.clicked.connect(lambda ch=False, c=cmd_text, b=btn_copy: self._copy_command(c, b))
             c_row.addWidget(btn_copy)
 
+            if "directml" in cmd_text.lower():
+                btn_install = QPushButton("🚀 Installa")
+                btn_install.setFixedWidth(85)
+                btn_install.setFixedHeight(28)
+                btn_install.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn_install.clicked.connect(lambda ch=False, c=cmd_text, b=btn_install: self._start_install(c, b))
+                c_row.addWidget(btn_install)
+
             cmd_layout.addLayout(c_row)
 
         layout.addWidget(grp_commands)
@@ -194,6 +230,31 @@ class GpuDiagnosticDialog(QDialog):
         button.setText("✓ Copiato!")
         QTimer.singleShot(2000, lambda: button.setText("📋 Copia"))
 
+    def _start_install(self, cmd_text: str, button: QPushButton) -> None:
+        button.setEnabled(False)
+        button.setText("⏳ In corso...")
+        self.install_worker = GpuPackageInstallerWorker(cmd_text, self)
+
+        def _on_done(success: bool, msg: str):
+            button.setEnabled(True)
+            if success:
+                button.setText("✓ Installato!")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "Installazione Completata", f"{msg}\nVerifica hardware aggiornata.")
+                GpuDetector.get_gpu_info(force_refresh=True)
+                self._load_diagnostics()
+                parent = self.parent()
+                if hasattr(parent, "_update_gpu_badge"):
+                    parent._update_gpu_badge()
+            else:
+                button.setText("🚀 Installa")
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Installazione Pacchetto", f"Si è verificato un problema:\n{msg}\n\nPuoi copiare il comando ed eseguirlo manualmente da terminale.")
+
+        self.install_worker.finished.connect(_on_done)
+        self.install_worker.start()
+
+    def _load_diagnostics(self) -> None:
         parent = self.parent()
         if parent and hasattr(parent, "chk_gpu"):
             user_gpu_enabled = parent.chk_gpu.isChecked()
@@ -402,6 +463,8 @@ class SettingsDialog(QDialog):
         """Adapts settings dialog, sidebar navigation, and stacked panels to the active theme."""
         from src.core.path_resolver import PathResolver
         check_path = str(PathResolver.get_resource_path("assets/check_white.png")).replace("\\", "/")
+        radio_path = str(PathResolver.get_resource_path("assets/radio_white.png")).replace("\\", "/")
+        radio_b_path = str(PathResolver.get_resource_path("assets/radio_black.png")).replace("\\", "/")
 
         is_contrast = ("high" in theme_id or "contrast" in theme_id)
         is_dark = ("dark" in theme_id) and not is_contrast
@@ -465,6 +528,32 @@ class SettingsDialog(QDialog):
                     image: url("{check_path}");
                 }}
                 QCheckBox::indicator:disabled, QGroupBox::indicator:disabled {{
+                    background-color: #e9ecef;
+                    border-color: #ced4da;
+                }}
+                QRadioButton {{
+                    color: #212529;
+                    spacing: 8px;
+                }}
+                QRadioButton::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1.5px solid #ced4da;
+                    border-radius: 9px;
+                    background-color: #ffffff;
+                }}
+                QRadioButton::indicator:hover {{
+                    border-color: #0d6efd;
+                }}
+                QRadioButton::indicator:checked {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1.5px solid #0d6efd;
+                    border-radius: 9px;
+                    background-color: #0d6efd;
+                    image: url("{radio_path}");
+                }}
+                QRadioButton::indicator:disabled {{
                     background-color: #e9ecef;
                     border-color: #ced4da;
                 }}
@@ -565,6 +654,28 @@ class SettingsDialog(QDialog):
                     border: 2px solid #00ffff;
                     image: url("{check_path}");
                 }}
+                QRadioButton {{
+                    color: #ffffff;
+                    spacing: 8px;
+                }}
+                QRadioButton::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid #00ffff;
+                    border-radius: 9px;
+                    background-color: #000000;
+                }}
+                QRadioButton::indicator:hover {{
+                    border-color: #ffffff;
+                }}
+                QRadioButton::indicator:checked {{
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid #00ffff;
+                    border-radius: 9px;
+                    background-color: #00ffff;
+                    image: url("{radio_b_path}");
+                }}
                 QLabel {{
                     color: #ffffff;
                 }}
@@ -662,6 +773,32 @@ class SettingsDialog(QDialog):
                 QCheckBox {{
                     color: #e0e2ec;
                     spacing: 8px;
+                }}
+                QRadioButton {{
+                    color: #e0e2ec;
+                    spacing: 8px;
+                }}
+                QRadioButton::indicator {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1.5px solid #4a5168;
+                    border-radius: 9px;
+                    background-color: #1a1c24;
+                }}
+                QRadioButton::indicator:hover {{
+                    border-color: #00d2ff;
+                }}
+                QRadioButton::indicator:checked {{
+                    width: 18px;
+                    height: 18px;
+                    border: 1.5px solid #0d6efd;
+                    border-radius: 9px;
+                    background-color: #0d6efd;
+                    image: url("{radio_path}");
+                }}
+                QRadioButton::indicator:disabled {{
+                    background-color: #1e2028;
+                    border-color: #2c303d;
                 }}
                 QLabel {{
                     color: #e0e2ec;
