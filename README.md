@@ -12,7 +12,7 @@
   <a href="README_EN.md"><img src="https://img.shields.io/badge/Language-English-blue.svg" alt="Language: English"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Version"></a>
   <img src="https://img.shields.io/badge/piattaforma-Windows%2010%2F11%20x64%20%7C%20macOS%20Universal-brightgreen.svg" alt="Piattaforma">
-  <img src="https://img.shields.io/badge/tests-188%20passing-brightgreen.svg" alt="Test Suite">
+  <img src="https://img.shields.io/badge/versione-v1.3.0%20(Latest)-blue.svg" alt="Versione Ufficiale">
   <a href="https://github.com/IlRed89/Musicat"><img src="https://img.shields.io/badge/github-IlRed89%2FMusicat-orange.svg" alt="Repository Ufficiale"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licenza-MIT-purple.svg" alt="Licenza"></a>
 </p>
@@ -21,12 +21,12 @@
 
 ## 🌟 Panoramica & Visione
 
-La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a qualsiasi DJ:
-- Le lettere di unità di Windows o i punti di mount APFS/HFS+ di macOS cambiano costantemente quando si collegano dischi a porte diverse o si passa tra computer diversi, corrompendo i database dei player tradizionali.
-- I software DJ da console (Rekordbox, Traktor, Serato, Engine DJ) non offrono funzionalità complete di tag editing massivo, scraping da fonti multiple e diagnosi acustica.
-- Gli editor di tag generici (come Mp3tag) non dispongono di player audio integrato con pitch bending, analisi DSP (BPM e Camelot Key), filtri live in tempo reale né sincronizzazione con le classifiche online.
+La gestione di archivi musicali estesi (oltre **50.000 brani**) su SSD o dischi esterni comporta sfide operative critiche per qualsiasi DJ o archivista:
+- Le lettere di unità di Windows (`D:`, `E:`, `F:`) o i punti di mount APFS/HFS+ di macOS mutano continuamente al cambio di porta USB o tra computer diversi, corrompendo i riferimenti dei database musicali ordinari.
+- I software per console (Rekordbox, Traktor, Serato, Engine DJ) mancano di strumenti integrati per l'editing massivo dei tag a maschera, il recupero automatico di metadati da fonti esterne e la diagnostica acustica avanzata.
+- I comuni editor di tag (come Mp3tag) non integrano player con pitch bending, analisi DSP in tempo reale (BPM, Camelot Key, Loudness EBU R128), filtri live reattivi né connessione alle classifiche musicali.
 
-**Musicat** integra in un'unica interfaccia desktop moderna a tema chiaro (ad alto contrasto, con Dark Mode opzionale) e ad alte prestazioni 10 macro-moduli compatibili nativamente con **Windows (10/11 x64)** e **macOS (Apple Silicon M-Series + Intel x64)**.
+**Musicat** colma questo divario unendo in un'interfaccia desktop reattiva, moderna e ad alto contrasto (tema chiaro predefinito, Dark Mode commutabile a caldo senza riavvio) 10 macro-moduli avanzati, compatibili nativamente con **Windows (10/11 x64)** e **macOS (Apple Silicon M-Series + Intel x64)**.
 
 ---
 
@@ -34,18 +34,18 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 
 ```
 +----------------------------------------------------------------------------------------------------+
-|                                              MUSICAT                                               |
+|                                              MUSICAT v1.3.0                                        |
 +----------------------------------------------------------------------------------------------------+
 | [📁 Libreria] | [🔥 Charts]   | [🏷️ Mp3tag]   | [🔍 Simili]   | [📂 Organizza] | [📦 Crates]  [⚙️] |
-| - Avvio Max   | - Anteprime   | - Rinumeratore| - Cosine.club | - In-App Stack | - Regole M3U8|      |
-| - Autofit +16 | - 3-Piattaform| - Pattern %tag| - Web Vectors | - Collision    | - Dock Destra|      |
-| - Drag & Drop | - Riconcilia  | - $num() Live | - Key & BPM   | - Dry Run      | - Drag/Drop  |      |
+| - Drag & Drop | - Streaming   | - Disaccoppiato| - Cosine.club | - In-App Stack | - Regole M3U8|      |
+| - Svuota Vista| - 3 Piattaform| - $num() Live | - Web Vectors | - Collision    | - Dock Destra|      |
+| - Accesso Rap.| - Riconcilia  | - Wizard Track| - Key & BPM   | - Dry Run      | - Drag/Drop  |      |
 +----------------------------------------------------------------------------------------------------+
 |         Motore Ricerca Rapida (Voidtools Everything MFT / macOS Spotlight / SQLite FTS5)           |
 +----------------------------------------------------------------------------------------------------+
-|                 Engine libVLC con Pitch Bend +/-8% e Waveform Scrubbing Interattivo                |
+|       Fast-Pass Acoustic DSP Multi-Core (ThreadPoolExecutor, BPM & Camelot Key Sub-Sample)         |
 +----------------------------------------------------------------------------------------------------+
-|          Status Bar con Monitor Hardware Dinamico a Barre Grafiche (CPU & RAM con Soglie)          |
+|                 Engine libVLC con Pitch Bend +/-8% e Waveform Scrubbing Interattivo                |
 +----------------------------------------------------------------------------------------------------+
 |     DSP Audio Engine (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3 Plugin Bridge)           |
 +----------------------------------------------------------------------------------------------------+
@@ -53,156 +53,52 @@ La gestione di oltre **50.000 brani** su SSD esterni comporta criticità note a 
 +----------------------------------------------------------------------------------------------------+
 ```
 
-### 1. ⚪ Avvio a Schermo Intero Massimizzato, Workspaces Incorporati & Nuova Navbar
-- **Avvio a Schermo Intero (Massimizzato) di Default:** L'applicazione si apre a schermo intero massimizzato fin dal primo avvio occupando l'intero spazio visibile del display per la massima produttività DJ (`window.showMaximized()`).
-- **Architettura a 6 Workspaces Incorporati (`QStackedWidget`):** I moduli principali non aprono finestre modali esterne ma sono completamente integrati nella finestra principale senza interruzioni di flusso:
-  - **Posizione 1: [📁 Libreria] (Avvio Predefinito)**: Catalogo DJ con barra filtri a due righe, autofit automatico larghezza colonne (+16px margine anti-ellissi), riordino drag & drop e albero cartelle.
-  - **Posizione 2: [🔥 Top Charts]**: Dashboard di tendenze multi-piattaforma Spotify/SoundCloud/Beatport con stream anteprima audio 30s in libVLC e passaggio diretto a Trova Simili.
-  - **Posizione 3: [🏷️ Tag Editor (Mp3tag)]**: Workspace tabellare completo con autonumerazione, pattern live e conversione case.
-  - **Posizione 4: [🔍 Trova Simili]**: Ricerca vettoriale locale e web discovery su Cosine.club / Chosic con affinità armonica DJ e pulsante "Simili" cablato sia nel player che nelle classifiche.
-  - **Posizione 5: [📂 Organizza File]**: Smistamento fisico su disco integrato in-app con gestione collisioni e dry run.
-  - **Posizione 6: [📦 Smart Crates]**: Spostato all'estrema destra della barra di navigazione prima di Impostazioni, con regole booleane ed esportazione M3U8.
-  - **Posizione 7: [⚙️ Impostazioni]**: Preferenze generali, audio, prestazioni, scrapers e gestione account in browser.
-- **Stile Visivo Moderno:** Palette chiara predefinita (`#FFFFFF` / `#F8F9FA`, testi `#212529`, accenti `#0D6EFD`) con card bordate e Dark Mode attivabile a caldo nelle Preferenze.
-- **Icona Taskbar Nativa:** Configurazione esplicita di `AppUserModelID` su Windows per garantire l'icona Musicat ad alta risoluzione nella barra delle applicazioni anche in versione portabile su qualsiasi PC.
+### 1. 📁 Libreria DJ ad Alte Prestazioni, Drag & Drop e Accesso Rapido
+- **Drag & Drop Diretto sulla Tabella:** Trascina file o intere cartelle audio da Esplora File/Finder direttamente sulla tabella della Libreria: Musicat rileva i brani ricorsivamente (`.mp3`, `.flac`, `.wav`, `.aiff`, `.m4a`, `.ogg`), li indicizza in SQLite e li visualizza all'istante.
+- **Pulsante `[🧹 Svuota Vista]`:** Azzera all'istante la schermata della tabella attiva senza toccare i file fisici su disco né cancellare il database, permettendo di ripartire con una vista pulita.
+- **Sezione Accesso Rapido nell'Esplora File:** Barra laterale sinistra rinnovata con scorciatoie immediate alle cartelle di sistema:
+  - 🖥️ **Desktop**
+  - 📁 **Documenti**
+  - 📥 **Download**
+  - 🎵 **Musica**
+  - Subito sotto, la sezione **"Questo PC / Dischi"** elenca le sole unità disco logiche collegate.
+- **Layout Flessibile & Responsive Overflow:** Barra dei filtri racchiusa in un contenitore a scorrimento fluido (`QScrollArea`), evitando sovrapposizioni o tagli di testo su schermi a risoluzione ridotta o finestre ridimensionate.
+- **Menu Contestuale Arricchito:** Cliccando con il tasto destro su una o più tracce selezionate:
+  - **`[⚡ Analizza Tracce Selezionate]`** (in grassetto, primo elemento): avvia l'analisi acustica e metadati mirata esclusivamente sui brani evidenziati.
+  - **`[🏷️ Invia a Tag Editor (Mp3tag)...]`**: trasferisce le tracce selezionate nel workbench di tagging senza interferire con la libreria.
 
-### 2. 📊 Monitor Hardware Visivo nella Status Bar (Progress Bar Dinamiche)
-- **Barre Grafiche Integrate CPU & RAM:** Sostituito il vecchio testo monocromatico con due `QProgressBar` orizzontali compatte ed eleganti.
-- **Soglie di Carico a Colori Dinamici:**
-  - **Verde (`#28A745`):** Carico regolare e fluido (0% – 60%);
-  - **Giallo / Arancione (`#FD7E14`):** Carico moderato o intenso (61% – 84%);
-  - **Rosso (`#DC3545`):** Stress elevato o saturazione hardware (85% – 100%).
-- **Trasparenza RAM a 64-bit:** Nessun limite artificiale di 2 GB; Musicat rileva la memoria fisica totale e visualizza `RAM X.X / YY GB` con aggiornamento asincrono continuo ogni 1.5 secondi.
+### 2. ⚡ Analisi Acustica Accelerata (Fast-Pass & Multi-Core)
+- **Parallelizzazione Dinamica Multi-Thread (`ThreadPoolExecutor`):** Analisi audio multi-traccia concorrente dimensionata sul numero effettivo di core CPU fisici (`os.cpu_count()`), preservando la totale reattività della UI con salvataggi serializzati e thread-safe su SQLite.
+- **Fast-Pass Acoustic Sampling:** Calcolo istantaneo di BPM e Camelot Key analizzando una finestra centrale rappresentativa (60–90 secondi a partire dal 25% della durata della traccia), abbattendo dell'80% i tempi di I/O e decodifica.
+- **Scraping Asincrono con Timeout Rigidi:** Timeout massimi a 2.5 – 3.0 secondi per provider (Discogs, MusicBrainz, WebEnricher/Wikipedia/YouTube), evitando blocchi o code pendenti in caso di rete lenta.
 
-### 3. 🗂️ Albero Drive a Sinistra, Riordino Colonne Drag & Drop & Filtri 2-Row
-- **Explorer Cartelle/Unità a Sinistra Collassabile:** Pannello laterale integrato nella Libreria (`QFileSystemModel`) con rilevamento rapido di dischi rigidi, memorie USB e percorsi preferiti a 1-click.
-- **Riordino Interattivo Colonne Drag & Drop:** Header della tabella mobile (`setSectionsMovable(True)`, `setDragEnabled(True)`) con riorganizzazione libera della sequenza colonne tramite trascinamento diretto.
-- **Autofit Dinamico Larghezza Colonne (+16px Margine di Sicurezza):** Al caricamento della libreria, al refresh e al termine delle scansioni, le colonne si ridimensionano automaticamente per adattarsi al testo più lungo (`resizeColumnsToContents()`), con un margine orizzontale di sicurezza (+16px per colonna) per scongiurare troncamenti con puntini di sospensione (...) su titoli, artisti, percorsi o formati audio. L'utente conserva la piena libertà di ridimensionamento e riordino manuale con il mouse (drag & drop) senza reset su scroll o selezione.
-- **Persistenza Layout Esadecimale:** Lo stato visivo, l'ordinamento e le larghezze delle colonne vengono memorizzati in formato esadecimale (`saveState()`) in `config.json` (`ui.header_state`) e ripristinati istantaneamente a ogni lancio con `restoreState()`.
-- **Vista DJ Ottimizzata & Menu Contestuale:** Nascoste di default le colonne di calcolo interno (`energy_level`, `lufs`, `true_peak`, `audio_status`), focalizzando lo spazio sulle 12 colonne essenziali. Cliccando con il tasto destro su un'intestazione qualsiasi, è sempre possibile attivare o disattivare ciascuna delle 19 colonne totali.
-- **Pulsante Toolbar Dedicato `[⚡ Analizza Selezionate]`:** Elaborazione asincrona non bloccante (`AsyncAnalysisWorker`) per calcolo BPM, chiave Camelot, arricchimento metadati e scrittura tag con Mutagen senza alcun freeze dell'interfaccia.
-- **ComboBox Generi Dinamica con Freccia Vettoriale:** Popolamento esclusivo dal database SQLite (`SELECT DISTINCT genre FROM tracks`), con voce iniziale `"🏷️ Tutti i Generi"`, ordinamento alfabetico e voce `"Vario"` in fondo. Freccia a tendina sempre visibile grazie a sottocontrolli CSS dedicati (`QComboBox::drop-down` e `QComboBox::down-arrow`).
-- **Barra Filtri Multi-Riga Ergonomica (<15ms):** Target BPM con stepping fine (`±2%`, `±4%`, `±6%`, `±8%`), ruota Camelot a 12 posizioni con percorsi armonici ($\pm 1$, Relativa, $+2$ Energy Boost, $+7$ Semitone Lift), filtri decennio, rating ed energia.
-
-### 4. 🏷️ Workspace Mp3tag Avanzato: Autonumerazione & Pattern Live
-- **Procedura Guidata Numerazione Tracce (`TrackNumberingWizardDialog`):**
-  - Numerazione sequenziale automatica con offset configurabile;
-  - Padding a zero configurabile (`01, 02...`);
-  - Suffisso opzionale con numero totale di tracce (`01/12`);
-  - Azzeramento contatore automatico al cambio di cartella o album;
-  - Tabella di anteprima in tempo reale prima del salvataggio.
+### 3. 🏷️ Workspace Mp3tag Indipendente & Bulk Pattern Tagging
+- **Disaccoppiamento Completo dalla Libreria:** Nessuna sincronizzazione o azzeramento automatico della vista navigando tra i tab. Mp3tag riceve tracce solo su esplicita richiesta.
+- **Comandi Interni Dedicati:**
+  - Pulsanti in toolbar e menu: **`[➕ Aggiungi File...]`**, **`[📁 Aggiungi Cartella...]`**, **`[🧹 Svuota Elenco]`**, **`[💾 Salva Modifiche]`**.
+  - **Drag & Drop autonomo:** Rilascia file e cartelle direttamente sulla griglia di Mp3tag per lavorare su una selezione isolata.
+- **Procedura Guidata Numerazione Tracce (`TrackNumberingWizardDialog`):** Numerazione sequenziale automatica con padding a 2 cifre (`01, 02...`), formato frazionario (`01/12`), offset iniziale e azzeramento contatore a ogni cambio cartella/album.
 - **Convertitori Pattern Bidirezionali Live:**
-  - **Nome File ➔ Tag (`FilenameToTagDialog`):** Estrazione intelligente dei metadati dal formato dei file con anteprima tabellare immediata;
-  - **Tag ➔ Nome File (`TagToFilenameDialog`):** Ridenominazione fisica su disco con maschere flessibili e verifica stato;
-  - **Supporto Token Avanzato `$num(%track%,2)`:** Formattazione e parsing avanzato del numero traccia con padding personalizzato.
-- **Azioni Rapide Maiuscole/Minuscole:** Pulsanti a 1-click per *Title Case*, *MAIUSCOLO* e *minuscolo*.
+  - *Nome File ➔ Tag (`FilenameToTagDialog`):* Estrazione automatica dei metadati con token flessibili (`%artist%`, `%title%`, `%album%`, `%bpm%`, `%key%`, `%year%`, `%genre%`) e supporto al token `$num(%track%,2)`.
+  - *Tag ➔ Nome File (`TagToFilenameDialog`):* Ridenominazione fisica su disco con anteprima a colori in tempo reale.
+- **Macro Veloci:** Normalizzazione maiuscole/minuscole (*Title Case*, *MAIUSCOLO*, *minuscolo*), rimozione suffissi promozionali (`[FREE DOWNLOAD]`, `[Extended Mix]`) e padding numeri traccia.
 
-### 5. ⚡ Motore di Indicizzazione Ultra-Rapido (`SearchEngine`)
-- **Windows (NTFS MFT):** Binding Ctypes nativo su `Everything64.dll` per query dirette alla Master File Table in meno di 1 millisecondo su dischi con 100.000+ brani.
-- **macOS (APFS/HFS+):** Driver nativo tramite CLI Spotlight (`mdfind`) filtrato su `kMDItemContentTypeTree == 'public.audio'`.
-- **Fallback Automatico:** Passaggio trasparente a SQLite FTS5 (Full-Text Search) con trigger automatici e zero configurazione.
+### 4. 🔊 Motore Audio DSP, Diagnostica Volume & Mastering
+- **Profili 1-Click & Modalità Chiare:**
+  - *ReplayGain (solo metadati)*, *Normalizzazione fisica (nuovo file MP3 _normalized.mp3)* e *Sovrascrittura sicura (con backup in _original/)*.
+  - Preset pronti all'uso: *DJ Club (-10 LUFS)*, *Streaming (-14 LUFS)*, *Anti-Clipping & Clean*, *Warm Analog*, *DJ Punch*, *Vocal Clarity*.
+- **Standard EBU R128 & ITU-R BS.1770-4:** Misurazione Integrated Loudness (LUFS), True Peak con oversampling 4x sinc e Loudness Range (LRA).
+- **Glossario Interattivo `[ℹ️ Spiegazione Termini]`:** Spiegazioni chiare e contestuali su LUFS, True Peak dBTP e dinamica per DJ e producer.
+- **FFmpeg Integrato (Bundled di Default):** Ricerca automatica dell'eseguibile `bin/ffmpeg.exe` pre-incluso nella cartella dell'applicazione, con pulsante "Sfoglia..." opzionale per puntare a binari di sistema.
 
-### 6. 🎛️ Analisi Acustica Parallela Multiprocesso & Cache L1 in RAM
-- **Saturazione CPU Hardware-Aware:** Pool di worker dinamico (`ProcessPoolExecutor`) su tutti i core logici disponibili.
-- **Streaming Window Reads:** Analisi spettrale focalizzata sulla finestra centrale di 60s (drop) a 22.050 Hz mono, tagliando l'uso della CPU dell'80%.
-- **Cache L1 in RAM (SQLite In-Memory):** Buffer temporaneo in RAM (`:memory:`) per evitare scritture premature su SSD e preservare la vita dei supporti flash; cache LRU in memoria per forme d'onda istantanee.
+### 5. 🔑 Autenticazione Semplificata Servizi Online (OAuth2 & API Key)
+- **Spotify:** Flusso OAuth2 conforme alle policy più recenti con `response_type=code`, gestione loopback `http://localhost:8888/callback` e scope per la lettura e sincronizzazione delle playlist.
+- **SoundCloud:** Supporto diretto con token di sessione per aggirare le restrizioni sulle registrazioni di nuove app pubbliche di SoundCloud.
+- **YouTube Data API v3:** Autenticazione tramite Google Cloud API Key con test di validazione in tempo reale, eliminando gli errori `401: invalid_client`.
 
-### 7. 🔊 DSP Audio Engine (Spotify Pedalboard, FFmpeg libavfilter & JUCE VST3)
-- **Spotify Pedalboard & Fallback NumPy/SciPy:** Modulo avanzato `src/audio/dsp_engine.py` per processing DSP di livello professionale (HighpassFilter, LowpassFilter, PeakFilter, Compressor, Limiter, Clipping/Saturation). Se le librerie C++ native non sono presenti nell'ambiente, interviene automaticamente il fallback vettoriale NumPy/SciPy.
-- **FFmpeg libavfilter Pipeline Broadcast:** Elaborazione ad alta prestazione per de-clipping (`adeclip`), noise reduction/de-click (`afftdn`), equalizzazione chirurgica (`highpass`, `lowpass`, `equalizer`), normalizzazione dinamica EBU R128 (`loudnorm`) e limiter di sicurezza broadcast con lookahead (`alimiter`).
-- **Supporto Hosting VST3 / JUCE C++:** Interfaccia per caricare plugin esterni VST3 attraverso il wrapper JUCE nativo fornito da Pedalboard (`load_plugin`), con gestione sicura degli errori se il file VST3 non è presente o non supportato su Windows.
-- **5 Preset DSP di Livello Studio:**
-  - *Club Master:* Sub-bass cut 30Hz, punch sui bassi a 60Hz (+2.5dB), glue compression e limiting a -0.5 dBTP per impianti da club;
-  - *Vocal Clarity:* High-pass 80Hz, de-essing a 6.5kHz, boost di presenza a 3.8kHz e compressione ottica trasparente;
-  - *Warm Analog:* Roll-off morbido sulle alte (18.5kHz), calore sui 120Hz, saturazione armonica lieve a soft clipping;
-  - *DJ Punch:* Esaltazione transienti cassa (85Hz) e rullante (2.2kHz) con controllo aggressivo della dinamica;
-  - *De-Clip & Clean:* De-clipping digitale per tracce sature, noise gate anti-fruscio e limiting a -1.5 dBTP.
-- **Esportazione MP3 (320 kbps CBR / V0 VBR) & FLAC Lossless:** Conversione fisica con preservazione integrale di tag ID3 e copertina.
-- **Conformità Standard EBU R128 / ITU-R BS.1770-4:** Misurazione Integrated Loudness (LUFS), True Peak (dBTP) con oversampling 4x sinc/spline e Loudness Range (LRA).
-
-### 8. 🏠 Dashboard Trends Multi-Piattaforma & Motore Tracce Simili
-- **Pulsante "Simili" nel Player & Contesto Top Charts Rigoroso:** Il pulsante "Simili" del mini-player invia la traccia correntemente caricata al modulo Trova Simili; se nessuna traccia è caricata, mostra un tooltip discreto non bloccante. Cliccando "Simili" su una riga/card di Top Charts, il riferimento viene preso rigorosamente dall'elemento della classifica (`set_target_track`), gestendo stream online e proprietà di affinità (`affinity_score`, `score`, `affinity`).
-- **Classifiche Multi-Sorgente:** Schede dedicate per `Top Spotify`, `Top SoundCloud / Hype` e `Top Beatport / Discogs`. Categorie musicali contestuali, dataset offline estesi e navigazione ad alta reattività con preascolto audio 30s integrato nel player libVLC.
-- **Riconciliazione Istantanea con la Collezione:** Badge visivo per verificare al volo se la traccia in classifica è già presente nel proprio hard disk (`✓ In Libreria`) o mancante (`+ Mancante`).
-- **Motore di Similarità (Cosine.club):** Ricerca vettoriale su database online e matching acustico diretto contro la propria libreria locale.
-
-### 9. ⚖️ Cascata Multi-Provider di Scraping & Normalizzazione Generi
-- **Cascata Multi-Fonte a Fallback:**
-  - **Discogs API:** Identificazione della Master Release per l'anno di prima pubblicazione originale e prioritizzazione del campo `styles` (es. Tech House, Melodic Techno, Afro House) per evitare l'etichettatura generica "Electronic".
-  - **MusicBrainz / AcousticBrainz:** Recupero release date e tag di stile della community.
-  - **Beatport & Traxsource:** Sottogeneri mirati per musica da club.
-  - **WebEnricher (Wikipedia & YouTube Fallback):** Query mirata `"[Artista] - [Titolo] genre year"` per estrarre data ufficiale e genere musicale qualora i database musicali non abbiano corrispondenze.
-- **Normalizzazione Rigorosa dei Generi:** Rifiuto automatico delle etichette vaghe (*Other*, *Unknown*, *Soundtrack*, *Music*, *Various*, *General*) e assegnazione di `"Vario"` solo come ultima risorsa estrema.
-- **Tabella di Riconciliazione Conflitti (`ReconcilerDialog`):** Layout chiaro a quattro colonne con altezza ottimizzata (36px), ridimensionamento libero e ricerca asincrona non bloccante.
-
-### 10. 💾 Installazione Dual-Mode & Portabilità Totale (`portable.lock`)
-- **Modalità Standard:** Installazione guidata in `Program Files`, collegamenti di sistema e dati utente in `%APPDATA%\Musicat`.
-- **Modalità Portable:** Estrazione pulita su qualsiasi chiavetta o SSD esterno. La presenza di `portable.lock` forza il salvataggio di impostazioni, database e log esclusivamente nella cartella locale dell'app (`./logs/`, `./musicat_data/`).
-- **Risolutore Volume Serial Number (`[VOL:XXXXXXXX]`):** Converte i path assoluti in percorsi relativi al drive fisico, consentendo di spostare lo stesso SSD tra Windows e macOS senza perdere il catalogo.
-
-### 11. 🔄 Controllo Aggiornamenti Asincrono & In-App Downloader
-- **Verifica Asincrona all'Avvio:** Controllo non bloccante via thread separato interrogando le API REST di GitHub Releases (`GET /repos/IlRed89/Musicat/releases/latest`). In assenza di connessione o in caso di rate limit, l'avvio prosegue silenziosamente senza errori.
-- **Rilevamento Automatico Asset per OS & Modalità:** Selezione intelligente tra `.zip` (versione Portable Windows) o `.exe` (Installer Windows), e `.dmg` per macOS.
-- **Finestra di Notifica & Visualizzatore Markdown:** Presenta la nuova versione a confronto con quella attuale, dimensione del pacchetto e note di rilascio formattate in Markdown.
-- **Download Integrato in Streaming:** Barra di avanzamento con percentuale e MB scaricati in tempo reale, salvataggio nella cartella Download ed evidenziazione automatica nel file manager di sistema al completamento (`PathResolver.show_in_file_manager`).
-- **Verifica Manuale:** Disponibile in **Impostazioni > Info & Generale** con stato versione e feedback immediato.
-
-### 12. 🎧 Extended Top Charts, Re-Design Ottimizzazione Volume, Path Resolver & Guida Integrata
-- **Ampliamento Generi Top Charts:** Espanso il catalogo delle classifiche con 8 categorie essenziali ad alta rotazione per DJ: *Latin & Reggaeton / Urbano*, *Tech House / Techno*, *Afro House / Amapiano*, *Hip-Hop / Trap*, *R&B / Soul*, *Pop / Commerciale*, *Dance / EDM* e *Rock / Indie*. Mapping accurato con playlist editoriali Spotify e dataset offline estesi.
-- **Modulo Miglioramento Volume Re-Designed (`QualityDiagnosisDialog`):**
-  - **Menu Preset e Formati Sbloccati:** Scelta sempre attiva tra preset acustici (*DJ Club -10 LUFS*, *Streaming -14 LUFS*, *Anti-Clipping & Clean*, *Warm Analog*, *DJ Punch*, *Vocal Clarity*) e formati (*MP3 320 kbps*, *MP3 V0*, *FLAC*, *WAV*).
-  - **3 Modalità Esclusive Chiare:** Selezione radio esclusiva tra *ReplayGain (solo metadati)*, *Normalizzazione fisica (nuovo file MP3 _normalized.mp3)* e *Sovrascrittura sicura (con backup in _original/)*.
-  - **Glossario & Spiegazione Termini `[ℹ️ Spiegazione Termini]`:** Dialogo interattivo che illustra in modo chiaro il volume percepito (LUFS), l'headroom True Peak (dBTP) anti-clipping e la dinamica (LRA).
-  - **Pulsante di Reset `[↺ Ripristina Valori Predefiniti]`:** Reset a 1-click di target a -10.0 LUFS, -1.0 dBTP, preset DJ Club e MP3 320 kbps con aggiornamento live della forma d'onda prima/dopo.
-  - **Sfondi Puliti:** Eliminazione di sfondi grigio sporco residui, con interfaccia bianca pura (`#FFFFFF`), bordi `#E9ECEF` e testi ad alto contrasto.
-- **Risoluzione Percorsi Cliccabili & Selezione Nativa:** Risolto il bug di Windows Explorer grazie alla separazione degli argomenti `["explorer", "/select,", norm_path]` e conversione automatica token `[VOL:...]`/relativi in percorsi assoluti. Il click sui segmenti breadcrumb o sul percorso del file evidenzia all'istante il file esatto nel file manager di sistema.
-- **Guida all'Uso Integrata nelle Impostazioni (`[📖 Guida all'Uso]`):** Nuova scheda dedicata nelle preferenze strutturata in 4 sezioni pratiche: *1. Libreria & File Explorer*, *2. Analisi & Tagging Metadati*, *3. Miglioramento Audio & Normalizzazione*, *4. Trova Simili & Smart Crates*.
-
----
-
-## 🛠️ Suite di Logging Avanzato & Troubleshooting
-
-Musicat integra una suite completa di tracciamento e diagnostica orientata al troubleshooting rapido:
-
-### 1. Rotazione Automatica & Compressione `.zip`
-- I log correnti vengono scritti in `musicat.log`.
-- Al raggiungimento della soglia massima di **20 MB**, il file viene ruotato e compresso automaticamente in formato `.zip` (`musicat.log.1.zip`, `musicat.log.2.zip`, ...).
-- Vengono conservati automaticamente gli ultimi **10 file compressi**, evitando consumi anomali di spazio su disco.
-
-### 2. Tracciamento Granulare di Dominio
-Ogni operazione interna ed esterna viene registrata con livello e categoria:
-- **I/O & Scansioni (`[SCAN]`):** percorsi analizzati, file totali, inseriti, scartati e durata scansione.
-- **Audio Engine libVLC (`[PLAYER:VLC]`):** inizializzazione libreria `libvlc`, carimento file, seek, pitch bending ed errori di decodifica.
-- **Tag Editor Mutagen (`[TAG]` & `[TAG:DIFF]`):** dump dei metadati prima e dopo la modifica, diff campi sovrascritti ed errori ID3.
-- **Scrapers & HTTP (`[HTTP:<Fonte>]`):** URL interrogati, parametri, codice di stato HTTP (200, 403, 404), latenza di risposta in millisecondi ed eventuali eccezioni.
-- **File Manager (`[DISPATCH:<OP>]`):** percorsi sorgente/destinazione (`SRC -> DEST`), strategie di risoluzione collisioni (`RENAME`, `OVERWRITE`, `SKIP`).
-
-### 3. Esportazione Log per Assistenza (Bundle Diagnostico)
-Sia nella **Live Log Console** (`Ctrl+L`) sia nella sezione **Impostazioni > Prestazioni**, è presente il pulsante:
-👉 **"Esporta Log per Assistenza (.zip)"**
-Questo genera istantaneamente un archivio zip contenente:
-- Tutti i file di log correnti e archiviati.
-- Metriche hardware anonimizzate (CPU, RAM, GPU, OS).
-- Statistiche del database (numero tracce, indici, stato WAL).
-- File di configurazione sanificato (con credenziali e token API oscurati).
-
----
-
-## 🔍 Guida alla Risoluzione dei Problemi (Troubleshooting)
-
-### 1. Il player non riproduce i brani o segnala "libVLC non trovato"
-- **Windows:** Assicurati di aver installato VLC Media Player a 64-bit (`C:\Program Files\VideoLAN\VLC`) oppure estrai `libvlc.dll` e la cartella `plugins/` nella directory dell'eseguibile di Musicat.
-- **macOS:** Installa VLC tramite Homebrew (`brew install --cask vlc`) o posiziona `VLC.app` nella cartella `/Applications`.
-
-### 2. La ricerca rapida Everything MFT non si attiva su Windows
-- Musicat utilizza il servizio di **Voidtools Everything**. Assicurati che l'applicazione desktop Everything sia in esecuzione in background per consentire l'accesso istantaneo tramite IPC.
-- In assenza del servizio Everything, Musicat attiva automaticamente il fallback su **SQLite FTS5**, garantendo la ricerca a pieno testo senza interruzioni.
-
-### 3. Lettere dei dischi esterne modificate su Windows
-- Musicat memorizza gli ID fisici del volume (`[VOL:XXXXXXXX]`). Se la lettera dell'unità USB passa ad esempio da `E:\` a `F:\`, Musicat ricollega automaticamente tutti i percorsi della libreria al primo avvio.
-
-### 4. Errore di scrittura tag (Permesso Negato / File Occupato)
-- Se un file audio è aperto in riproduzione in un altro software (es. Rekordbox o Traktor), Windows impone un blocco di scrittura. Chiudi il lettore esterno prima di avviare il tag editing batch.
+### 6. 🎨 Cambio Tema a Caldo & Interfaccia Ergonomica
+- **Cambio Tema Dinamico Istantaneo:** Passaggio tra tema chiaro e tema scuro applicato a caldo tramite stylesheet `QApplication` e polish dei widget senza chiusura né riavvio della finestra Impostazioni.
+- **Check-box e Selettori Standardizzati:** Stile coerente e moderno in tutta l'app, inclusa la scheda Account e Servizi.
 
 ---
 
@@ -210,50 +106,46 @@ Questo genera istantaneamente un archivio zip contenente:
 
 | Tasto Rapido | Azione | Descrizione |
 |---|---|---|
-| `Ctrl + F` | Ricerca Rapida | Attiva la barra di ricerca unificata (Everything MFT / Spotlight / FTS) |
-| `Ctrl + G` | Filtro Generi | Attiva la casella generi con autocomplete multi-selezione |
-| `Ctrl + B` | Filtro BPM | Seleziona la casella Target BPM |
+| `Ctrl + F` | Ricerca Rapida | Attiva la barra di ricerca rapida (Everything MFT / Spotlight / FTS) |
+| `Ctrl + G` | Filtro Generi | Attiva la casella generi con completamento automatico |
+| `Ctrl + B` | Filtro BPM | Seleziona il filtro target BPM |
 | `Ctrl + K` | Ruota Camelot | Apre l'assistente visivo Ruota Camelot per il mix armonico |
-| `Esc` | Ripristina Filtri | Cancella istantaneamente ogni filtro e mostra l'intera libreria |
-| `Spazio` | Play / Pausa | Avvia/ferma la riproduzione del brano o preascolta la traccia selezionata |
-| `Invio` | Carica nel Deck | Carica il brano selezionato nel mini-player |
-| `Ctrl + T` | Spazio Mp3tag | Apre la workbench dedicata in stile Mp3tag |
-| `Ctrl + E` | Tag Rapidi | Apre il modal di modifica batch dei tag |
-| `Ctrl + R` | Riconciliazione | Avvia la riconciliazione metadati da fonti multiple |
-| `Ctrl + Q` | Qualità Audio | Apre la diagnostica del volume e clipping EBU R128 |
-| `Ctrl + Shift + S`| Trova Simili | Trova tracce compatibili nella propria libreria locale e online |
-| `Ctrl + Shift + P` / `Alt + F` | Tag da Pattern | Apre il dialog avanzato Mp3tag per estrazione massiva da maschera/pattern con anteprima live |
-| `Ctrl + S` | Smart Organizer | Apre lo strumento di smistamento e spostamento fisico su disco |
-| `Ctrl + L` | Log in Tempo Reale | Mostra/nasconde la console dei log di sistema |
-| `Ctrl + ,` | Impostazioni | Apre la finestra Preferenze di Sistema |
-| `Alt + 1` .. `Alt + 6` | Navigazione Viste | Alterna rapidamente tra i moduli della Top Bar |
+| `Esc` | Ripristina Filtri | Cancella i filtri attivi e mostra la libreria completa |
+| `Spazio` | Play / Pausa | Avvia o ferma la riproduzione del brano corrente |
+| `Invio` | Carica nel Deck | Carica la traccia selezionata nel mini-player |
+| `Ctrl + O` | Aggiungi File (Mp3tag) | Seleziona e importa file audio nel Tag Editor |
+| `Ctrl + D` | Aggiungi Cartella (Mp3tag) | Importa ricorsivamente una cartella nel Tag Editor |
+| `Ctrl + S` | Salva Modifiche | Scrive i tag fisici e aggiorna il database in Mp3tag |
+| `Ctrl + Shift + P` / `Alt + F` | Tag da Pattern | Apre l'editor massivo per estrazione da maschera con anteprima live |
+| `Ctrl + Q` | Qualità & Volume | Apre il modulo di diagnosi del volume e clipping EBU R128 |
+| `Ctrl + Shift + S` | Trova Simili | Trova tracce compatibili nella collezione locale e online |
+| `Ctrl + L` | Log Console | Mostra o nasconde la console dei log di sistema in tempo reale |
+| `Ctrl + ,` | Impostazioni | Apre il pannello delle preferenze e configurazione account |
 
 ---
 
 ## 📦 Download & Release Ufficiali
 
-Ad ogni rilascio su GitHub vengono generati automaticamente tramite GitHub Actions i pacchetti pronti all'uso:
-
 | Piattaforma | File di Rilascio | Descrizione |
 |---|---|---|
-| **Windows 10/11 x64** | `Musicat-Setup-Windows-x64.exe` | Installer Inno Setup Dual-Mode (Standard o Portabile) |
-| **Windows 10/11 x64** | `Musicat-Windows-Portable.zip` | Archivio standalone portabile pronto all'uso (`portable.lock`) |
-| **macOS Universal** | `Musicat-macOS.dmg` | DMG nativo con installazione Drag & Drop in Applicazioni |
-| **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per SSD esterni formattati in APFS/HFS+ |
+| **Windows 10/11 x64** | `Musicat-Windows-Portable.zip` | Versione portabile completa (FFmpeg, Qt6, libVLC, zero installazione) |
+| **Windows 10/11 x64** | `Musicat.exe` | Eseguibile standalone 64-bit per Windows |
+| **macOS Universal** | `Musicat-macOS.dmg` | Immagine disco DMG con installazione drag & drop in Applicazioni |
+| **macOS Universal** | `Musicat-macOS-Portable.zip` | Pacchetto portatile per volumi APFS/HFS+ esterni |
+| **Tutte le piattaforme** | `SHA256SUMS.txt` | Checksum crittografici SHA-256 per la verifica dell'integrità |
 
-👉 **[Scarica l'Ultima Release Ufficiale (v1.1.0)](https://github.com/IlRed89/Musicat/releases/latest)**
+👉 **[Scarica l'Ultima Release Ufficiale (v1.3.0)](https://github.com/IlRed89/Musicat/releases/latest)**
 
 ---
 
-## 🛠️ Installazione dai Sorgenti
+## 🛠️ Installazione e Avvio dai Sorgenti
 
 ### Prerequisiti
-- Python 3.11, 3.12 o 3.13 (64-bit)
+- Python 3.11, 3.12 o 3.13 a 64-bit
 - `git`
-- libVLC (o VLC Media Player installato nel sistema)
-- (Opzionale su Windows) Inno Setup 6.2+ per generare l'installer
+- libVLC (o VLC Media Player installato a 64-bit)
 
-### Procedura
+### Esecuzione
 
 ```bash
 # 1. Clona il repository
@@ -264,57 +156,26 @@ cd Musicat
 python -m venv venv
 # Su Windows:
 .\venv\Scripts\activate
-# Su macOS / Linux:
+# Su macOS:
 source venv/bin/activate
 
 # 3. Installa le dipendenze
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
-# 4. Esegui la suite completa di test unitari (132 test)
-python -m unittest discover tests -v
+# 4. Esegui i test unitari mirati
+python -m unittest tests/test_performance_and_features.py tests/test_updater.py
 
-# 5. Avvia l'applicazione
+# 5. Avvia Musicat
 python main.py
 ```
 
 ### Compilazione Standalone Locale
 
 ```bash
-# Eseguibile Standalone per Windows
-pyinstaller --clean build_windows.spec
-
-# Pacchetto Portatile Windows completo (Batch)
-.\build\build_portable.bat
-
-# Applicazione macOS e creazione DMG
-pyinstaller --clean build_mac.spec
-./build/build_mac_dmg.sh
+# Compilazione standalone per Windows (PyInstaller)
+pyinstaller build_windows.spec --clean -y
 ```
-
----
-
-## 🍏 Diagnostica di Avvio & Debug Rapido su macOS
-
-Per analizzare problemi di boot, compatibilità Apple Silicon / Intel o crash nativi Cocoa/libVLC su macOS, è disponibile un launcher diagnostico dedicato:
-
-```bash
-# Avvio diagnostico con tracciamento completo a terminale e su desktop
-chmod +x run_mac_debug.sh
-./run_mac_debug.sh
-
-# Modalità deep debug Qt (con tracing dei plugin Cocoa)
-./run_mac_debug.sh --qt-debug
-```
-
-### Log Generati Automaticamente al Primissimo Istante di Boot:
-1. **Live Terminal Log (`~/Desktop/musicat_terminal.log`):** Stream completo di `stdout` e `stderr`.
-2. **Desktop Debug Log (`~/Desktop/musicat_debug.log`):** Copia immediata flushato riga per riga per rapida consultazione.
-3. **Boot System Log (`~/Library/Application Support/Musicat/logs/musicat_boot.log`):** Tracciamento precoce con:
-   - Architettura host e rilevamento stato emulazione **Rosetta 2** (`sysctl.proc_translated`).
-   - Probe diagnostico della libreria dinamica **libVLC** (`dlopen` su candidati con cattura esatta di `OSError`).
-   - Permessi sandbox filesystem (`/Volumes`, `~/Music`, `~/Desktop`).
-   - Trap per crash nativi C/C++ e segmentation fault tramite `faulthandler.enable()`.
 
 ---
 

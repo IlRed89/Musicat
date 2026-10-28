@@ -26,7 +26,7 @@ class DiscogsClient:
                 token = ""
         self.token = token.strip() if token else ""
         self.headers = {
-            "User-Agent": "Musicat/1.2.1 (+https://github.com/IlRed89/Musicat)",
+            "User-Agent": "Musicat/1.3.0 (+https://github.com/IlRed89/Musicat)",
             "Accept": "application/json",
         }
         if self.token:
