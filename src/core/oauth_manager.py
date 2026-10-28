@@ -167,7 +167,17 @@ class OAuthManager(QObject):
         self._active_service: Optional[str] = None
 
     def get_account_status(self, service: str) -> Dict[str, Any]:
-        """Returns account connection dictionary for given service."""
+        """Retrieves authentication status and account details for a specified service.
+
+        Args:
+            service (str): Service key identifier ('spotify', 'soundcloud', 'youtube', 'discogs').
+
+        Returns:
+            Dict[str, Any]: Status dictionary containing keys:
+                - 'connected' (bool): Whether an active authorization token exists.
+                - 'username' (str): Associated account username or profile description.
+                - 'token' (str): Stored access token or API credential string.
+        """
         accounts = self.settings.get("accounts", {})
         if not isinstance(accounts, dict):
             accounts = {}
@@ -181,11 +191,22 @@ class OAuthManager(QObject):
         }
 
     def is_connected(self, service: str) -> bool:
-        """Checks if a given service is currently authenticated."""
+        """Checks if a given service is currently authenticated.
+
+        Args:
+            service (str): Service key identifier.
+
+        Returns:
+            bool: True if account is connected and token is non-empty.
+        """
         return self.get_account_status(service).get("connected", False)
 
     def disconnect_account(self, service: str) -> None:
-        """Disconnects account and clears stored tokens from settings."""
+        """Disconnects account and clears stored tokens from settings.
+
+        Args:
+            service (str): Service key identifier to disconnect.
+        """
         accounts = self.settings.get("accounts", {})
         if not isinstance(accounts, dict):
             accounts = {}
@@ -199,7 +220,13 @@ class OAuthManager(QObject):
         MusicatLogger.info("OAUTH", f"Account '{service}' disconnected.")
 
     def set_account_connected(self, service: str, username: str, token: str = "connected_token") -> None:
-        """Stores connected account state into settings."""
+        """Persists connected account profile state into settings.
+
+        Args:
+            service (str): Service key identifier.
+            username (str): Display username for the connected account.
+            token (str): Access token, session cookie, or API key string.
+        """
         accounts = self.settings.get("accounts", {})
         if not isinstance(accounts, dict):
             accounts = {}
@@ -214,7 +241,22 @@ class OAuthManager(QObject):
         self.auth_completed.emit(service, username, token)
 
     def start_browser_login(self, service: str, port: int = 8888) -> None:
-        """Initiates OAuth login: opens system browser and starts local callback listener."""
+        """Initiates OAuth login: opens system browser and spawns local callback listener.
+
+        Flow:
+        1. For `soundcloud`: Displays a dialog requesting the user's `oauth_token` cookie
+           (due to SoundCloud shutting down new public OAuth app creation).
+        2. For `youtube`: Prompts for a Google Cloud API Key with live query verification.
+        3. For `spotify` and others:
+           - Binds an ephemeral `_OAuthServer` on `127.0.0.1:port` (with dynamic fallback if busy).
+           - Spawns a background listener thread.
+           - Launches the default browser via `QDesktopServices.openUrl()`.
+           - Intercepts callback `code`, exchanges for Bearer token, and stores connection.
+
+        Args:
+            service (str): Service identifier ('spotify', 'soundcloud', 'youtube', 'discogs').
+            port (int): Preferred local port for the loopback server. Defaults to 8888.
+        """
         self._active_service = service
         config = DEFAULT_AUTH_CONFIG.get(service, DEFAULT_AUTH_CONFIG["spotify"])
 

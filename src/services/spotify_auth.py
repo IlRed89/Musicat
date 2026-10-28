@@ -33,9 +33,19 @@ class SpotifyAuth:
         scope: Optional[str] = None,
         state: Optional[str] = None,
     ) -> str:
-        """
-        Builds the standard Spotify OAuth2 authorization URL.
-        Guarantees response_type='code' as required by the Spotify Accounts service.
+        """Constructs the official Spotify OAuth2 authorization URL.
+
+        Guarantees `response_type=code` as mandated by Spotify Accounts Service,
+        supporting standard loopback redirects on localhost.
+
+        Args:
+            client_id (str): Registered Spotify Client ID.
+            redirect_uri (str): Local loopback redirect URI (default: http://localhost:8888/callback).
+            scope (Optional[str]): Space-separated permission scopes.
+            state (Optional[str]): Optional CSRF mitigation token string.
+
+        Returns:
+            str: Fully formatted URL ready to open in system web browser.
         """
         params: Dict[str, str] = {
             "client_id": client_id,
@@ -59,8 +69,21 @@ class SpotifyAuth:
         redirect_uri: str = DEFAULT_REDIRECT_URI,
         timeout: float = 3.0,
     ) -> Dict[str, Any]:
-        """
-        Exchanges the authorization code received via localhost callback for an access token.
+        """Exchanges the temporary authorization code for an OAuth2 Bearer access token.
+
+        Sends an HTTP POST to `https://accounts.spotify.com/api/token` with
+        `grant_type=authorization_code`.
+
+        Args:
+            code (str): Authorization code intercepted from the loopback callback.
+            client_id (str): Spotify Application Client ID.
+            client_secret (str): Spotify Application Client Secret.
+            redirect_uri (str): Matching redirect URI used during the initial authorization request.
+            timeout (float): Request timeout in seconds. Defaults to 3.0.
+
+        Returns:
+            Dict[str, Any]: JSON response containing `access_token`, `token_type`, `expires_in`,
+            and `refresh_token`, or an error dict.
         """
         if not code or not client_id:
             return {"error": "Parametri non validi per lo scambio del token"}

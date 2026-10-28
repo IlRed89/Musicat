@@ -66,11 +66,35 @@ CAMELOT_KEYS_ORDERED: List[str] = [
 
 
 class CamelotWheel:
-    """Provides Camelot Wheel math, harmonic compatibility and BPM calculations for DJs."""
+    """Provides Camelot Wheel mathematics, harmonic compatibility, and BPM calculations for DJs.
+
+    The Camelot Wheel is a clockface projection of the musical Circle of Fifths:
+    - Pitch classes and key signatures are indexed from 1 to 12 around the wheel.
+    - Letter 'A' denotes natural Minor (Aeolian mode); letter 'B' denotes Major (Ionian mode).
+    - Harmonic mixing preserves pitch consonances by modulating between keys sharing 6 or 7
+      diatonic pitch classes:
+        * Identical key (0 change): 100% harmonic compatibility.
+        * Adjacent hour (±1 step, e.g., 8A -> 7A or 9A): Perfect dominant (V) or subdominant (IV)
+          modulation, adding or subtracting exactly 1 sharp/flat in the key signature.
+        * Relative Major/Minor (same number, e.g., 8A Am <-> 8B C Major): Relative keys share
+          the exact same scale notes and key signature.
+        * Energy Boost (+2 steps, e.g., 8A Am -> 10A Bm): Modulates up a whole tone (+2 semitones / 2 fifths),
+          generating a noticeable surge in track energy without dissonance.
+        * Peak Semitone Lift (+7 steps, e.g., 8A Am -> 3A Bbm): In modular arithmetic,
+          7 fifths equal 35 semitones, and 35 mod 12 = 1 semitone up (+1 half-step). This creates
+          the dramatic half-step "truck driver's gear change" popular in festival EDM and climax drops.
+    """
 
     @staticmethod
     def get_musical_name(camelot_key: str) -> str:
-        """Returns primary musical key name for a Camelot key (e.g. '8A' -> 'Am', '8B' -> 'C')."""
+        """Returns the primary musical key name for a given Camelot key.
+
+        Args:
+            camelot_key (str): Canonical Camelot key notation (e.g. '8A', '8B', '11A').
+
+        Returns:
+            str: Primary musical key name (e.g. 'Am', 'C', 'F#m'), or empty string if unrecognized.
+        """
         norm = CamelotWheel.normalize_key(camelot_key)
         return CAMELOT_TO_KEY.get(norm, "")
 
@@ -173,9 +197,12 @@ class CamelotWheel:
             return {}
         num, letter = parsed
 
-        # +2 boost
+        # Whole-tone lift (+2 fifths mod 12): e.g. 8A (A min) -> 10A (B min), raising the root tonic pitch by 2 semitones.
         plus_two_num = (num + 1) % 12 + 1
-        # +7 semitone boost (+1 semitone = +7 hours on Circle of Fifths)
+
+        # Semitone energy lift (+7 fifths mod 12):
+        # In Circle of Fifths modular arithmetic: 7 * 7 semitones = 49 ≡ 1 (mod 12).
+        # Therefore, advancing 7 hours on the wheel raises the pitch class by exactly 1 chromatic semitone (e.g. 8A Am -> 3A Bbm).
         semitone_num = (num + 6) % 12 + 1
 
         return {

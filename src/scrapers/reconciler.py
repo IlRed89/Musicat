@@ -72,7 +72,20 @@ class MetadataReconciler:
 
     @classmethod
     def clean_and_normalize_genre(cls, genre_val: Any) -> Optional[str]:
-        """Cleans a genre string, discarding generic labels like 'Other' or 'Soundtrack'."""
+        """Cleans and standardizes a genre string, filtering out generic placeholders.
+
+        Rules:
+        - Rejects meaningless tags (e.g. 'Other', 'Unknown', 'Soundtrack', 'General', 'Audio').
+        - Splits composite genre strings separated by delimiters (',', '/', ';', '|').
+        - Prioritizes granular electronic subgenres (e.g. 'Tech House', 'Afro House')
+          over overly broad umbrellas ('Electronic', 'Dance').
+
+        Args:
+            genre_val (Any): Raw genre input from tag header or scraped JSON.
+
+        Returns:
+            Optional[str]: Title-cased canonical genre name, or None if invalid/generic.
+        """
         if not genre_val:
             return None
         text = str(genre_val).strip()
@@ -90,7 +103,20 @@ class MetadataReconciler:
 
     @classmethod
     def _select_recommended_genre(cls, source_vals: Dict[str, Any]) -> str:
-        """Picks optimal genre using cascading authority and subgenre specificity."""
+        """Picks the optimal genre candidate using cascading authority and subgenre specificity.
+
+        Cascade:
+        1. Specific subgenres from primary DJ authorities (Beatport, Traxsource, Discogs).
+        2. Specific subgenres from secondary web/YouTube sources.
+        3. Broad umbrella genres from primary authorities.
+        4. Fallback default 'Vario' if no informative genre is available.
+
+        Args:
+            source_vals (Dict[str, Any]): Mapping of source name to raw genre value.
+
+        Returns:
+            str: Resolved consensus genre string.
+        """
         candidates_by_source: Dict[str, str] = {}
         for src, raw_g in source_vals.items():
             cleaned = cls.clean_and_normalize_genre(raw_g)
@@ -123,7 +149,17 @@ class MetadataReconciler:
 
     @classmethod
     def _select_recommended_year(cls, source_vals: Dict[str, Any]) -> Optional[int]:
-        """Picks earliest valid original release year from priority sources."""
+        """Picks the earliest valid original release year from priority sources.
+
+        Prioritizes Discogs Master Releases and MusicBrainz original release groups,
+        falling back to minimum valid four-digit year (1920..2030) across all sources.
+
+        Args:
+            source_vals (Dict[str, Any]): Mapping of source name to candidate release years.
+
+        Returns:
+            Optional[int]: Valid 4-digit release year integer, or None.
+        """
         priority = cls.FIELD_AUTHORITY_PRIORITY.get("year", [])
         for p_src in priority:
             if p_src in source_vals:
@@ -163,7 +199,27 @@ class MetadataReconciler:
         results_from_sources: List[Dict[str, Any]],
         current_file_tags: Optional[Dict[str, Any]] = None,
     ) -> DiscrepancyReport:
-        """Analyzes a collection of scraped records to identify concordances and conflicts."""
+        """Analyzes scraped metadata records to detect concordances and conflicts.
+
+        Discrepancy Resolution Algorithm:
+        1. Gap Analysis: Evaluates whether critical attributes (valid 4-digit release year,
+           distinct electronic subgenre) are absent across primary responses.
+        2. Autonomous Web Fallback: If gaps exist, triggers `WebEnricher.search_genre_and_year`
+           (Wikipedia / YouTube) to fill missing fields.
+        3. Field-by-Field Domain Consensus: For each field in `COMPARABLE_FIELDS`, pools
+           candidate values, normalizes formatting (e.g. case insensitivity, float BPM rounding),
+           and flags discrepancies if multiple distinct values are asserted.
+        4. Authority Prioritization: Applies `FIELD_AUTHORITY_PRIORITY` to recommend the single
+           most trustworthy value (e.g. Discogs for label/year, Beatport for BPM/Key/subgenre).
+
+        Args:
+            track_query (str): Normalized search query string (e.g. 'Artist - Title').
+            results_from_sources (List[Dict[str, Any]]): Raw scraped payloads from online providers.
+            current_file_tags (Optional[Dict[str, Any]]): Existing ID3/Vorbis tags on disk for delta comparison.
+
+        Returns:
+            DiscrepancyReport: Structured object containing per-field conflicts and recommended consensus values.
+        """
         # Check if year or specific subgenre are missing across primary results, and trigger web fallback if so
         has_specific_genre = any(
             cls.clean_and_normalize_genre(r.get("genre")) and

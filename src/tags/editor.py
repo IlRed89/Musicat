@@ -44,6 +44,15 @@ SUPPORTED_EXTENSIONS = {".mp3", ".flac", ".m4a", ".aac", ".wav", ".aif", ".aiff"
 
 @dataclass
 class CoverArt:
+    """Embedded album artwork image payload.
+
+    Attributes:
+        data (bytes): Raw binary image payload (JPEG or PNG).
+        mime_type (str): MIME type ('image/jpeg' or 'image/png').
+        description (str): Textual description or title of the artwork.
+        pic_type (int): Mutagen PictureType integer (3 = Front Cover).
+    """
+
     data: bytes
     mime_type: str = "image/jpeg"
     description: str = ""
@@ -52,6 +61,37 @@ class CoverArt:
 
 @dataclass
 class AudioMetadata:
+    """Unified audio file technical parameters and metadata tag fields.
+
+    Attributes:
+        filepath (str): Absolute file path on disk.
+        filename (str): Base filename including extension.
+        filesize (int): Physical file size in bytes.
+        file_mtime (float): Last modification POSIX timestamp.
+        duration (float): Exact track length in seconds.
+        bitrate (int): Encoded bitrate in kbps.
+        sample_rate (int): Audio sampling rate in Hz (e.g. 44100, 48000).
+        format (str): Audio container format string (e.g. 'mp3', 'flac').
+        title (str): Track song title.
+        artist (str): Primary performing artist.
+        album (str): Release album name.
+        album_artist (str): Primary album artist.
+        year (Optional[int]): Release year (4 digits).
+        genre (str): Musical genre or DJ subgenre.
+        track_num (Optional[int]): Sequential track number.
+        total_tracks (Optional[int]): Total track count on album/disc.
+        disc_num (Optional[int]): Disc number in multidisc sets.
+        bpm (Optional[float]): Musical tempo in beats per minute.
+        musical_key (str): Detected or tagged musical key (e.g. 'Am', 'C#m').
+        camelot_key (str): Camelot Wheel code (e.g. '8A', '12A').
+        label (str): Imprint record label.
+        remixer (str): Remixer artist or production credit.
+        comment (str): General user or DJ comments.
+        energy_level (Optional[int]): Mixed In Key / DJ energy ranking (1-10).
+        rating (int): Popularity rating (0-255 or 0-5 stars).
+        has_cover (bool): Whether embedded front cover artwork is present.
+    """
+
     filepath: str
     filename: str = ""
     filesize: int = 0
@@ -81,6 +121,7 @@ class AudioMetadata:
     has_cover: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serializes dataclass fields to a standard dictionary."""
         return asdict(self)
 
 
@@ -89,11 +130,36 @@ class AudioTagEditor:
 
     @staticmethod
     def is_supported(filepath: Union[str, Path]) -> bool:
+        """Checks if a file extension is supported by Musicat's tag engine.
+
+        Args:
+            filepath (Union[str, Path]): Path or filename to check.
+
+        Returns:
+            bool: True if format is supported (MP3, FLAC, M4A, WAV, AIFF, OGG).
+        """
         return Path(filepath).suffix.lower() in SUPPORTED_EXTENSIONS
 
     @classmethod
     def read_metadata(cls, filepath: Union[str, Path]) -> AudioMetadata:
-        """Reads all technical and tag metadata from an audio file."""
+        """Reads all technical and tag metadata from an audio file.
+
+        Parses format-specific container headers:
+        - MP3: ID3v2.3 / ID3v2.4 frames (TIT2, TPE1, TALB, TCON, TDRC/TYER, TBPM, TKEY, TXXX:INITIALKEY).
+        - FLAC: Vorbis comment blocks and METADATA_BLOCK_PICTURE.
+        - M4A/AAC: MP4 atoms ('\xa9nam', '\xa9ART', '\xa9alb', 'tmpo', '----:com.apple.iTunes:initialkey').
+        - WAV / AIFF: ID3 chunks embedded in RIFF / IFF containers.
+        - OGG: Vorbis comment fields.
+
+        Args:
+            filepath (Union[str, Path]): Path to local audio file.
+
+        Returns:
+            AudioMetadata: Populated metadata dataclass.
+
+        Raises:
+            FileNotFoundError: If the file does not exist on disk.
+        """
         path_obj = Path(filepath)
         if not path_obj.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
@@ -388,11 +454,28 @@ class AudioTagEditor:
 
     @classmethod
     def write_metadata(cls, filepath: Union[str, Path], tags_to_write: Dict[str, Any]) -> bool:
-        """
-        Updates tags on the given file.
-        `tags_to_write` keys can be:
-        title, artist, album, album_artist, year, genre, track_num, total_tracks,
-        bpm, musical_key, camelot_key, initialkey, label, remixer, comment, energy_level
+        """Writes updated metadata attributes and DJ tags to the physical audio file.
+
+        Features:
+        - Resolves Windows read-only lock flags prior to opening (`chmod 0o666`).
+        - Normalizes `initialkey` <-> `camelot_key` bidirectional mappings.
+        - Splits composite `"Artist - Title"` strings if artist is untagged or generic.
+        - Pre-audit metadata snapshot capturing.
+        - Robust 3-attempt retry loop with garbage collection (`gc.collect()`) and backoff
+          to overcome transient Windows antivirus and indexer file locks.
+        - Post-audit comparison logging via `MusicatLogger.log_tag_edit`.
+
+        Args:
+            filepath (Union[str, Path]): Path to target audio file.
+            tags_to_write (Dict[str, Any]): Dictionary of tag fields to write
+                (e.g. `title`, `artist`, `album`, `bpm`, `musical_key`, `camelot_key`,
+                `genre`, `year`, `track_num`, `label`, `remixer`, `comment`, `energy_level`).
+
+        Returns:
+            bool: True if write succeeded, False otherwise.
+
+        Raises:
+            FileNotFoundError: If the target file path does not exist.
         """
         import gc
         import time

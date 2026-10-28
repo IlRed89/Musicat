@@ -67,11 +67,26 @@ class PedalboardDspProcessor:
 
     @classmethod
     def is_available(cls) -> bool:
+        """Checks if Spotify Pedalboard native C++ wheels are installed and loadable."""
         return HAS_PEDALBOARD
 
     @classmethod
     def build_board(cls, preset: str = "club_master") -> Any:
-        """Constructs a Pedalboard plugin chain for the designated preset."""
+        """Constructs a Pedalboard plugin chain for the designated preset.
+
+        Presets configured:
+        - `club_master`: Sub-bass rumble filter (30 Hz), punch EQ (+2.5 dB @ 60 Hz), glue compressor, and limiter (-0.5 dBTP).
+        - `vocal_clarity`: Steep rumble highpass (80 Hz), vocal presence (+2.5 dB @ 3.8 kHz), sibilance notch (-2.0 dB @ 6.5 kHz), optical compression.
+        - `warm_analog`: 25 Hz highpass, 18.5 kHz air roll-off, warmth boost (+1.5 dB @ 120 Hz), subtle soft saturation, glue limiter (-1.0 dBTP).
+        - `dj_punch`: Tight low-end punch (+2.5 dB @ 85 Hz), transient bite (+1.5 dB @ 2.2 kHz), fast 4:1 compression, fast limiter (-0.8 dBTP).
+        - `declip_clean`: 30 Hz highpass, downward noise gate (-55 dB), -2.0 dB headroom attenuation, gentle leveling, soft limiter (-1.5 dBTP).
+
+        Args:
+            preset (str): Identifier of the preset chain to instantiate. Defaults to 'club_master'.
+
+        Returns:
+            pedalboard.Pedalboard: Configured DSP chain object, or None if pedalboard is missing.
+        """
         if not HAS_PEDALBOARD:
             return None
 
@@ -142,7 +157,19 @@ class PedalboardDspProcessor:
         sample_rate: int,
         preset: str = "club_master",
     ) -> np.ndarray:
-        """Processes raw in-memory numpy float audio array through the Pedalboard chain."""
+        """Processes raw in-memory numpy float audio array through the Pedalboard chain.
+
+        Args:
+            audio (np.ndarray): Input audio array (either 1D mono or 2D stereo).
+            sample_rate (int): Sampling frequency in Hz.
+            preset (str): Mastering preset name. Defaults to 'club_master'.
+
+        Returns:
+            np.ndarray: Mastered/enhanced audio samples formatted as float32.
+
+        Raises:
+            ValueError: If input audio dimension is unsupported (>2 dimensions).
+        """
         if HAS_PEDALBOARD:
             board = cls.build_board(preset)
             # Pedalboard expects (channels, samples) float32
@@ -164,7 +191,21 @@ class PedalboardDspProcessor:
 
     @staticmethod
     def _numpy_fallback_dsp(audio: np.ndarray, sample_rate: int, preset: str) -> np.ndarray:
-        """High-precision NumPy/SciPy fallback DSP when pedalboard native wheels are absent."""
+        """High-precision NumPy/SciPy fallback DSP when pedalboard native wheels are absent.
+
+        Applies:
+        - 2nd order Butterworth high-pass filter at 30 Hz to discard sub-audible DC rumble.
+        - Soft-knee hyperbolic tangent (`tanh`) saturation curve: compresses peaks exceeding
+          -1.0 dBTP (0.891 amplitude) to prevent harsh digital distortion.
+
+        Args:
+            audio (np.ndarray): Audio signal array.
+            sample_rate (int): Audio sample rate in Hz.
+            preset (str): Selected preset identifier.
+
+        Returns:
+            np.ndarray: Cleaned and limited float32 audio array.
+        """
         try:
             from scipy.signal import butter, sosfilt
             # 30Hz 2nd order Butterworth highpass
@@ -187,7 +228,17 @@ class LibavfilterDspEngine:
 
     @classmethod
     def find_ffmpeg(cls) -> Optional[str]:
-        """Locates system or bundled ffmpeg executable."""
+        """Locates the system or bundled FFmpeg binary executable.
+
+        Search hierarchy:
+        1. Explicit environment variable `FFMPEG_PATH`.
+        2. Configured custom path in `SettingsManager` (`plugins.audio_quality_normalizer_ffmpeg_path`).
+        3. Application bundled directory via `PathResolver.get_default_ffmpeg_path()` (`bin/ffmpeg.exe`).
+        4. Operating system `PATH` via `shutil.which('ffmpeg')`.
+
+        Returns:
+            Optional[str]: Verified absolute path to executable, or None if unavailable.
+        """
         custom_env = os.environ.get("FFMPEG_PATH")
         if custom_env and Path(custom_env).exists():
             return str(Path(custom_env))
@@ -229,8 +280,19 @@ class LibavfilterDspEngine:
     ) -> str:
         """Constructs a unified, low-distortion libavfilter filtergraph string.
 
-        Supports de-clipping (adeclip), denoising (afftdn), corrective EQ (highpass,
-        lowpass, equalizer), EBU R128 loudnorm, and broadcast brickwall peak limiting (alimiter).
+        Supports de-clipping (`adeclip`), denoising (`afftdn`), corrective EQ (`highpass`,
+        `lowpass`, `equalizer`), EBU R128 `loudnorm`, and broadcast brickwall peak limiting (`alimiter`).
+
+        Args:
+            target_lufs (float): Integrated target loudness in LUFS (e.g. -10.0 for DJ club play).
+            max_true_peak (float): Ceiling True Peak limit in dBTP (e.g. -1.0 or -0.5).
+            target_lra (float): Loudness Range in LU. Defaults to 7.0.
+            preset (str): Mastering preset curve. Defaults to 'club_master'.
+            enable_declip (bool): Enables cubic polynomial audio sample reconstruction.
+            enable_noise_reduction (bool): Enables FFT spectral noise floor gating.
+
+        Returns:
+            str: Comma-separated libavfilter string ready for FFmpeg `-af` flag.
         """
         filters: List[str] = []
         preset_key = preset.lower().replace("-", "_").strip()

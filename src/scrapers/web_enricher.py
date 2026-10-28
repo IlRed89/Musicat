@@ -43,12 +43,17 @@ class WebEnricher:
         """Executes a cascading web search fallback query '[Artist] - [Title] genre year'.
 
         Tries:
-        1. Wikipedia Music Knowledge Graph API (accurate release year & infobox genre)
-        2. YouTube Music / YouTube video metadata parsing (auto-generated audio release date & description)
-        3. Web snippet heuristic parsing
+        1. Wikipedia Music Knowledge Graph API (accurate release year & infobox genre).
+        2. YouTube Music / YouTube video metadata parsing (auto-generated audio release date & description).
+        3. Web snippet heuristic parsing.
+
+        Args:
+            artist (str): Track artist name.
+            title (str): Track title name.
 
         Returns:
-            Dictionary with parsed metadata or None if nothing found.
+            Optional[Dict[str, Any]]: Dictionary containing resolved fields (`source`, `title`,
+            `artist`, `year`, `genre`, `label`), or None if no high-confidence data was found.
         """
         clean_artist = (artist or "").strip()
         clean_title = (title or "").strip()
@@ -69,7 +74,20 @@ class WebEnricher:
 
     @classmethod
     def _search_wikipedia(cls, artist: str, title: str) -> Optional[Dict[str, Any]]:
-        """Queries Wikipedia API for track infoboxes and lead paragraphs."""
+        """Queries the Wikipedia API for track infoboxes and lead paragraphs.
+
+        Performs:
+        - Free-text song search via action=query&list=search.
+        - Infobox wikitext extraction for `released = YYYY`, `genre = ...`, and `label = ...`.
+        - Known electronic subgenre scanning against lead paragraphs.
+
+        Args:
+            artist (str): Track artist name.
+            title (str): Track title name.
+
+        Returns:
+            Optional[Dict[str, Any]]: Parsed metadata dictionary, or None.
+        """
         try:
             search_query = f"{artist} {title} song" if artist else f"{title} song"
             encoded_query = urllib.parse.quote_plus(search_query)
@@ -160,7 +178,20 @@ class WebEnricher:
 
     @classmethod
     def _search_youtube(cls, artist: str, title: str) -> Optional[Dict[str, Any]]:
-        """Queries YouTube search results page to parse official audio release dates and descriptions."""
+        """Queries YouTube search results page to parse official audio release dates and descriptions.
+
+        Parses:
+        - "Released on: YYYY" or copyright year (℗ / ©) from official audio track descriptions.
+        - `publishDate` JSON attributes from video metadata.
+        - Electronic subgenres matched against `KNOWN_ELECTRONIC_SUBGENRES`.
+
+        Args:
+            artist (str): Track artist name.
+            title (str): Track title name.
+
+        Returns:
+            Optional[Dict[str, Any]]: Parsed metadata dictionary, or None.
+        """
         try:
             query = f"{artist} - {title} audio" if artist else f"{title} audio"
             encoded_query = urllib.parse.quote_plus(query)

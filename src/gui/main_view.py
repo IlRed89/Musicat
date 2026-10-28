@@ -178,27 +178,80 @@ class LibraryTableView(QTableView):
 
 
 class BackgroundScanWorker(QThread):
-    """Background worker thread for filesystem scanning and SQLite indexing."""
+    """Background worker thread for asynchronous filesystem scanning and SQLite indexing.
 
-    progress = Signal(int, int, str)  # cur, total, path
+    Traverses target directory structures on a dedicated secondary thread, detects audio
+    files conforming to supported format extensions, translates paths to portable volume
+    references, and batches database insertion transactions without freezing the UI.
+
+    Signals:
+        progress (int, int, str): Emits (current_index, total_files, current_filepath).
+        finished (dict): Emits scan summary statistics dictionary upon completion.
+    """
+
+    progress = Signal(int, int, str)
     finished = Signal(dict)
 
     def __init__(self, folder_path: str, db: Database) -> None:
+        """Initializes the background scan worker thread.
+
+        Args:
+            folder_path (str): Absolute filesystem path of the directory to scan.
+            db (Database): Database instance for record persistence.
+        """
         super().__init__()
         self.folder_path = folder_path
         self.db = db
         self.scanner = LibraryScanner(self.db)
 
     def run(self) -> None:
-        result = self.scanner.scan_directory(self.folder_path, progress_callback=self.progress.emit)
-        self.finished.emit(result)
+        """Executes recursive directory traversal and indexes records into SQLite."""
+        MusicatLogger.log_worker("BackgroundScanWorker", "STARTED", 0.0, {"folder": self.folder_path})
+        try:
+            result = self.scanner.scan_directory(self.folder_path, progress_callback=self._on_progress)
+            MusicatLogger.log_worker("BackgroundScanWorker", "COMPLETED", 100.0, result)
+            self.finished.emit(result)
+        except Exception as exc:
+            MusicatLogger.log_worker("BackgroundScanWorker", "ERROR", 0.0, error=str(exc))
+            self.finished.emit({"total_found": 0, "scanned": 0, "inserted": 0, "errors": 1, "error": str(exc)})
+
+    def _on_progress(self, cur: int, total: int, path: str) -> None:
+        """Relays progress milestones and logs periodic worker telemetry.
+
+        Args:
+            cur (int): Current file index processed.
+            total (int): Total files identified in scan.
+            path (str): Filepath currently undergoing analysis.
+        """
+        pct = (cur / total * 100.0) if total > 0 else 0.0
+        if cur % 100 == 0 or cur == total:
+            MusicatLogger.log_worker(
+                "BackgroundScanWorker",
+                "PROGRESS",
+                pct,
+                {"current": cur, "total": total, "file": Path(path).name},
+            )
+        self.progress.emit(cur, total, path)
 
     def cancel(self) -> None:
+        """Signals the worker and underlying scanner to cancel execution early."""
+        MusicatLogger.log_worker("BackgroundScanWorker", "CANCELLED", details={"folder": self.folder_path})
         self.scanner.cancel()
 
 
 class AsyncAnalysisWorker(QThread):
-    """Background worker thread for bulk acoustic analysis (BPM & Camelot Key) and physical tag persistence."""
+    """Background worker thread for bulk acoustic analysis and physical tag persistence.
+
+    Employs a multi-core concurrent ThreadPoolExecutor to process audio files in parallel,
+    extracting tempo (BPM), musical key, and Camelot harmonizations via fast-pass DSP.
+    Serializes database commits back onto the coordinator thread to prevent SQLite locking.
+
+    Signals:
+        progress (int, int, str): Emits (completed_count, total_count, filename).
+        track_completed (dict): Emits dictionary of updated metadata for a single track.
+        finished (int, list): Emits (success_count, list_of_updated_track_dicts).
+        cancelled (): Emitted when the analysis worker is interrupted before completion.
+    """
 
     progress = Signal(int, int, str)
     track_completed = Signal(dict)
@@ -206,21 +259,31 @@ class AsyncAnalysisWorker(QThread):
     cancelled = Signal()
 
     def __init__(self, tracks: List[Dict[str, Any]], db: Database) -> None:
+        """Initializes the asynchronous acoustic analysis worker thread.
+
+        Args:
+            tracks (List[Dict[str, Any]]): Target list of track dictionaries to process.
+            db (Database): Database instance for SQLite metadata updates.
+        """
         super().__init__()
         self.tracks = tracks
         self.db = db
         self._is_cancelled = False
 
     def cancel(self) -> None:
+        """Signals the worker pool to cancel remaining futures and abort."""
         self._is_cancelled = True
+        MusicatLogger.log_worker("AsyncAnalysisWorker", "CANCEL_REQUESTED", details={"pending": len(self.tracks)})
 
     def run(self) -> None:
+        """Executes concurrent acoustic analysis across CPU core worker threads."""
         total = len(self.tracks)
         if total == 0:
             self.finished.emit(0, [])
             return
 
         import os
+        import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from ..audio.analyzer import AcousticAnalyzer
         from ..tags.editor import AudioTagEditor
@@ -228,6 +291,7 @@ class AsyncAnalysisWorker(QThread):
 
         # Parallelize across physical/logical cores (2 to 8 worker threads)
         max_workers = max(2, min(os.cpu_count() or 4, 8))
+        MusicatLogger.log_worker("AsyncAnalysisWorker", "STARTED", 0.0, {"total_tracks": total, "threads": max_workers})
         success_count = 0
         updated_tracks: List[Dict[str, Any]] = []
 
@@ -235,7 +299,19 @@ class AsyncAnalysisWorker(QThread):
             fp = tr.get("filepath", "")
             try:
                 # 1. Acoustic extraction (Fast-pass 60-90s window at 25% duration)
+                t_dsp_start = time.perf_counter()
                 profile = AcousticAnalyzer.analyze_file(fp)
+                dsp_ms = (time.perf_counter() - t_dsp_start) * 1000.0
+
+                MusicatLogger.log_acoustic(
+                    fp,
+                    bpm=profile.bpm,
+                    key=profile.musical_key,
+                    camelot=profile.camelot_key,
+                    elapsed_ms=dsp_ms,
+                    lufs=profile.rms_db,
+                )
+
                 updates: Dict[str, Any] = {
                     "bpm": profile.bpm,
                     "musical_key": profile.musical_key,
@@ -364,6 +440,8 @@ class AsyncAnalysisWorker(QThread):
 
             for future in as_completed(future_to_track):
                 if self._is_cancelled:
+                    pct = (completed_count / total * 100.0) if total > 0 else 0.0
+                    MusicatLogger.log_worker("AsyncAnalysisWorker", "CANCELLED", pct, {"completed": completed_count})
                     executor.shutdown(wait=False, cancel_futures=True)
                     self.cancelled.emit()
                     return
@@ -386,8 +464,18 @@ class AsyncAnalysisWorker(QThread):
                     self.track_completed.emit(full_updated)
                     success_count += 1
 
+                pct = (completed_count / total * 100.0) if total > 0 else 0.0
+                if completed_count % 10 == 0 or completed_count == total:
+                    MusicatLogger.log_worker(
+                        "AsyncAnalysisWorker",
+                        "PROGRESS",
+                        pct,
+                        {"completed": completed_count, "total": total, "file": filename},
+                    )
+
                 self.progress.emit(completed_count, total, filename)
 
+        MusicatLogger.log_worker("AsyncAnalysisWorker", "COMPLETED", 100.0, {"success_count": success_count, "total": total})
         self.finished.emit(success_count, updated_tracks)
 
 

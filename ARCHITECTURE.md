@@ -218,3 +218,126 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
     content='tracks', content_rowid='id'
 );
 ```
+
+---
+
+## 4. Logging & Diagnostics System / Sistema di Logging e Diagnostica (`src/core/logger.py`)
+
+Musicat adotta un'infrastruttura di telemetria e diagnostica enterprise ad alta visibilità concepita per operare in ambienti desktop distribuiti, installazioni standalone e modalità portatili da chiavetta USB:
+
+```mermaid
+flowchart TD
+    Subsystems[App Subsystems: GUI / DSP / Scrapers / TagEditor / Database / OAuth] --> Dispatcher[MusicatLogger Domain Tracers & Level Methods]
+    
+    Dispatcher --> ConsoleHandler[StreamHandler: ColoredConsoleFormatter with ANSI Colors]
+    Dispatcher --> FileHandler[ZipRotatingFileHandler: 10 MB MaxSize & 5 ZIP Backups]
+    Dispatcher --> GuiHandler[GuiLogHandler: Thread-Safe Qt Signal Bridge to Live Dock]
+    
+    FaultTrap[faulthandler C/C++ Fatal Trap] --> CrashLog[(logs/crash.log: Low-Level Segfault Dump)]
+    FileHandler --> MainLog[(logs/musicat.log: Millisecond Trace Log)]
+    FileHandler --> ZipArchives[(logs/musicat.log.N.zip: Compressed Historical Logs)]
+```
+
+### A. Gerarchia dei Logger e Propagazione degli Handler
+1. **Logger Radice (`MusicatLogger.get_logger()`):**
+   - Nome del logger: `"musicat"`.
+   - Livello configurabile dinamicamente (`DEBUG` in fase di sviluppo/diagnostica, `INFO` in produzione).
+   - `propagate = False` per evitare duplicazioni non controllate verso il logger di default Python.
+2. **Multi-Handler Setup:**
+   - **Console Handler (`StreamHandler`):** impiega `ColoredConsoleFormatter` con codici escape ANSI per differenziare a colpo d'occhio i livelli di severità su terminali Windows Terminal, macOS Terminal e Linux bash/zsh:
+     - `DEBUG`: Grigio chiaro (`\033[90m`)
+     - `INFO`: Ciano (`\033[96m`)
+     - `WARNING`: Giallo/Ambra (`\033[93m`)
+     - `ERROR`: Rosso (`\033[91m`)
+     - `CRITICAL`: Rosso brillante su sfondo scuro (`\033[1;91m`)
+   - **Rotating File Handler con Compressione ZIP (`ZipRotatingFileHandler`):**
+     - Scrive in append con codifica UTF-8 su `musicat.log`.
+     - Soglia di rotazione: **10 MB** (`10 * 1024 * 1024` byte).
+     - Retention: **5 file storici di backup** (`backupCount=5`).
+     - Al superamento della dimensione massima, il file uscente viene compresso al volo in archivio ZIP (`musicat.log.1.zip` .. `musicat.log.5.zip`) e il file attivo viene riazzerato atomicamente, risparmiando oltre l'85% dello spazio su disco.
+     - **Flush & Sync Immediato (`fsync`):** Per ogni record di severità `ERROR` o `CRITICAL`, l'handler esegue `stream.flush()` seguito da `os.fsync(stream.fileno())` garantendo la scrittura fisica su storage magnetico o NAND prima di eventuali crash di sistema.
+   - **Crash / Faulthandler Log Trap (`logs/crash.log`):**
+     - Registrato tramite `faulthandler.enable(file=crash_fp, all_threads=True)`.
+     - Intercetta a livello di kernel i segnali fatali generati da codice non gestito C/C++ (`SIGSEGV`, `SIGFPE`, `SIGILL`, `SIGBUS`, `0xC0000005: Access Violation` su Windows).
+     - Emette il dump dello stack trace di tutti i thread attivi al momento del crash, identificando la funzione Python o la libreria nativa condivisa (VLC, libavcodec FFmpeg, JUCE VST3, DirectML/CUDA) responsabile del guasto.
+   - **GUI Dock Handler (`GuiLogHandler`):**
+     - Incapsula una coda protetta da segnali PySide6 (`log_record_signal`) per inviare i messaggi formattati alla console log integrata nell'interfaccia senza bloccare il thread grafico.
+
+### B. Percorsi Standard di Memorizzazione dei File di Log
+La classe `PathResolver` garantisce che i percorsi dei log siano determinati in modo conforme alle linee guida di ciascun sistema operativo:
+
+| Piattaforma | Modalità | Percorso File di Log Principale | Percorso File di Crash |
+| :--- | :--- | :--- | :--- |
+| **Windows** | Portatile (`portable.lock`) | `<AppDir>\logs\musicat.log` | `<AppDir>\logs\crash.log` |
+| **Windows** | Installata / Standard | `%APPDATA%\Musicat\logs\musicat.log` | `%APPDATA%\Musicat\logs\crash.log` |
+| **macOS** | Portatile (`portable.lock`) | `<AppDir>/logs/musicat.log` | `<AppDir>/logs/crash.log` |
+| **macOS** | Standard Bundle | `~/Library/Application Support/Musicat/logs/musicat.log` | `~/Library/Application Support/Musicat/logs/crash.log` |
+| **macOS Debug** | Link di Sviluppo | `~/Desktop/musicat_debug.log` | - |
+| **Linux** | Standard XDG | `~/.local/share/Musicat/logs/musicat.log` | `~/.local/share/Musicat/logs/crash.log` |
+
+### C. Formato dei Log con Risoluzione al Millisecondo
+Ogni riga di log segue rigorosamente la sintassi canonica specificata:
+
+```text
+[YYYY-MM-DD HH:MM:SS.mmm] [LIVELLO] [NOME_MODULO.FUNZIONE:RIGA] [THREAD_NAME] - Messaggio
+```
+
+**Esempio di Traccia Operativa:**
+```text
+[2026-10-28 12:20:15.142] [DEBUG] [reconciler.fetch_discogs:84] [WorkerThread-2] - Querying Discogs for "Gelosia"...
+[2026-10-28 12:20:15.890] [INFO]  [analyzer.estimate_bpm:228] [AcousticPool-0] - BPM estimated: 126.0 (confidence: 0.94)
+[2026-10-28 12:20:16.012] [ERROR] [editor.write_metadata:463] [MainThread] - [TAG:WRITE_LOCK] File locked or permission error on 'track.mp3': [Errno 13] Permission denied
+```
+
+### D. Metodi di Tracciamento per Flussi Chiave (`Subsystem Domain Tracers`)
+Per evitare formattazioni eterogenee, `MusicatLogger` espone metodi dedicati a ciascun sottosistema:
+- `log_bootstrap()`: Telemetria di avvio (OS, versione Python, CPU, memoria fisica, backend GPU, path FFmpeg e libVLC).
+- `log_scan(folder, files_found, skipped_files, errors)`: Riepilogo scansione ricorsiva file system.
+- `log_worker(worker_name, action, task_id, progress, error)`: Ciclo di vita dei thread di lavoro asincroni.
+- `log_acoustic(filepath, bpm, key, camelot, duration_s)`: Metriche estratte dall'analisi FFT/chromagram.
+- `log_scraping(provider, query, status_code, elapsed_ms, details)`: Chiamate HTTP a provider esterni.
+- `log_tag_edit(filepath, fields_updated, pre_dump, post_dump, success, error)`: Audit di scrittura tag con dump differenziale pre/post modifica.
+- `log_audio_engine(engine, preset, input_file, output_file, lufs, true_peak, success, error)`: Parametri di mastering audio DSP.
+- `log_oauth(service, action, success, details)`: Autenticazione OAuth e token exchange loopback.
+- `log_file_op(operation, src, dst, success, error)`: Spostamenti e ridenominazioni fisiche sul filesystem.
+
+---
+
+## 5. Codebase Standards / Standard di Sviluppo del Codice
+
+Per garantire l'eccellenza ingegneristica, la manutenibilità a lungo termine e l'assenza di regressioni, tutti i moduli del repository Musicat devono rispettare rigorosamente le seguenti linee guida:
+
+### A. Convenzioni Docstring (Google Style / Sphinx)
+Tutte le classi, metodi pubblici e funzioni di modulo devono essere documentati secondo lo standard **Google Style**:
+
+```python
+def example_function(param_a: str, param_b: int = 10) -> bool:
+    """Sintetica descrizione di una riga terminata da punto.
+
+    Descrizione dettagliata dell'algoritmo o della logica applicata, con note
+    sul funzionamento interno e considerazioni sulle prestazioni.
+
+    Args:
+        param_a (str): Descrizione del parametro di input.
+        param_b (int): Valore numerico indicante la soglia. Defaults to 10.
+
+    Returns:
+        bool: True se l'operazione ha avuto successo, False altrimenti.
+
+    Raises:
+        FileNotFoundError: Se il percorso specificato non esiste su disco.
+        ValueError: Se il valore fornito eccede l'intervallo consentito.
+    """
+```
+
+### B. Type Hinting Sistematico e Analisi Statica
+- Tutti gli argomenti di funzioni e i valori di ritorno devono includere type hints completi (`typing.Optional`, `typing.Dict`, `typing.List`, `typing.Tuple`, `typing.Union`, `typing.Any`).
+- La base di codice deve risultare conforme ai controlli di tipo statici eseguiti da `mypy`.
+- Nei moduli che utilizzano conversioni di formato o risposte esterne, gestire esplicitamente `Optional[...]` per prevenire eccezioni di tipo `TypeError: 'NoneType' object is not subscriptable`.
+
+### C. Struttura dei Commenti Operativi sul Codice
+I commenti in-line non devono limitarsi a ripetere ciò che il codice esegue letteralmente, bensì spiegare il **perché** e il **razionale matematico/architetturale**:
+- **Formule Matematiche e DSP:** Esporre il razionale armonico (es. *ruota di Camelot, Circle of Fifths mod 12, lift di semitono $7 \times 7 \equiv 1 \pmod{12}$, interpolazione parabolica al vertice sui picchi di correlazione*).
+- **Concorrenza e Threading:** Commentare i vincoli di thread-safety (es. *rilascio del GIL, lock SQLite, esecuzione del commit confinata al coordinatore principale*).
+- **I/O ed Exception Handling:** Esplicitare il motivo dei loop di retry con backoff e garbage collection (`gc.collect()`) su Windows per aggirare i lock temporanei causati da Windows Defender e servizi di indicizzazione.
+

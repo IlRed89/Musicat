@@ -72,6 +72,19 @@ CAMELOT_TO_KEY = {
 
 @dataclass
 class AcousticProfile:
+    """Acoustic feature profile extracted from an audio track.
+
+    Attributes:
+        bpm (float): Detected tempo in beats per minute (e.g. 128.0).
+        bpm_rounded (int): Integer rounded tempo for standard DJ display (e.g. 128).
+        musical_key (str): Detected tonic root and mode (e.g. 'Am', 'C#m', 'F').
+        camelot_key (str): Canonical Camelot Wheel code (e.g. '8A', '12A', '7B').
+        peak_db (float): Maximum sample amplitude in decibels full scale (dBFS).
+        rms_db (float): Root mean square signal energy in dBFS.
+        replay_gain_db (float): Recommended gain adjustment in dB to target -14.0 dBFS RMS.
+        duration (float): Total audio file duration in seconds.
+    """
+
     bpm: float
     bpm_rounded: int
     musical_key: str
@@ -83,7 +96,14 @@ class AcousticProfile:
 
 
 def key_to_camelot(key_str: str) -> str:
-    """Converts a standard musical key string to Camelot notation (e.g. 'Am' -> '8A')."""
+    """Converts a standard musical key string to Camelot notation (e.g. 'Am' -> '8A').
+
+    Args:
+        key_str (str): Musical key string (e.g. 'Am', 'A minor', 'C Major').
+
+    Returns:
+        str: Canonical Camelot code or empty string if not mapped.
+    """
     if not key_str:
         return ""
     clean = key_str.strip()
@@ -93,19 +113,33 @@ def key_to_camelot(key_str: str) -> str:
 
 
 def camelot_to_key(camelot_str: str) -> str:
-    """Converts a Camelot code to a standard musical key string (e.g. '8A' -> 'Am')."""
+    """Converts a Camelot code to a standard musical key string (e.g. '8A' -> 'Am').
+
+    Args:
+        camelot_str (str): Canonical Camelot code (e.g. '8A', '11B').
+
+    Returns:
+        str: Primary musical key name (e.g. 'Am') or empty string if unknown.
+    """
     code = camelot_str.strip().upper()
     info = CAMELOT_TO_KEY.get(code)
     return info[0] if info else ""
 
 
 def get_harmonic_matches(camelot_str: str) -> List[str]:
-    """
-    Returns list of Camelot keys harmonically compatible with the given key:
+    """Returns list of Camelot keys harmonically compatible with the given key.
+
+    Compatibility rules:
     - Same key (e.g. 8A)
     - Relative Major/Minor (8A <-> 8B)
     - Adjacent steps (7A, 9A)
     - Energy Boost (+2, e.g. 10A)
+
+    Args:
+        camelot_str (str): Canonical Camelot code.
+
+    Returns:
+        List[str]: Harmonically compatible Camelot key codes.
     """
     code = camelot_str.strip().upper()
     if not code or len(code) < 2:
@@ -129,6 +163,14 @@ def get_harmonic_matches(camelot_str: str) -> List[str]:
 
 
 def re_replace_key(k: str) -> str:
+    """Normalizes natural language key designations to canonical short symbols.
+
+    Args:
+        k (str): Raw key string.
+
+    Returns:
+        str: Cleaned key string.
+    """
     k = k.replace(" minor", "m").replace(" Minor", "m").replace(" min", "m")
     k = k.replace(" major", "").replace(" Major", "").replace(" maj", "")
     return k.strip()
@@ -145,10 +187,23 @@ class AcousticAnalyzer:
         max_duration_sec: float = 75.0,
         offset_sec: Optional[float] = None,
     ) -> Tuple[np.ndarray, int, float]:
-        """
-        Fast-Pass Acoustic Analysis: loads an optimized representative central window (60-90s
-        starting from ~25% of track duration) to dramatically reduce I/O and CPU STFT processing.
-        Returns: (mono_signal, sample_rate, total_file_duration)
+        """Loads an optimized representative central audio slice for fast-pass acoustic analysis.
+
+        Rather than reading multi-gigabyte uncompressed audio into RAM, seeks to ~25% of track
+        duration and reads 60-90 seconds. This cuts disk I/O and memory overhead by >80% while
+        capturing the steady-state drop/groove for reliable tempo autocorrelation and chroma projection.
+
+        Args:
+            filepath (Union[str, Path]): Absolute path to audio file.
+            target_sr (int): Target sampling rate in Hz for acoustic analysis. Defaults to 22050.
+            max_duration_sec (float): Maximum sample window duration in seconds. Defaults to 75.0.
+            offset_sec (Optional[float]): Explicit start offset in seconds. If None, auto-calculated at 25%.
+
+        Returns:
+            Tuple[np.ndarray, int, float]: (mono_pcm_signal, effective_sample_rate, total_file_duration_seconds).
+
+        Raises:
+            SoundFileError / RuntimeError: If the audio container is corrupt or unreadable.
         """
         path_str = str(filepath)
         with sf.SoundFile(path_str) as sf_file:
@@ -409,9 +464,18 @@ class AcousticAnalyzer:
 
     @classmethod
     def calculate_loudness(cls, signal: np.ndarray) -> Tuple[float, float, float]:
-        """
-        Calculates Peak dBFS, RMS dBFS, and estimated ReplayGain dB.
-        Target: -14.0 dBFS ReplayGain standard.
+        """Calculates peak amplitude, RMS energy, and estimated ReplayGain.
+
+        Computes:
+        - True sample peak in dBFS: 20 * log10(max(|x|)).
+        - RMS energy in dBFS: 20 * log10(sqrt(mean(x^2))).
+        - Recommended ReplayGain relative to standard target (-14.0 dBFS RMS).
+
+        Args:
+            signal (np.ndarray): 1D mono audio PCM samples.
+
+        Returns:
+            Tuple[float, float, float]: (peak_dbfs, rms_dbfs, suggested_replaygain_db).
         """
         if len(signal) == 0:
             return -99.0, -99.0, 0.0
@@ -430,7 +494,24 @@ class AcousticAnalyzer:
 
     @classmethod
     def analyze_file(cls, filepath: Union[str, Path]) -> AcousticProfile:
-        """Runs complete acoustic analysis pipeline on audio file."""
+        """Executes full acoustic extraction pipeline (BPM, Key, Loudness, ReplayGain).
+
+        Pipeline steps:
+        1. `load_audio_sample`: Fast-pass slice loaded into RAM.
+        2. `estimate_bpm`: Spectral flux onset envelope autocorrelation with parabolic interpolation.
+        3. `estimate_key`: Pitch class chromagram correlation against Krumhansl-Schmuckler cognitive profiles.
+        4. `calculate_loudness`: Peak/RMS energy and ReplayGain estimation.
+
+        Args:
+            filepath (Union[str, Path]): Absolute path to target audio file.
+
+        Returns:
+            AcousticProfile: Populated acoustic profile dataclass.
+
+        Raises:
+            FileNotFoundError: If the target file does not exist on disk.
+            RuntimeError: If soundfile cannot decode the audio stream.
+        """
         signal, sr, total_dur = cls.load_audio_sample(filepath)
 
         bpm = cls.estimate_bpm(signal, sr)

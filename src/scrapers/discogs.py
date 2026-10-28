@@ -129,7 +129,21 @@ class DiscogsClient:
         return results
 
     def get_release_details(self, release_id: int) -> Dict[str, Any]:
-        """Fetches detailed release profile directly from Discogs /releases/{id}."""
+        """Fetches detailed release profile directly from Discogs `/releases/{id}` endpoint.
+
+        Extracts:
+        - Exact release year from `released` or `released_formatted` string.
+        - Primary imprint record label and catalog number.
+        - Detailed physical vinyl / digital formats (e.g. '12", 45 RPM, Maxi-Single').
+        - Primary artist credits and dedicated remixers parsed from `extraartists`.
+        - Specific electronic styles and subgenres.
+
+        Args:
+            release_id (int): Discogs release numeric identifier.
+
+        Returns:
+            Dict[str, Any]: Clean metadata dictionary with resolved fields.
+        """
         out: Dict[str, Any] = {}
         try:
             url = f"{self.RELEASE_URL}/{release_id}"
@@ -177,8 +191,15 @@ class DiscogsClient:
                         out["artist"] = ", ".join(art_names)
 
                 # Extra artists (Remixers, producers, feat)
-                if remixers:
-                    out["remixer"] = ", ".join(remixers)
+                extraartists = data.get("extraartists", [])
+                if extraartists and isinstance(extraartists, list):
+                    remixers = [
+                        ea.get("name", "")
+                        for ea in extraartists
+                        if isinstance(ea, dict) and "remix" in ea.get("role", "").lower() and ea.get("name")
+                    ]
+                    if remixers:
+                        out["remixer"] = ", ".join(remixers)
 
                 # Detailed Genre & Style (Style prioritized for subgenres)
                 styles = data.get("styles", []) or data.get("style", [])
