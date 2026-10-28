@@ -422,6 +422,7 @@ class LiveFilterBar(QFrame):
     export_playlist_requested = Signal()
     analyze_requested = Signal()
     refresh_requested = Signal()
+    clear_view_requested = Signal()
 
     def __init__(self, db: Database, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -439,23 +440,36 @@ class LiveFilterBar(QFrame):
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
 
     def _init_ui(self) -> None:
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 6, 10, 6)
-        main_layout.setSpacing(6)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # Responsive Horizontal Scroll Container to prevent overlapping or clipping on small screens
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        scroll_content = QWidget()
+        main_layout = QVBoxLayout(scroll_content)
+        main_layout.setContentsMargins(6, 4, 6, 4)
+        main_layout.setSpacing(5)
 
         # -------------------------------------------------------------
         # ROW 1: PRIMARY SEARCH & REPOSITORY FILTERS
         # (Search bar + engine, Folder/Drive selector, Genre multi-select, Cover filter, Reset ESC)
         # -------------------------------------------------------------
         row1 = QHBoxLayout()
-        row1.setSpacing(8)
+        row1.setSpacing(6)
 
         # 1. Text Search Input (Ctrl+F)
         self.txt_search = QLineEdit()
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
         self.txt_search.setPlaceholderText(f"🔍 Quick Search / {fast_engine} (Ctrl+F)...")
         self.txt_search.setClearButtonEnabled(True)
-        self.txt_search.setMinimumWidth(200)
+        self.txt_search.setMinimumWidth(180)
 
         # Search Engine Badge (Hidden - metrics centralized in bottom status bar)
         self.lbl_search_engine = QLabel(SearchEngine.get_engine_badge())
@@ -479,23 +493,39 @@ class LiveFilterBar(QFrame):
         self.cmb_cover.addItem("Tutte", "")
         self.cmb_cover.addItem("Con Cover", "with_cover")
         self.cmb_cover.addItem("Senza Cover", "without_cover")
-        self.cmb_cover.setMinimumWidth(100)
+        self.cmb_cover.setMinimumWidth(90)
         self.cmb_cover.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.cmb_cover.setToolTip("Filtra tracce con o senza copertina")
         cover_box.addWidget(self.lbl_cover)
         cover_box.addWidget(self.cmb_cover)
 
-        # 4. Explicit Dedicated Analysis Button [⚡ Analizza Selezionate]
+        # 4. Clear View Button [🧹 Svuota Vista]
+        self.btn_clear_view = QPushButton(_t("filter_btn_clear_view", "🧹 Svuota Vista"))
+        self.btn_clear_view.setObjectName("btnClearView")
+        self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video (senza eliminare i file o la libreria dal DB)"))
+        self.btn_clear_view.setMinimumWidth(95)
+        self.btn_clear_view.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_clear_view.clicked.connect(self.clear_view_requested.emit)
+
+        # 5. Dedicated Refresh Button
+        self.btn_refresh = QPushButton(_t("filter_btn_refresh", "🔄 Aggiorna"))
+        self.btn_refresh.setObjectName("btnRefresh")
+        self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
+        self.btn_refresh.setMinimumWidth(85)
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh.clicked.connect(self.refresh_requested.emit)
+
+        # 6. Explicit Dedicated Analysis Button [⚡ Analizza Selezionate]
         self.btn_analyze = QPushButton(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
         self.btn_analyze.setObjectName("AnalyzeButton")
         self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
-        self.btn_analyze.setMinimumWidth(160)
+        self.btn_analyze.setMinimumWidth(135)
         self.btn_analyze.setStyleSheet("""
             QPushButton {
                 background-color: #0284c7;
                 color: #ffffff;
                 font-weight: bold;
-                padding: 4px 12px;
+                padding: 4px 10px;
                 border-radius: 4px;
                 border: 1px solid #0369a1;
                 font-size: 11px;
@@ -509,24 +539,17 @@ class LiveFilterBar(QFrame):
         """)
         self.btn_analyze.clicked.connect(self.analyze_requested.emit)
 
-        # 5. Dedicated Refresh Button
-        self.btn_refresh = QPushButton(_t("filter_btn_refresh", "🔄 Aggiorna"))
-        self.btn_refresh.setObjectName("btnRefresh")
-        self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
-        self.btn_refresh.setMinimumWidth(105)
-        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_refresh.clicked.connect(self.refresh_requested.emit)
-
-        # 6. Instant Reset Button (ESC)
+        # 7. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
-        self.btn_reset.setMinimumWidth(115)
-        self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
+        self.btn_reset.setMinimumWidth(95)
+        self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_reset.clicked.connect(self.reset_filters)
 
         # Assemble Clean Streamlined Row 1
         row1.addWidget(self.txt_search, 4)
         row1.addWidget(self.genre_widget, 2)
         row1.addLayout(cover_box)
+        row1.addWidget(self.btn_clear_view)
         row1.addWidget(self.btn_refresh)
         row1.addWidget(self.btn_analyze)
         row1.addWidget(self.btn_reset)
@@ -537,11 +560,11 @@ class LiveFilterBar(QFrame):
         # (BPM Range & Tolerance, Camelot Key / Wheel, Decade/Year, Quality, DJ Tags)
         # -------------------------------------------------------------
         row2 = QHBoxLayout()
-        row2.setSpacing(8)
+        row2.setSpacing(6)
 
         # 1. BPM Range & Target Tolerance (Ctrl+B)
         bpm_box = QHBoxLayout()
-        bpm_box.setSpacing(4)
+        bpm_box.setSpacing(3)
         self.lbl_bpm = QLabel("BPM:")
         self.lbl_bpm.setStyleSheet("color: #0284c7; font-weight: bold; font-size: 11px;")
 
@@ -553,7 +576,7 @@ class LiveFilterBar(QFrame):
         self.spin_target_bpm.setValue(0)
         self.spin_target_bpm.setSpecialValueText("Target")
         self.spin_target_bpm.setToolTip("Target Deck BPM (es. 126.0)")
-        self.spin_target_bpm.setMinimumWidth(85)
+        self.spin_target_bpm.setMinimumWidth(65)
 
         self.cmb_bpm_tolerance = QComboBox()
         self.cmb_bpm_tolerance.addItem("±2%", 2.0)
@@ -562,7 +585,7 @@ class LiveFilterBar(QFrame):
         self.cmb_bpm_tolerance.addItem("±8%", 8.0)
         self.cmb_bpm_tolerance.setCurrentIndex(1)  # ±4% default
         self.cmb_bpm_tolerance.setToolTip("Tolleranza Pitch BPM")
-        self.cmb_bpm_tolerance.setMinimumWidth(72)
+        self.cmb_bpm_tolerance.setMinimumWidth(60)
 
         self.lbl_bpm_or = QLabel("o")
         self.lbl_bpm_or.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -574,7 +597,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_min.setDecimals(1)
         self.spin_bpm_min.setValue(0)
         self.spin_bpm_min.setSpecialValueText("Min")
-        self.spin_bpm_min.setMinimumWidth(75)
+        self.spin_bpm_min.setMinimumWidth(55)
 
         self.lbl_bpm_dash = QLabel("-")
         self.lbl_bpm_dash.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -586,7 +609,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.setDecimals(1)
         self.spin_bpm_max.setValue(0)
         self.spin_bpm_max.setSpecialValueText("Max")
-        self.spin_bpm_max.setMinimumWidth(75)
+        self.spin_bpm_max.setMinimumWidth(55)
 
         bpm_box.addWidget(self.lbl_bpm)
         bpm_box.addWidget(self.lbl_bpm_target)
@@ -601,7 +624,7 @@ class LiveFilterBar(QFrame):
 
         # 2. Harmonic Mixing Assistant (Camelot Wheel Matching) (Ctrl+K)
         camelot_box = QHBoxLayout()
-        camelot_box.setSpacing(4)
+        camelot_box.setSpacing(3)
         self.lbl_key = QLabel("Key:")
         self.lbl_key.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
@@ -610,7 +633,7 @@ class LiveFilterBar(QFrame):
         for k in CAMELOT_KEYS_ORDERED:
             musical = CAMELOT_TO_KEY.get(k, "")
             self.cmb_camelot.addItem(f"{k} ({musical})", k)
-        self.cmb_camelot.setMinimumWidth(140)
+        self.cmb_camelot.setMinimumWidth(110)
         self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.chk_harmonic_only = QCheckBox("Solo Armonici")
@@ -619,9 +642,9 @@ class LiveFilterBar(QFrame):
         self.chk_harmonic_only.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
 
         self.btn_wheel_popup = QPushButton("🎡 Ruota")
-        self.btn_wheel_popup.setMinimumWidth(70)
+        self.btn_wheel_popup.setMinimumWidth(60)
         self.btn_wheel_popup.setToolTip("Apri Ruota Camelot Interattiva (Ctrl+K)")
-        self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
+        self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 6px; border-radius: 4px;")
         self.btn_wheel_popup.clicked.connect(self._open_camelot_wheel)
 
         camelot_box.addWidget(self.lbl_key)
@@ -631,7 +654,7 @@ class LiveFilterBar(QFrame):
 
         # 3. Decade / Year Filter
         year_box = QHBoxLayout()
-        year_box.setSpacing(4)
+        year_box.setSpacing(3)
         self.lbl_year = QLabel("Anno:")
         self.cmb_decade = QComboBox()
         self.cmb_decade.addItem("Qualsiasi Anno", (None, None))
@@ -640,14 +663,14 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.addItem("2000s (2000-2009)", (2000, 2009))
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
-        self.cmb_decade.setMinimumWidth(160)
+        self.cmb_decade.setMinimumWidth(125)
         self.cmb_decade.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
 
         # 4. Audio Quality / Diagnostics Filter
         quality_box = QHBoxLayout()
-        quality_box.setSpacing(4)
+        quality_box.setSpacing(3)
         self.lbl_quality = QLabel("Audio:")
         self.lbl_quality.setStyleSheet("font-weight: 600; font-size: 11px;")
         self.cmb_quality = QComboBox()
@@ -657,25 +680,25 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
-        self.cmb_quality.setMinimumWidth(170)
+        self.cmb_quality.setMinimumWidth(125)
         self.cmb_quality.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
         # 5. Quick DJ Tags (Pills)
         tags_box = QHBoxLayout()
-        tags_box.setSpacing(6)
+        tags_box.setSpacing(4)
         self.btn_tag_intro = QPushButton("Intro")
         self.btn_tag_vocal = QPushButton("Vocal")
         self.btn_tag_inst = QPushButton("Instrumental")
         self.btn_tag_acapella = QPushButton("Acapella")
         self.btn_tag_club = QPushButton("Club")
 
-        self.btn_tag_intro.setMinimumWidth(55)
-        self.btn_tag_vocal.setMinimumWidth(55)
-        self.btn_tag_inst.setMinimumWidth(95)
-        self.btn_tag_acapella.setMinimumWidth(75)
-        self.btn_tag_club.setMinimumWidth(55)
+        self.btn_tag_intro.setMinimumWidth(45)
+        self.btn_tag_vocal.setMinimumWidth(45)
+        self.btn_tag_inst.setMinimumWidth(75)
+        self.btn_tag_acapella.setMinimumWidth(65)
+        self.btn_tag_club.setMinimumWidth(45)
 
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setCheckable(True)
@@ -690,12 +713,17 @@ class LiveFilterBar(QFrame):
         row2.addStretch()
         main_layout.addLayout(row2)
 
+        self.scroll_area.setWidget(scroll_content)
+        outer_layout.addWidget(self.scroll_area)
+
         self.update_theme("light")
 
     def _retranslate_ui(self) -> None:
         """Dynamically updates filter bar text in response to language change."""
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
-        self.txt_search.setPlaceholderText(_t("filter_search_placeholder", "🔍 Ricerca Rapida / {engine} (Ctrl+F)...", engine=fast_engine))
+        if hasattr(self, "btn_clear_view"):
+            self.btn_clear_view.setText(_t("filter_btn_clear_view", "🧹 Svuota Vista"))
+            self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video (senza eliminare i file o la libreria dal DB)"))
         if hasattr(self, "btn_refresh"):
             self.btn_refresh.setText(_t("filter_btn_refresh", "🔄 Aggiorna"))
             self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o riesegui la query dal database"))
@@ -888,6 +916,48 @@ class LiveFilterBar(QFrame):
                     }
                     QPushButton#btnRefresh:pressed {
                         background-color: #064e3b;
+                    }
+                """)
+
+        if hasattr(self, "btn_clear_view"):
+            if is_light:
+                self.btn_clear_view.setStyleSheet("""
+                    QPushButton#btnClearView {
+                        background-color: #f8fafc;
+                        color: #475569;
+                        font-weight: 600;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        border: 1px solid #cbd5e1;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnClearView:hover {
+                        background-color: #f1f5f9;
+                        color: #0f172a;
+                        border-color: #94a3b8;
+                    }
+                    QPushButton#btnClearView:pressed {
+                        background-color: #e2e8f0;
+                    }
+                """)
+            else:
+                self.btn_clear_view.setStyleSheet("""
+                    QPushButton#btnClearView {
+                        background-color: #1e293b;
+                        color: #94a3b8;
+                        font-weight: 600;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        border: 1px solid #334155;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnClearView:hover {
+                        background-color: #334155;
+                        color: #f8fafc;
+                        border-color: #64748b;
+                    }
+                    QPushButton#btnClearView:pressed {
+                        background-color: #0f172a;
                     }
                 """)
 

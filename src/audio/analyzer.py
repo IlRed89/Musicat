@@ -142,11 +142,12 @@ class AcousticAnalyzer:
         cls,
         filepath: Union[str, Path],
         target_sr: int = 22050,
-        max_duration_sec: float = 60.0,
-        offset_sec: float = 25.0,
+        max_duration_sec: float = 75.0,
+        offset_sec: Optional[float] = None,
     ) -> Tuple[np.ndarray, int, float]:
         """
-        Loads an audio segment (middle window) to optimize speed and memory.
+        Fast-Pass Acoustic Analysis: loads an optimized representative central window (60-90s
+        starting from ~25% of track duration) to dramatically reduce I/O and CPU STFT processing.
         Returns: (mono_signal, sample_rate, total_file_duration)
         """
         path_str = str(filepath)
@@ -155,13 +156,24 @@ class AcousticAnalyzer:
             total_frames = sf_file.frames
             total_duration = total_frames / orig_sr
 
-            # Seek into track drop / chorus (skip introductory silence/ambient)
-            start_frame = 0
-            if total_duration > (offset_sec + 15.0):
-                start_frame = int(offset_sec * orig_sr)
-            sf_file.seek(start_frame)
+            # Fast-pass: Sample representative central window (~25% into track)
+            if offset_sec is None:
+                if total_duration > 35.0:
+                    start_sec = max(10.0, total_duration * 0.25)
+                else:
+                    start_sec = 0.0
+            else:
+                start_sec = offset_sec
 
-            frames_to_read = min(int(max_duration_sec * orig_sr), total_frames - start_frame)
+            start_frame = int(start_sec * orig_sr)
+            if start_frame >= total_frames:
+                start_frame = 0
+
+            # Window length between 60.0 and 90.0 seconds
+            read_sec = min(max_duration_sec, max(20.0, total_duration - start_sec))
+            frames_to_read = min(int(read_sec * orig_sr), total_frames - start_frame)
+
+            sf_file.seek(start_frame)
             data = sf_file.read(frames_to_read, dtype="float32")
 
         # Convert to mono

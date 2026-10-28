@@ -175,6 +175,12 @@ class TrackTableModel(QAbstractTableModel):
         self._tracks = tracks
         self.endResetModel()
 
+    def clear_view(self) -> None:
+        """Clears tracks from view without modifying database or disk files."""
+        self.beginResetModel()
+        self._tracks = []
+        self.endResetModel()
+
     def get_track(self, row: int) -> Optional[Dict[str, Any]]:
         """Retrieves track dictionary for given row."""
         if 0 <= row < len(self._tracks):

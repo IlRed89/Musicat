@@ -11,8 +11,20 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from PySide6.QtCore import QByteArray, QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QResizeEvent, QShortcut
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QFont,
+    QIcon,
+    QKeySequence,
+    QResizeEvent,
+    QShortcut,
+)
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -25,6 +37,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -127,6 +141,42 @@ class HardwareProgressBar(QProgressBar):
         """)
 
 
+class LibraryTableView(QTableView):
+    """Virtual Table View with native Drag & Drop support for audio files and directories."""
+
+    files_dropped = Signal(list)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if event.mimeData().hasUrls():
+            paths = []
+            for url in event.mimeData().urls():
+                lp = url.toLocalFile()
+                if lp:
+                    paths.append(lp)
+            if paths:
+                event.acceptProposedAction()
+                self.files_dropped.emit(paths)
+                return
+        super().dropEvent(event)
+
+
 class BackgroundScanWorker(QThread):
     """Background worker thread for filesystem scanning and SQLite indexing."""
 
@@ -166,24 +216,25 @@ class AsyncAnalysisWorker(QThread):
 
     def run(self) -> None:
         total = len(self.tracks)
-        success_count = 0
-        updated_tracks: List[Dict[str, Any]] = []
+        if total == 0:
+            self.finished.emit(0, [])
+            return
 
+        import os
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from ..audio.analyzer import AcousticAnalyzer
         from ..tags.editor import AudioTagEditor
         from ..core.logger import MusicatLogger
 
-        for idx, tr in enumerate(self.tracks):
-            if self._is_cancelled:
-                self.cancelled.emit()
-                return
+        # Parallelize across physical/logical cores (2 to 8 worker threads)
+        max_workers = max(2, min(os.cpu_count() or 4, 8))
+        success_count = 0
+        updated_tracks: List[Dict[str, Any]] = []
 
+        def _analyze_track_task(tr: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
             fp = tr.get("filepath", "")
-            filename = Path(fp).name
-            self.progress.emit(idx + 1, total, filename)
-
             try:
-                # 1. Acoustic extraction (BPM, Key, Camelot)
+                # 1. Acoustic extraction (Fast-pass 60-90s window at 25% duration)
                 profile = AcousticAnalyzer.analyze_file(fp)
                 updates: Dict[str, Any] = {
                     "bpm": profile.bpm,
@@ -208,6 +259,8 @@ class AsyncAnalysisWorker(QThread):
                         stem = Path(fp).stem
                         if " - " in stem:
                             parts = stem.split(" - ", 1)
+                            clean_artist = parts[0].strip()
+                            clean_title = parts[1].strip()
                             if clean_artist and clean_title:
                                 updates["artist"] = clean_artist
                                 updates["title"] = clean_title
@@ -236,7 +289,7 @@ class AsyncAnalysisWorker(QThread):
                     from ..scrapers.reconciler import MetadataReconciler
                     from ..scrapers.web_enricher import WebEnricher
 
-                    # 1. Discogs API
+                    # 1. Discogs API (with aggressive 3.0s timeout)
                     try:
                         disc_results = DiscogsClient().search_releases(query, limit=2)
                         for d in disc_results:
@@ -249,7 +302,7 @@ class AsyncAnalysisWorker(QThread):
                     except Exception:
                         pass
 
-                    # 2. MusicBrainz API
+                    # 2. MusicBrainz API (with aggressive 3.0s timeout)
                     try:
                         mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
                         for m in mb_results:
@@ -262,7 +315,7 @@ class AsyncAnalysisWorker(QThread):
                     except Exception:
                         pass
 
-                    # 3. Web & YouTube fallback
+                    # 3. Web & YouTube fallback (with aggressive 2.5s timeout)
                     try:
                         web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
                         if web_res:
@@ -287,7 +340,6 @@ class AsyncAnalysisWorker(QThread):
 
                     if conflicts:
                         updates["_conflicts"] = conflicts
-                        tr["_conflicts"] = conflicts
 
                     # Select recommended consensus values
                     if genres_by_source:
@@ -302,17 +354,39 @@ class AsyncAnalysisWorker(QThread):
 
                 # 4. Write physical tags with Mutagen
                 AudioTagEditor.write_metadata(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
-
-                # 5. Write to SQLite database
-                self.db.update_track_tags(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
-
-                full_updated = dict(tr)
-                full_updated.update(updates)
-                updated_tracks.append(full_updated)
-                self.track_completed.emit(full_updated)
-                success_count += 1
+                return (tr, updates, None)
             except Exception as exc:
-                MusicatLogger.warning("ASYNC_ANALYSIS", f"Error analyzing '{filename}': {exc}")
+                return (tr, {}, str(exc))
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_track = {executor.submit(_analyze_track_task, tr): tr for tr in self.tracks}
+            completed_count = 0
+
+            for future in as_completed(future_to_track):
+                if self._is_cancelled:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    self.cancelled.emit()
+                    return
+
+                completed_count += 1
+                tr, updates, err = future.result()
+                fp = tr.get("filepath", "")
+                filename = Path(fp).name
+
+                if err:
+                    MusicatLogger.warning("ASYNC_ANALYSIS", f"Error analyzing '{filename}': {err}")
+                else:
+                    # Synchronized SQLite write on coordinator thread
+                    clean_updates = {k: v for k, v in updates.items() if not k.startswith("_")}
+                    self.db.update_track_tags(fp, clean_updates)
+
+                    full_updated = dict(tr)
+                    full_updated.update(updates)
+                    updated_tracks.append(full_updated)
+                    self.track_completed.emit(full_updated)
+                    success_count += 1
+
+                self.progress.emit(completed_count, total, filename)
 
         self.finished.emit(success_count, updated_tracks)
 
@@ -453,19 +527,20 @@ class MainWindow(QMainWindow):
         self.filter_bar.export_playlist_requested.connect(self._on_export_current_crate)
         self.filter_bar.analyze_requested.connect(self._on_toolbar_analyze_clicked)
         self.filter_bar.refresh_requested.connect(self._on_toolbar_refresh_clicked)
+        self.filter_bar.clear_view_requested.connect(self._on_clear_library_view)
         lib_layout.addWidget(self.filter_bar)
 
         # Horizontal Splitter: Left Sidebar (Tree) and Right Table
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal, self)
 
-        # Dynamic Collapsible Left Sidebar (Dedicated Folder Tree / Filesystem Navigator)
+        # Dynamic Collapsible Left Sidebar (Quick Access + Drives Explorer)
         self.sidebar_widget = QWidget(self)
         sb_layout = QVBoxLayout(self.sidebar_widget)
         sb_layout.setContentsMargins(6, 6, 6, 6)
         sb_layout.setSpacing(6)
 
         sb_header = QHBoxLayout()
-        self.sb_title = QLabel(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+        self.sb_title = QLabel(_t("sidebar_folders", "📁 ESPLORA FILE"))
         self.sb_title.setStyleSheet("font-weight: bold; font-size: 11px;")
         btn_clear_folder = QPushButton("✕ Reset")
         btn_clear_folder.setToolTip("Rimuovi filtro cartella")
@@ -479,6 +554,68 @@ class MainWindow(QMainWindow):
         sb_header.addWidget(btn_clear_folder)
         sb_header.addWidget(self.btn_collapse_sidebar)
         sb_layout.addLayout(sb_header)
+
+        # 1. Quick Access (Accesso Rapido) Fixed Section
+        self.lbl_quick = QLabel(_t("sidebar_quick_access", "⭐ ACCESSO RAPIDO"))
+        self.lbl_quick.setStyleSheet("font-weight: bold; font-size: 10px; color: #64748b; margin-top: 2px;")
+        sb_layout.addWidget(self.lbl_quick)
+
+        self.quick_list = QListWidget(self.sidebar_widget)
+        self.quick_list.setFixedHeight(115)
+        self.quick_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                background-color: #f8fafc;
+                padding: 2px;
+            }
+            QListWidget::item {
+                padding: 3px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+                color: #1e293b;
+            }
+            QListWidget::item:hover {
+                background-color: #e2e8f0;
+            }
+            QListWidget::item:selected {
+                background-color: #0284c7;
+                color: #ffffff;
+                font-weight: 600;
+            }
+        """)
+
+        user_home = os.path.expanduser("~")
+        quick_locations = [
+            ("🖥️  Desktop", os.path.join(user_home, "Desktop")),
+            ("📁  Documenti", os.path.join(user_home, "Documents")),
+            ("📥  Download", os.path.join(user_home, "Downloads")),
+            ("🎵  Musica", os.path.join(user_home, "Music")),
+        ]
+
+        for label, path in quick_locations:
+            if os.path.exists(path):
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, path)
+                self.quick_list.addItem(item)
+
+        def _on_quick_item_clicked(item: QListWidgetItem) -> None:
+            p = item.data(Qt.ItemDataRole.UserRole)
+            if p and os.path.exists(p):
+                self.filter_bar.set_folder_filter(p)
+                self._start_folder_auto_scan(p)
+                idx = self.folder_model.index(p)
+                if idx.isValid():
+                    self.folder_tree.setCurrentIndex(idx)
+                    self.folder_tree.scrollTo(idx)
+
+        self.quick_list.itemClicked.connect(_on_quick_item_clicked)
+        sb_layout.addWidget(self.quick_list)
+
+        # 2. This PC / Drives Header
+        self.lbl_pc = QLabel(_t("sidebar_this_pc", "💻 QUESTO PC / DISCHI"))
+        self.lbl_pc.setStyleSheet("font-weight: bold; font-size: 10px; color: #64748b; margin-top: 4px;")
+        sb_layout.addWidget(self.lbl_pc)
 
         logical_root = "/Volumes" if sys.platform == "darwin" else ""
         self.folder_model = QFileSystemModel(self)
@@ -505,8 +642,9 @@ class MainWindow(QMainWindow):
         self.sidebar_widget.setMaximumWidth(360)
         self.main_splitter.addWidget(self.sidebar_widget)
 
-        # Virtual Table View (Right)
-        self.table_view = QTableView(self)
+        # Virtual Table View (Right) with Drag & Drop support
+        self.table_view = LibraryTableView(self)
+        self.table_view.files_dropped.connect(self._on_library_files_dropped)
         self.table_view.setModel(self.table_model)
         self.table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
@@ -784,6 +922,83 @@ class MainWindow(QMainWindow):
             ),
             5000,
         )
+
+    def _on_library_files_dropped(self, paths: List[str]) -> None:
+        """Processes audio files or folders dropped directly onto the library table."""
+        if not paths:
+            return
+
+        supported_exts = {".mp3", ".flac", ".wav", ".aiff", ".aif", ".m4a", ".aac", ".ogg", ".wma"}
+        audio_files: List[str] = []
+        directories: List[str] = []
+
+        for p in paths:
+            if os.path.isdir(p):
+                directories.append(p)
+            elif os.path.isfile(p):
+                if os.path.splitext(p)[1].lower() in supported_exts:
+                    audio_files.append(p)
+
+        if len(directories) == 1 and not audio_files:
+            dir_path = directories[0]
+            self.filter_bar.set_folder_filter(dir_path)
+            self._start_folder_auto_scan(dir_path)
+            return
+
+        for d in directories:
+            try:
+                for root, _, files in os.walk(d):
+                    for f in files:
+                        if os.path.splitext(f)[1].lower() in supported_exts:
+                            audio_files.append(os.path.join(root, f))
+            except Exception:
+                pass
+
+        if not audio_files:
+            self.status_bar.showMessage("⚠️ Nessun file audio supportato trovato negli elementi rilasciati.", 4000)
+            return
+
+        self.status_bar.showMessage(f"📥 Importazione di {len(audio_files)} tracce trascinate...")
+        from ..tags.editor import AudioTagEditor
+        added_count = 0
+        loaded_tracks: List[Dict[str, Any]] = []
+
+        for fp in audio_files:
+            norm_fp = str(Path(fp).resolve())
+            existing = self.db.get_track_by_filepath(norm_fp)
+            if existing:
+                loaded_tracks.append(existing)
+            else:
+                try:
+                    meta = AudioTagEditor.read_metadata(norm_fp)
+                    track_dict = {
+                        "filepath": norm_fp,
+                        "filename": Path(norm_fp).name,
+                        "title": meta.get("title") or Path(norm_fp).stem,
+                        "artist": meta.get("artist") or "",
+                        "album": meta.get("album") or "",
+                        "year": meta.get("year"),
+                        "genre": meta.get("genre") or "",
+                        "bpm": meta.get("bpm"),
+                        "musical_key": meta.get("musical_key") or meta.get("initial_key") or "",
+                        "camelot_key": meta.get("camelot_key") or "",
+                        "duration": meta.get("duration") or 0.0,
+                        "bitrate": meta.get("bitrate") or 0,
+                        "has_cover": 1 if meta.get("has_cover") else 0,
+                    }
+                    self.db.insert_track(track_dict)
+                    loaded_tracks.append(track_dict)
+                    added_count += 1
+                except Exception:
+                    pass
+
+        if loaded_tracks:
+            self.table_model.set_tracks(loaded_tracks)
+            self.all_tracks = self.db.get_all_tracks()
+            self.status_bar.showMessage(
+                f"✓ Caricate {len(loaded_tracks)} tracce nella Libreria ({added_count} nuove indicizzate nel DB).",
+                5000,
+            )
 
     def _init_menu_and_toolbar(self) -> None:
         """Initializes application actions and shortcuts without cluttered redundant toolbars."""
@@ -1215,6 +1430,14 @@ class MainWindow(QMainWindow):
         if hasattr(self, "scan_worker") and self.scan_worker and self.scan_worker.isRunning():
             self.scan_worker.cancel()
             self.status_bar.showMessage("Annullamento scansione in corso...")
+
+    def _on_clear_library_view(self) -> None:
+        """Clears the table view display instantly without deleting files from disk or SQLite."""
+        self.table_model.clear_view()
+        self.status_bar.showMessage(
+            _t("msg_view_cleared", "🧹 Vista libreria svuotata. Nessun file è stato eliminato dal disco o dal database."),
+            4000,
+        )
 
     def _on_toolbar_refresh_clicked(self) -> None:
         """Dedicated toolbar action to instantly reload the active directory or re-query SQLite library."""
@@ -1690,6 +1913,13 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
 
         if selected:
+            # First item in bold: Analyze Selected Tracks
+            act_analyze = menu.addAction(_t("ctx_analyze_selected", "⚡ Analizza Tracce Selezionate"))
+            bold_font = act_analyze.font()
+            bold_font.setBold(True)
+            act_analyze.setFont(bold_font)
+            menu.addSeparator()
+
             act_play = menu.addAction(_t("ctx_play", "▶ Riproduci nel Mini-Player"))
             act_similar = menu.addAction(_t("ctx_find_similar", "✨ Trova Tracce Simili (Cosine & Library)..."))
             menu.addSeparator()
@@ -1697,11 +1927,10 @@ class MainWindow(QMainWindow):
             act_copy = menu.addAction(_t("ctx_copy", "📋 Copia Traccia(e) (Ctrl+C)"))
             act_paste = menu.addAction(_t("ctx_paste", "📥 Incolla Traccia(e) Qui (Ctrl+V)"))
             menu.addSeparator()
-            act_mp3tag = menu.addAction(_t("ctx_mp3tag", "🏷️ Spazio Mp3tag (Ctrl+T)..."))
+            act_mp3tag = menu.addAction(_t("ctx_send_to_mp3tag", "🏷️ Invia a Tag Editor (Mp3tag)..."))
             act_edit = menu.addAction(_t("ctx_edit_tags", "✏️ Modifica Tag (Batch)..."))
             act_reconcile = menu.addAction(_t("ctx_reconcile", "⚖️ Riconciliazione & Cover HD..."))
             act_convert = menu.addAction(_t("ctx_patterns", "🔀 Pattern Nome File <-> Tag..."))
-            act_analyze = menu.addAction(_t("ctx_analyze", "🎵 Calcola BPM & Chiave Camelot"))
             act_quality = menu.addAction(_t("ctx_quality", "🔊 Diagnosi Qualità Audio & Normalizza..."))
             act_sorter = menu.addAction(_t("ctx_sorter", "📁 Smista & Sposta in Cartella..."))
             menu.addSeparator()
@@ -1714,7 +1943,9 @@ class MainWindow(QMainWindow):
         if not action:
             return
 
-        if action == act_play and selected:
+        if action == act_analyze and selected:
+            self._start_async_analysis(selected)
+        elif action == act_play and selected:
             self.player_widget.load_track(selected[0])
             self.player_widget.play()
         elif action == act_similar and selected:
@@ -1725,8 +1956,10 @@ class MainWindow(QMainWindow):
             self._on_copy_tracks()
         elif action == act_paste:
             self._on_paste_tracks()
-        elif action == act_mp3tag:
-            self._on_open_mp3tag_workspace()
+        elif action == act_mp3tag and selected:
+            if hasattr(self, "mp3tag_view"):
+                self.mp3tag_view.load_tracks(selected)
+            self._switch_view(2)
         elif action == act_edit:
             self._on_open_tag_editor()
         elif action == act_reconcile:
@@ -1780,10 +2013,8 @@ class MainWindow(QMainWindow):
         selected = self._get_selected_tracks()
 
         # State synchronization before displaying workspace
-        if index == 2 and hasattr(self, "mp3tag_view"):
-            tracks = selected if selected else self.all_tracks
-            self.mp3tag_view.load_tracks(tracks)
-        elif index == 3 and hasattr(self, "similar_view"):
+        # Tag Editor (Mp3tag, index 2) is completely isolated: loaded ONLY via explicit action or internal buttons
+        if index == 3 and hasattr(self, "similar_view"):
             if not getattr(self.similar_view, "reference_track", None):
                 ref = selected[0] if selected else (self.player_widget.current_track or None)
                 if ref:

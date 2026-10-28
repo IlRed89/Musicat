@@ -27,8 +27,10 @@ class MusicBrainzClient:
             if artist:
                 query_parts.append(f'artist:"{artist}"')
             query = " AND ".join(query_parts)
-
-            response = musicbrainzngs.search_recordings(query=query, limit=limit)
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(musicbrainzngs.search_recordings, query=query, limit=limit)
+                response = fut.result(timeout=3.0)
             for rec in response.get("recording-list", []):
                 rec_title = rec.get("title", "")
                 artist_credit = ""

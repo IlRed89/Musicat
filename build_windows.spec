@@ -51,6 +51,7 @@ hiddenimports = [
     'src.plugins.quality_analyzer',
     'src.plugins.quality_analyzer.analyzer',
     'src.plugins.quality_analyzer.normalizer',
+    'src.services.spotify_auth',
     'onnxruntime',
 ]
 

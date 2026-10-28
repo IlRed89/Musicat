@@ -17,12 +17,13 @@ import time
 import urllib.parse
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import QInputDialog
 
 from .logger import MusicatLogger
 from .settings import SettingsManager
+from ..services.spotify_auth import SpotifyAuth
 
 
 DEFAULT_AUTH_CONFIG: Dict[str, Dict[str, str]] = {
@@ -30,7 +31,7 @@ DEFAULT_AUTH_CONFIG: Dict[str, Dict[str, str]] = {
         "name": "Spotify",
         "auth_url": "https://accounts.spotify.com/authorize",
         "client_id": "2d1f7c183b0f498c8c6d123456789abc",
-        "scope": "user-read-private user-read-email playlist-read-private",
+        "scope": "user-read-playback-state user-read-private user-read-email playlist-read-private playlist-modify-public playlist-modify-private",
         "default_username": "DJ Musicat User",
     },
     "soundcloud": {
@@ -217,6 +218,62 @@ class OAuthManager(QObject):
         self._active_service = service
         config = DEFAULT_AUTH_CONFIG.get(service, DEFAULT_AUTH_CONFIG["spotify"])
 
+        # Special handling for SoundCloud (SoundCloud shut down public OAuth registration)
+        if service == "soundcloud":
+            token, ok = QInputDialog.getText(
+                None,
+                "SoundCloud DJ - Connessione Account",
+                "SoundCloud ha limitato la creazione di nuove app OAuth pubbliche nel browser.<br><br>"
+                "Per connettere SoundCloud a Musicat, inserisci il tuo <b>OAuth Token</b> di sessione:<br>"
+                "(Reperibile su soundcloud.com nei cookie del browser con nome <code>oauth_token</code>)",
+            )
+            if ok and token.strip():
+                clean_tok = token.strip()
+                self.settings.set("soundcloud_token", clean_tok)
+                self.settings.save()
+                self.set_account_connected("soundcloud", "SoundCloud DJ User", clean_tok)
+            else:
+                self.auth_failed.emit("soundcloud", "Connessione SoundCloud annullata.")
+            return
+
+        # Special handling for YouTube (Read-only metadata queries via Google Cloud API Key)
+        if service == "youtube":
+            yt_key = self.settings.get("youtube_api_key", "").strip()
+            if not yt_key:
+                key, ok = QInputDialog.getText(
+                    None,
+                    "YouTube Data API v3 (Google Cloud)",
+                    "Per YouTube e YouTube Music, la ricerca metadati e tracce opera tramite<br>"
+                    "la <b>Google Cloud API Key (YouTube Data API v3)</b> (gratuita e senza scadenza).<br><br>"
+                    "Inserisci la tua Google API Key per abilitare YouTube in Musicat:",
+                )
+                if ok and key.strip():
+                    clean_key = key.strip()
+                    import requests
+                    try:
+                        r = requests.get(
+                            "https://www.googleapis.com/youtube/v3/search",
+                            params={"part": "snippet", "q": "electronic music", "maxResults": 1, "key": clean_key},
+                            timeout=3.0,
+                        )
+                        if r.status_code == 200:
+                            self.settings.set("youtube_api_key", clean_key)
+                            self.settings.save()
+                            self.set_account_connected("youtube", "YouTube Data API v3", clean_key)
+                            return
+                        else:
+                            self.auth_failed.emit("youtube", f"Chiave Google non valida: HTTP {r.status_code}")
+                            return
+                    except Exception as exc:
+                        self.auth_failed.emit("youtube", f"Errore di rete durante la verifica YouTube: {exc}")
+                        return
+                else:
+                    self.auth_failed.emit("youtube", "Configurazione YouTube annullata.")
+                    return
+            else:
+                self.set_account_connected("youtube", "YouTube Data API v3", yt_key)
+                return
+
         # Stop any existing listener
         self._stop_server()
 
@@ -236,6 +293,13 @@ class OAuthManager(QObject):
                 self.auth_failed.emit(service, f"Impossibile avviare listener locale: {exc}")
                 return
 
+        redirect_uri = f"http://localhost:{port}/callback"
+        active_client_id = config.get("client_id", "")
+        if service == "spotify":
+            custom_id = self.settings.get("spotify_client_id", "").strip()
+            if custom_id:
+                active_client_id = custom_id
+
         def _run_server() -> None:
             t_start = time.time()
             # Wait up to 120 seconds for user browser interaction
@@ -243,7 +307,14 @@ class OAuthManager(QObject):
                 server.handle_request()
                 if server.token_received:
                     user_name = config.get("default_username", f"Utente {service.capitalize()}")
-                    self.set_account_connected(service, user_name, server.token_received)
+                    token_val = server.token_received
+                    if service == "spotify":
+                        secret = self.settings.get("spotify_client_secret", "").strip()
+                        if secret and active_client_id:
+                            res = SpotifyAuth.exchange_code_for_token(token_val, active_client_id, secret, redirect_uri)
+                            if "access_token" in res:
+                                token_val = res["access_token"]
+                    self.set_account_connected(service, user_name, token_val)
                     break
                 if server.error_received:
                     self.auth_failed.emit(service, server.error_received)
@@ -254,14 +325,20 @@ class OAuthManager(QObject):
         self._server_thread.start()
 
         # Build official redirect URL
-        redirect_uri = f"http://localhost:{port}/callback"
-        query_params = {
-            "client_id": config.get("client_id", ""),
-            "response_type": "token",
-            "redirect_uri": redirect_uri,
-            "scope": config.get("scope", ""),
-        }
-        auth_url = f"{config['auth_url']}?{urllib.parse.urlencode(query_params)}"
+        if service == "spotify":
+            auth_url = SpotifyAuth.build_authorization_url(
+                client_id=active_client_id,
+                redirect_uri=redirect_uri,
+                scope=config.get("scope"),
+            )
+        else:
+            query_params = {
+                "client_id": active_client_id,
+                "response_type": "token",
+                "redirect_uri": redirect_uri,
+                "scope": config.get("scope", ""),
+            }
+            auth_url = f"{config['auth_url']}?{urllib.parse.urlencode(query_params)}"
 
         MusicatLogger.info("OAUTH", f"Opening browser for '{service}' authentication: {auth_url}")
         try:

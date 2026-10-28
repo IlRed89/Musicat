@@ -25,7 +25,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from PySide6.QtCore import QByteArray, QMimeData, QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QDragEnterEvent, QDropEvent, QFont, QIcon, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QFont,
+    QIcon,
+    QImage,
+    QKeySequence,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -770,6 +781,37 @@ class BulkPatternTagDialog(QDialog):
         )
 
 
+class Mp3tagTableWidget(QTableWidget):
+    """QTableWidget subclass with drag & drop file/folder support."""
+    files_dropped = Signal(list)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.viewport().setAcceptDrops(True)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if event.mimeData().hasUrls():
+            paths = [u.toLocalFile() for u in event.mimeData().urls() if u.toLocalFile()]
+            if paths:
+                self.files_dropped.emit(paths)
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+
 class Mp3tagWorkspaceWindow(QMainWindow):
     """Full-featured Mp3tag-grade Tagging Workbench for Musicat."""
 
@@ -804,6 +846,7 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         db: Optional[Database] = None,
     ) -> None:
         super().__init__(parent)
+        self.setAcceptDrops(True)
         active_db = db
         active_tracks = tracks
 
@@ -837,6 +880,18 @@ class Mp3tagWorkspaceWindow(QMainWindow):
 
         # 1. File Menu
         menu_file = menubar.addMenu("&File")
+        act_add_files = menu_file.addAction("➕ Aggiungi File...")
+        act_add_files.setShortcut(QKeySequence("Ctrl+O"))
+        act_add_files.triggered.connect(self._on_add_files)
+
+        act_add_dir = menu_file.addAction("📁 Aggiungi Cartella...")
+        act_add_dir.setShortcut(QKeySequence("Ctrl+D"))
+        act_add_dir.triggered.connect(self._on_add_directory)
+
+        act_clear = menu_file.addAction("🧹 Svuota Elenco")
+        act_clear.triggered.connect(self._on_clear_tracks)
+
+        menu_file.addSeparator()
         act_save = menu_file.addAction("💾 Salva Modifiche")
         act_save.setShortcut(QKeySequence("Ctrl+S"))
         act_save.triggered.connect(self._on_save_all)
@@ -896,6 +951,10 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         # Quick Toolbar
         toolbar = QToolBar("Mp3tag Toolbar")
         toolbar.setMovable(False)
+        toolbar.addAction(act_add_files)
+        toolbar.addAction(act_add_dir)
+        toolbar.addAction(act_clear)
+        toolbar.addSeparator()
         toolbar.addAction(act_save)
         toolbar.addSeparator()
         toolbar.addAction(act_bulk_pattern)
@@ -924,6 +983,113 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         self.pending_cover_bytes = None
         self.pending_cover_remove = False
         self._populate_grid()
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if event.mimeData().hasUrls():
+            paths = [u.toLocalFile() for u in event.mimeData().urls() if u.toLocalFile()]
+            if paths:
+                self._import_file_paths(paths)
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def _on_add_files(self) -> None:
+        """Prompts user to select audio files to add to the tag workspace."""
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Aggiungi File Audio — Mp3tag Workspace",
+            "",
+            "File Audio (*.mp3 *.flac *.m4a *.aac *.wav *.aiff *.aif *.ogg);;Tutti i file (*.*)",
+        )
+        if files:
+            self._import_file_paths(files)
+
+    def _on_add_directory(self) -> None:
+        """Prompts user to select a directory to recursively scan and add."""
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "Aggiungi Cartella Audio — Mp3tag Workspace",
+            "",
+        )
+        if dir_path:
+            self._import_file_paths([dir_path])
+
+    def _on_clear_tracks(self) -> None:
+        """Clears all tracks from the Mp3tag workspace."""
+        self.tracks.clear()
+        self.dirty_files.clear()
+        self._clear_left_panel()
+        self._populate_grid()
+        self.statusBar().showMessage("Elenco tracce svuotato.", 3000)
+
+    def _import_file_paths(self, paths: List[str]) -> None:
+        """Scans and appends audio tracks from files or directories into workspace."""
+        import os
+
+        supported_exts = {".mp3", ".flac", ".m4a", ".aac", ".wav", ".aif", ".aiff", ".ogg"}
+        discovered: List[Path] = []
+
+        for p in paths:
+            path_obj = Path(p)
+            if not path_obj.exists():
+                continue
+            if path_obj.is_file():
+                if path_obj.suffix.lower() in supported_exts:
+                    discovered.append(path_obj)
+            elif path_obj.is_dir():
+                for root, _, files in os.walk(str(path_obj)):
+                    for f in files:
+                        fp = Path(root) / f
+                        if fp.suffix.lower() in supported_exts:
+                            discovered.append(fp)
+
+        if not discovered:
+            return
+
+        existing_fps = {t.get("filepath") for t in self.tracks if t.get("filepath")}
+        added_count = 0
+
+        for fp_obj in discovered:
+            norm_path = str(fp_obj.resolve())
+            if norm_path in existing_fps:
+                continue
+
+            existing_fps.add(norm_path)
+            db_tr = self.db.get_track(norm_path) if self.db else None
+            if db_tr:
+                tr_data = dict(db_tr)
+            else:
+                try:
+                    meta = AudioTagEditor.read_metadata(norm_path)
+                    tr_data = meta.to_dict()
+                except Exception:
+                    tr_data = {
+                        "filepath": norm_path,
+                        "filename": fp_obj.name,
+                        "title": fp_obj.stem,
+                    }
+
+            tr_data["filepath"] = norm_path
+            tr_data["filename"] = fp_obj.name
+            tr_data["directory"] = str(fp_obj.parent)
+            self.tracks.append(tr_data)
+            added_count += 1
+
+        if added_count > 0:
+            self._populate_grid()
+            self.statusBar().showMessage(f"Aggiunte {added_count} tracce al workspace.", 4000)
 
     def _init_ui(self) -> None:
         """Builds Split-View interface: Left Tag Panel, Right Track Grid."""
@@ -1023,7 +1189,8 @@ class Mp3tagWorkspaceWindow(QMainWindow):
         splitter.addWidget(left_widget)
 
         # 2. Right Track Grid
-        self.grid = QTableWidget()
+        self.grid = Mp3tagTableWidget()
+        self.grid.files_dropped.connect(self._import_file_paths)
         self.grid.setColumnCount(len(self.COLUMNS))
         self.grid.setHorizontalHeaderLabels([name for _, name in self.COLUMNS])
         self.grid.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)

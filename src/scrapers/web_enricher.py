@@ -78,7 +78,7 @@ class WebEnricher:
                 f"&srsearch={encoded_query}&format=json&srlimit=2"
             )
 
-            resp = requests.get(search_url, headers=cls.HEADERS, timeout=6)
+            resp = requests.get(search_url, headers=cls.HEADERS, timeout=2.5)
             if resp.status_code != 200:
                 return None
 
@@ -98,7 +98,7 @@ class WebEnricher:
                 f"&rvprop=content&rvslots=main&exintro=1&explaintext=1&titles={encoded_title}&format=json"
             )
 
-            c_resp = requests.get(content_url, headers=cls.HEADERS, timeout=6)
+            c_resp = requests.get(content_url, headers=cls.HEADERS, timeout=2.5)
             if c_resp.status_code != 200:
                 return None
 
@@ -166,7 +166,7 @@ class WebEnricher:
             encoded_query = urllib.parse.quote_plus(query)
             url = f"https://www.youtube.com/results?search_query={encoded_query}"
 
-            resp = requests.get(url, headers=cls.HEADERS, timeout=7)
+            resp = requests.get(url, headers=cls.HEADERS, timeout=2.5)
             if resp.status_code != 200:
                 return None
 

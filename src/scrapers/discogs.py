@@ -67,7 +67,7 @@ class DiscogsClient:
             params["catno"] = catno
 
         try:
-            resp = requests.get(self.BASE_URL, headers=self.headers, params=params, timeout=10)
+            resp = requests.get(self.BASE_URL, headers=self.headers, params=params, timeout=3.0)
             if resp.status_code == 200:
                 data = resp.json()
                 for item in data.get("results", []):
@@ -133,7 +133,7 @@ class DiscogsClient:
         out: Dict[str, Any] = {}
         try:
             url = f"{self.RELEASE_URL}/{release_id}"
-            resp = requests.get(url, headers=self.headers, timeout=8)
+            resp = requests.get(url, headers=self.headers, timeout=3.0)
             if resp.status_code == 200:
                 data = resp.json()
 
