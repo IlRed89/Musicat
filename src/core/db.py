@@ -52,6 +52,12 @@ class Database:
         finally:
             conn.close()
 
+    @contextmanager
+    def get_cursor(self):
+        """Yields an active SQLite cursor from an optimized connection context."""
+        with self.get_connection() as conn:
+            yield conn.cursor()
+
     def close(self) -> None:
         """Forces SQLite checkpoint and frees active database file locks.
 

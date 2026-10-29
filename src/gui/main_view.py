@@ -9,7 +9,7 @@ reconciliation, and libVLC mini-player.
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from PySide6.QtCore import QByteArray, QDir, QModelIndex, QPoint, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QAction,
@@ -55,6 +55,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QSizePolicy,
 )
 
 from ..core.db import Database
@@ -257,6 +258,7 @@ class AsyncAnalysisWorker(QThread):
     track_completed = Signal(dict)
     finished = Signal(int, list)
     cancelled = Signal()
+    analysis_failed = Signal(str)
 
     def __init__(self, tracks: List[Dict[str, Any]], db: Database) -> None:
         """Initializes the asynchronous acoustic analysis worker thread.
@@ -277,206 +279,231 @@ class AsyncAnalysisWorker(QThread):
 
     def run(self) -> None:
         """Executes concurrent acoustic analysis across CPU core worker threads."""
-        total = len(self.tracks)
-        if total == 0:
-            self.finished.emit(0, [])
-            return
+        try:
+            total = len(self.tracks)
+            if total == 0:
+                self.finished.emit(0, [])
+                return
 
-        import os
-        import time
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        from ..audio.analyzer import AcousticAnalyzer
-        from ..tags.editor import AudioTagEditor
-        from ..core.logger import MusicatLogger
+            if self._is_cancelled:
+                self.cancelled.emit()
+                return
 
-        # Parallelize across physical/logical cores (2 to 8 worker threads)
-        max_workers = max(2, min(os.cpu_count() or 4, 8))
-        MusicatLogger.log_worker("AsyncAnalysisWorker", "STARTED", 0.0, {"total_tracks": total, "threads": max_workers})
-        success_count = 0
-        updated_tracks: List[Dict[str, Any]] = []
+            import os
+            import time
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from ..audio.analyzer import AcousticAnalyzer
+            from ..tags.editor import AudioTagEditor
+            from ..core.logger import MusicatLogger
 
-        def _analyze_track_task(tr: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
-            fp = tr.get("filepath", "")
-            try:
-                # 1. Acoustic extraction (Fast-pass 60-90s window at 25% duration)
-                t_dsp_start = time.perf_counter()
-                profile = AcousticAnalyzer.analyze_file(fp)
-                dsp_ms = (time.perf_counter() - t_dsp_start) * 1000.0
+            # Parallelize across physical/logical cores (2 to 8 worker threads)
+            max_workers = max(2, min(os.cpu_count() or 4, 8))
+            MusicatLogger.log_worker("AsyncAnalysisWorker", "STARTED", 0.0, {"total_tracks": total, "threads": max_workers})
+            success_count = 0
+            updated_tracks: List[Dict[str, Any]] = []
 
-                MusicatLogger.log_acoustic(
-                    fp,
-                    bpm=profile.bpm,
-                    key=profile.musical_key,
-                    camelot=profile.camelot_key,
-                    elapsed_ms=dsp_ms,
-                    lufs=profile.rms_db,
-                )
+            def _analyze_track_task(tr: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
+                if self._is_cancelled:
+                    return (tr, {}, "cancelled")
+                fp = tr.get("filepath", "")
+                try:
+                    # 1. Acoustic extraction (Fast-pass 60-90s window at 25% duration)
+                    t_dsp_start = time.perf_counter()
+                    profile = AcousticAnalyzer.analyze_file(fp)
+                    dsp_ms = (time.perf_counter() - t_dsp_start) * 1000.0
 
-                updates: Dict[str, Any] = {
-                    "bpm": profile.bpm,
-                    "musical_key": profile.musical_key,
-                    "camelot_key": profile.camelot_key,
-                    "initial_key": profile.camelot_key,
-                }
+                    MusicatLogger.log_acoustic(
+                        fp,
+                        bpm=profile.bpm,
+                        key=profile.musical_key,
+                        camelot=profile.camelot_key,
+                        elapsed_ms=dsp_ms,
+                        lufs=profile.rms_db,
+                    )
 
-                # 2. Clean separation: If Artist is empty and Title or stem contains " - ", split cleanly
-                cur_title = tr.get("title") or Path(fp).stem
-                cur_artist = tr.get("artist") or ""
+                    updates: Dict[str, Any] = {
+                        "bpm": profile.bpm,
+                        "musical_key": profile.musical_key,
+                        "camelot_key": profile.camelot_key,
+                        "initial_key": profile.camelot_key,
+                    }
 
-                if not cur_artist or cur_artist.strip() == "" or cur_artist.lower() in ("various", "unknown"):
-                    if " - " in cur_title:
-                        parts = cur_title.split(" - ", 1)
-                        clean_artist = parts[0].strip()
-                        clean_title = parts[1].strip()
-                        if clean_artist and clean_title:
-                            updates["artist"] = clean_artist
-                            updates["title"] = clean_title
-                    else:
-                        stem = Path(fp).stem
-                        if " - " in stem:
-                            parts = stem.split(" - ", 1)
+                    if self._is_cancelled:
+                        return (tr, updates, "cancelled")
+
+                    # 2. Clean separation: If Artist is empty and Title or stem contains " - ", split cleanly
+                    cur_title = tr.get("title") or Path(fp).stem
+                    cur_artist = tr.get("artist") or ""
+
+                    if not cur_artist or cur_artist.strip() == "" or cur_artist.lower() in ("various", "unknown"):
+                        if " - " in cur_title:
+                            parts = cur_title.split(" - ", 1)
                             clean_artist = parts[0].strip()
                             clean_title = parts[1].strip()
                             if clean_artist and clean_title:
                                 updates["artist"] = clean_artist
                                 updates["title"] = clean_title
+                        else:
+                            stem = Path(fp).stem
+                            if " - " in stem:
+                                parts = stem.split(" - ", 1)
+                                clean_artist = parts[0].strip()
+                                clean_title = parts[1].strip()
+                                if clean_artist and clean_title:
+                                    updates["artist"] = clean_artist
+                                    updates["title"] = clean_title
 
-                # 3. Cascading metadata enrichment (Genre & Year fallback) if missing or generic
-                cur_genre = tr.get("genre") or ""
-                cur_year = tr.get("year")
-                need_genre = not cur_genre or cur_genre.strip() == "" or cur_genre.lower() in ("vario", "other", "unknown")
-                need_year = not cur_year or not str(cur_year).isdigit()
+                    # 3. Cascading metadata enrichment (Genre & Year fallback) if missing or generic
+                    cur_genre = tr.get("genre") or ""
+                    cur_year = tr.get("year")
+                    need_genre = not cur_genre or cur_genre.strip() == "" or cur_genre.lower() in ("vario", "other", "unknown")
+                    need_year = not cur_year or not str(cur_year).isdigit()
 
-                if need_genre or need_year:
-                    search_artist = updates.get("artist") or cur_artist
-                    search_title = updates.get("title") or cur_title
-                    query = f"{search_artist} - {search_title}" if search_artist else search_title
+                    if need_genre or need_year:
+                        if self._is_cancelled:
+                            return (tr, updates, "cancelled")
+                        search_artist = updates.get("artist") or cur_artist
+                        search_title = updates.get("title") or cur_title
+                        query = f"{search_artist} - {search_title}" if search_artist else search_title
 
-                    years_by_source: Dict[str, Any] = {}
-                    genres_by_source: Dict[str, Any] = {}
+                        years_by_source: Dict[str, Any] = {}
+                        genres_by_source: Dict[str, Any] = {}
 
-                    if cur_year and str(cur_year).isdigit():
-                        years_by_source["File Attuale"] = int(cur_year)
-                    if cur_genre and cur_genre.strip() and cur_genre.lower() not in ("vario", "other", "unknown"):
-                        genres_by_source["File Attuale"] = cur_genre
+                        if cur_year and str(cur_year).isdigit():
+                            years_by_source["File Attuale"] = int(cur_year)
+                        if cur_genre and cur_genre.strip() and cur_genre.lower() not in ("vario", "other", "unknown"):
+                            genres_by_source["File Attuale"] = cur_genre
 
-                    from ..scrapers.discogs import DiscogsClient
-                    from ..scrapers.musicbrainz import MusicBrainzClient
-                    from ..scrapers.reconciler import MetadataReconciler
-                    from ..scrapers.web_enricher import WebEnricher
+                        from ..scrapers.discogs import DiscogsClient
+                        from ..scrapers.musicbrainz import MusicBrainzClient
+                        from ..scrapers.reconciler import MetadataReconciler
+                        from ..scrapers.web_enricher import WebEnricher
 
-                    # 1. Discogs API (with aggressive 3.0s timeout)
-                    try:
-                        disc_results = DiscogsClient().search_releases(query, limit=2)
-                        for d in disc_results:
-                            if d.get("year") and str(d["year"]).isdigit():
-                                years_by_source.setdefault("Discogs", int(d["year"]))
-                            if d.get("genre"):
-                                cleaned = MetadataReconciler.clean_and_normalize_genre(d["genre"])
-                                if cleaned and cleaned.lower() not in MetadataReconciler.BROAD_GENRES:
-                                    genres_by_source.setdefault("Discogs", cleaned)
-                    except Exception:
-                        pass
+                        # 1. Discogs API (with aggressive 3.0s timeout)
+                        try:
+                            disc_results = DiscogsClient().search_releases(query, limit=2)
+                            for d in disc_results:
+                                if d.get("year") and str(d["year"]).isdigit():
+                                    years_by_source.setdefault("Discogs", int(d["year"]))
+                                if d.get("genre"):
+                                    cleaned = MetadataReconciler.clean_and_normalize_genre(d["genre"])
+                                    if cleaned and cleaned.lower() not in MetadataReconciler.BROAD_GENRES:
+                                        genres_by_source.setdefault("Discogs", cleaned)
+                        except Exception:
+                            pass
 
-                    # 2. MusicBrainz API (with aggressive 3.0s timeout)
-                    try:
-                        mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
-                        for m in mb_results:
-                            if m.get("year") and str(m["year"]).isdigit():
-                                years_by_source.setdefault("MusicBrainz", int(m["year"]))
-                            if m.get("genre"):
-                                cleaned = MetadataReconciler.clean_and_normalize_genre(m["genre"])
-                                if cleaned:
-                                    genres_by_source.setdefault("MusicBrainz", cleaned)
-                    except Exception:
-                        pass
+                        if self._is_cancelled:
+                            return (tr, updates, "cancelled")
 
-                    # 3. Web & YouTube fallback (with aggressive 2.5s timeout)
-                    try:
-                        web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
-                        if web_res:
-                            if web_res.get("year") and str(web_res["year"]).isdigit():
-                                years_by_source.setdefault("Web/YouTube", int(web_res["year"]))
-                            if web_res.get("genre"):
-                                cleaned = MetadataReconciler.clean_and_normalize_genre(web_res["genre"])
-                                if cleaned:
-                                    genres_by_source.setdefault("Web/YouTube", cleaned)
-                    except Exception:
-                        pass
+                        # 2. MusicBrainz API (with aggressive 3.0s timeout)
+                        try:
+                            mb_results = MusicBrainzClient.search_track(search_title, search_artist, limit=2)
+                            for m in mb_results:
+                                if m.get("year") and str(m["year"]).isdigit():
+                                    years_by_source.setdefault("MusicBrainz", int(m["year"]))
+                                if m.get("genre"):
+                                    cleaned = MetadataReconciler.clean_and_normalize_genre(m["genre"])
+                                    if cleaned:
+                                        genres_by_source.setdefault("MusicBrainz", cleaned)
+                        except Exception:
+                            pass
 
-                    # Detect conflicts across providers
-                    conflicts: Dict[str, Dict[str, Any]] = {}
-                    distinct_years = {v for v in years_by_source.values() if v is not None}
-                    if len(distinct_years) > 1:
-                        conflicts["year"] = years_by_source
+                        if self._is_cancelled:
+                            return (tr, updates, "cancelled")
 
-                    distinct_genres = {str(v).strip().lower() for v in genres_by_source.values() if v is not None}
-                    if len(distinct_genres) > 1:
-                        conflicts["genre"] = genres_by_source
+                        # 3. Web & YouTube fallback (with aggressive 2.5s timeout)
+                        try:
+                            web_res = WebEnricher.search_genre_and_year(search_artist, search_title)
+                            if web_res:
+                                if web_res.get("year") and str(web_res["year"]).isdigit():
+                                    years_by_source.setdefault("Web/YouTube", int(web_res["year"]))
+                                if web_res.get("genre"):
+                                    cleaned = MetadataReconciler.clean_and_normalize_genre(web_res["genre"])
+                                    if cleaned:
+                                        genres_by_source.setdefault("Web/YouTube", cleaned)
+                        except Exception:
+                            pass
 
-                    if conflicts:
-                        updates["_conflicts"] = conflicts
+                        # Detect conflicts across providers
+                        conflicts: Dict[str, Dict[str, Any]] = {}
+                        distinct_years = {v for v in years_by_source.values() if v is not None}
+                        if len(distinct_years) > 1:
+                            conflicts["year"] = years_by_source
 
-                    # Select recommended consensus values
-                    if genres_by_source:
-                        updates["genre"] = MetadataReconciler._select_recommended_genre(genres_by_source)
-                    elif need_genre and not tr.get("genre"):
-                        updates["genre"] = "Vario"
+                        distinct_genres = {str(v).strip().lower() for v in genres_by_source.values() if v is not None}
+                        if len(distinct_genres) > 1:
+                            conflicts["genre"] = genres_by_source
 
-                    if years_by_source:
-                        rec_year = MetadataReconciler._select_recommended_year(years_by_source)
-                        if rec_year:
-                            updates["year"] = rec_year
+                        if conflicts:
+                            updates["_conflicts"] = conflicts
 
-                # 4. Write physical tags with Mutagen
-                AudioTagEditor.write_metadata(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
-                return (tr, updates, None)
-            except Exception as exc:
-                return (tr, {}, str(exc))
+                        # Select recommended consensus values
+                        if genres_by_source:
+                            updates["genre"] = MetadataReconciler._select_recommended_genre(genres_by_source)
+                        elif need_genre and not tr.get("genre"):
+                            updates["genre"] = "Vario"
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_track = {executor.submit(_analyze_track_task, tr): tr for tr in self.tracks}
-            completed_count = 0
+                        if years_by_source:
+                            rec_year = MetadataReconciler._select_recommended_year(years_by_source)
+                            if rec_year:
+                                updates["year"] = rec_year
 
-            for future in as_completed(future_to_track):
-                if self._is_cancelled:
+                    if self._is_cancelled:
+                        return (tr, updates, "cancelled")
+
+                    # 4. Write physical tags with Mutagen
+                    AudioTagEditor.write_metadata(fp, {k: v for k, v in updates.items() if not k.startswith("_")})
+                    return (tr, updates, None)
+                except Exception as exc:
+                    return (tr, {}, str(exc))
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_track = {executor.submit(_analyze_track_task, tr): tr for tr in self.tracks}
+                completed_count = 0
+
+                for future in as_completed(future_to_track):
+                    if self._is_cancelled:
+                        pct = (completed_count / total * 100.0) if total > 0 else 0.0
+                        MusicatLogger.log_worker("AsyncAnalysisWorker", "CANCELLED", pct, {"completed": completed_count})
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        self.cancelled.emit()
+                        return
+
+                    completed_count += 1
+                    tr, updates, err = future.result()
+                    fp = tr.get("filepath", "")
+                    filename = Path(fp).name
+
+                    if err:
+                        MusicatLogger.warning("ASYNC_ANALYSIS", f"Error analyzing '{filename}': {err}")
+                    else:
+                        # Synchronized SQLite write on coordinator thread
+                        clean_updates = {k: v for k, v in updates.items() if not k.startswith("_")}
+                        self.db.update_track_tags(fp, clean_updates)
+
+                        full_updated = dict(tr)
+                        full_updated.update(updates)
+                        updated_tracks.append(full_updated)
+                        self.track_completed.emit(full_updated)
+                        success_count += 1
+
                     pct = (completed_count / total * 100.0) if total > 0 else 0.0
-                    MusicatLogger.log_worker("AsyncAnalysisWorker", "CANCELLED", pct, {"completed": completed_count})
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    self.cancelled.emit()
-                    return
+                    if completed_count % 10 == 0 or completed_count == total:
+                        MusicatLogger.log_worker(
+                            "AsyncAnalysisWorker",
+                            "PROGRESS",
+                            pct,
+                            {"completed": completed_count, "total": total, "file": filename},
+                        )
 
-                completed_count += 1
-                tr, updates, err = future.result()
-                fp = tr.get("filepath", "")
-                filename = Path(fp).name
+                    self.progress.emit(completed_count, total, filename)
 
-                if err:
-                    MusicatLogger.warning("ASYNC_ANALYSIS", f"Error analyzing '{filename}': {err}")
-                else:
-                    # Synchronized SQLite write on coordinator thread
-                    clean_updates = {k: v for k, v in updates.items() if not k.startswith("_")}
-                    self.db.update_track_tags(fp, clean_updates)
-
-                    full_updated = dict(tr)
-                    full_updated.update(updates)
-                    updated_tracks.append(full_updated)
-                    self.track_completed.emit(full_updated)
-                    success_count += 1
-
-                pct = (completed_count / total * 100.0) if total > 0 else 0.0
-                if completed_count % 10 == 0 or completed_count == total:
-                    MusicatLogger.log_worker(
-                        "AsyncAnalysisWorker",
-                        "PROGRESS",
-                        pct,
-                        {"completed": completed_count, "total": total, "file": filename},
-                    )
-
-                self.progress.emit(completed_count, total, filename)
-
-        MusicatLogger.log_worker("AsyncAnalysisWorker", "COMPLETED", 100.0, {"success_count": success_count, "total": total})
-        self.finished.emit(success_count, updated_tracks)
+            MusicatLogger.log_worker("AsyncAnalysisWorker", "COMPLETED", 100.0, {"success_count": success_count, "total": total})
+            self.finished.emit(success_count, updated_tracks)
+        except Exception as e:
+            from ..core.logger import MusicatLogger
+            MusicatLogger.get_logger().exception(f"Unhandled error in AsyncAnalysisWorker: {e}")
+            self.analysis_failed.emit(str(e))
 
 
 # Backwards compatibility alias
@@ -643,35 +670,16 @@ class MainWindow(QMainWindow):
         sb_header.addWidget(self.btn_collapse_sidebar)
         sb_layout.addLayout(sb_header)
 
-        # 1. Quick Access (Accesso Rapido) Fixed Section
+        # 1. Dedicated Fixed Quick Access Container (Desktop, Documenti, Download, Musica) - No scrollbar
+        self.quick_widget = QWidget(self.sidebar_widget)
+        self.quick_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        quick_layout = QVBoxLayout(self.quick_widget)
+        quick_layout.setContentsMargins(0, 0, 0, 0)
+        quick_layout.setSpacing(3)
+
         self.lbl_quick = QLabel(_t("sidebar_quick_access", "⭐ ACCESSO RAPIDO"))
         self.lbl_quick.setStyleSheet("font-weight: bold; font-size: 10px; color: #64748b; margin-top: 2px;")
-        sb_layout.addWidget(self.lbl_quick)
-
-        self.quick_list = QListWidget(self.sidebar_widget)
-        self.quick_list.setFixedHeight(115)
-        self.quick_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #e2e8f0;
-                border-radius: 6px;
-                background-color: #f8fafc;
-                padding: 2px;
-            }
-            QListWidget::item {
-                padding: 3px 6px;
-                border-radius: 4px;
-                font-size: 11px;
-                color: #1e293b;
-            }
-            QListWidget::item:hover {
-                background-color: #e2e8f0;
-            }
-            QListWidget::item:selected {
-                background-color: #0284c7;
-                color: #ffffff;
-                font-weight: 600;
-            }
-        """)
+        quick_layout.addWidget(self.lbl_quick)
 
         user_home = os.path.expanduser("~")
         quick_locations = [
@@ -681,24 +689,45 @@ class MainWindow(QMainWindow):
             ("🎵  Musica", os.path.join(user_home, "Music")),
         ]
 
+        self.quick_buttons: List[QPushButton] = []
         for label, path in quick_locations:
-            if os.path.exists(path):
-                item = QListWidgetItem(label)
-                item.setData(Qt.ItemDataRole.UserRole, path)
-                self.quick_list.addItem(item)
+            btn = QPushButton(f"  {label}")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding: 5px 8px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 5px;
+                    background-color: #f8fafc;
+                    color: #1e293b;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background-color: #e2e8f0;
+                    border-color: #cbd5e1;
+                }
+                QPushButton:pressed {
+                    background-color: #0284c7;
+                    color: #ffffff;
+                    font-weight: 600;
+                }
+            """)
+            def _make_quick_click(p_target: str):
+                return lambda: self._on_quick_folder_clicked(p_target)
 
-        def _on_quick_item_clicked(item: QListWidgetItem) -> None:
-            p = item.data(Qt.ItemDataRole.UserRole)
-            if p and os.path.exists(p):
-                self.filter_bar.set_folder_filter(p)
-                self._start_folder_auto_scan(p)
-                idx = self.folder_model.index(p)
-                if idx.isValid():
-                    self.folder_tree.setCurrentIndex(idx)
-                    self.folder_tree.scrollTo(idx)
+            btn.clicked.connect(_make_quick_click(path))
+            quick_layout.addWidget(btn)
+            self.quick_buttons.append(btn)
 
-        self.quick_list.itemClicked.connect(_on_quick_item_clicked)
-        sb_layout.addWidget(self.quick_list)
+        sb_layout.addWidget(self.quick_widget)
+
+        # Thin Horizontal Separator
+        self.sidebar_sep = QFrame()
+        self.sidebar_sep.setFrameShape(QFrame.Shape.HLine)
+        self.sidebar_sep.setFrameShadow(QFrame.Shadow.Sunken)
+        self.sidebar_sep.setStyleSheet("background-color: #cbd5e1; max-height: 1px; margin: 4px 0px;")
+        sb_layout.addWidget(self.sidebar_sep)
 
         # 2. This PC / Drives Header
         self.lbl_pc = QLabel(_t("sidebar_this_pc", "💻 QUESTO PC / DISCHI"))
@@ -891,6 +920,7 @@ class MainWindow(QMainWindow):
         self._hw_timer.start()
         self._update_hardware_monitor()
         self._update_nav_button_styles(0)
+        self._apply_responsive_nav_bar(self.width())
 
     def _update_hardware_monitor(self) -> None:
         """Refreshes hardware telemetry metrics asynchronously."""
@@ -910,6 +940,18 @@ class MainWindow(QMainWindow):
         if hasattr(self, "lbl_hw_monitor"):
             self.lbl_hw_monitor.setText(HardwareMonitor.get_status_text())
 
+    def _on_quick_folder_clicked(self, path: str) -> None:
+        """Selects and filters by a fixed Quick Access folder, syncing the folder tree."""
+        if not path or not os.path.exists(path):
+            return
+        self.filter_bar.set_folder_filter(path)
+        self._start_folder_auto_scan(path)
+        if hasattr(self, "folder_model") and hasattr(self, "folder_tree"):
+            idx = self.folder_model.index(path)
+            if idx.isValid():
+                self.folder_tree.setCurrentIndex(idx)
+                self.folder_tree.scrollTo(idx)
+
     def _handle_folder_selection(self, index: QModelIndex) -> None:
         """Handles user clicking/selecting a directory in the left filesystem tree."""
         if not hasattr(self, "folder_model"):
@@ -927,7 +969,8 @@ class MainWindow(QMainWindow):
         # Check if tracks in this folder exist in SQLite
         count = 0
         try:
-            with self.db.get_cursor() as cur:
+            with self.db.get_connection() as conn:
+                cur = conn.cursor()
                 cur.execute(
                     """
                     SELECT COUNT(*) FROM tracks 
@@ -1512,12 +1555,22 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_cancel_current_task(self) -> None:
+        self.progress_bar.setVisible(False)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(False)
         if self.analysis_worker and self.analysis_worker.isRunning():
             self.analysis_worker.cancel()
-            self.status_bar.showMessage("Annullamento analisi in corso...")
+            self.status_bar.showMessage("Annullamento analisi completato.")
         if hasattr(self, "scan_worker") and self.scan_worker and self.scan_worker.isRunning():
             self.scan_worker.cancel()
-            self.status_bar.showMessage("Annullamento scansione in corso...")
+            self.status_bar.showMessage("Annullamento scansione completato.")
+
+    def _on_analysis_failed(self, error_msg: str) -> None:
+        """Handles unexpected failure in AsyncAnalysisWorker, restoring UI state immediately."""
+        self.progress_bar.setVisible(False)
+        if hasattr(self, "btn_cancel_task"):
+            self.btn_cancel_task.setVisible(False)
+        self.status_bar.showMessage(f"⚠️ Errore durante l'analisi: {error_msg}", 6000)
 
     def _on_clear_library_view(self) -> None:
         """Clears the table view display instantly without deleting files from disk or SQLite."""
@@ -1579,6 +1632,7 @@ class MainWindow(QMainWindow):
         self.analysis_worker.track_completed.connect(self._on_analysis_track_completed)
         self.analysis_worker.finished.connect(self._on_analysis_finished)
         self.analysis_worker.cancelled.connect(self._on_analysis_cancelled)
+        self.analysis_worker.analysis_failed.connect(self._on_analysis_failed)
         self.analysis_worker.start()
 
     def _on_analysis_progress(self, cur: int, total: int, filename: str) -> None:
@@ -2127,49 +2181,51 @@ class MainWindow(QMainWindow):
         theme_id = self.settings_manager.get("ui", "theme", "light")
         is_light = (theme_id == "light")
 
+        pad = "4px 8px" if self.width() < 1200 else "5px 12px"
+
         if is_light:
-            btn_active = """
-                QPushButton {
+            btn_active = f"""
+                QPushButton {{
                     background-color: #0d6efd;
                     color: #ffffff;
                     font-weight: bold;
                     font-size: 11px;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #0b5ed7;
                     border-radius: 4px;
-                }
+                }}
             """
-            btn_inactive = """
-                QPushButton {
+            btn_inactive = f"""
+                QPushButton {{
                     background-color: #ffffff;
                     color: #495057;
                     font-size: 11px;
                     font-weight: 500;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #dee2e6;
                     border-radius: 4px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #f1f3f5;
                     color: #212529;
                     border-color: #0d6efd;
-                }
+                }}
             """
-            nav_settings_style = """
-                QPushButton {
+            nav_settings_style = f"""
+                QPushButton {{
                     background-color: #f8f9fa;
                     color: #212529;
                     font-size: 11px;
                     font-weight: 600;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #ced4da;
                     border-radius: 4px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #e9ecef;
                     color: #0d6efd;
                     border-color: #0d6efd;
-                }
+                }}
             """
             self.nav_bar.setStyleSheet("""
                 QFrame#topNavBar {
@@ -2179,45 +2235,45 @@ class MainWindow(QMainWindow):
                 }
             """)
         else:
-            btn_active = """
-                QPushButton {
+            btn_active = f"""
+                QPushButton {{
                     background-color: #0284c7;
                     color: #ffffff;
                     font-weight: bold;
                     font-size: 11px;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #38bdf8;
                     border-radius: 4px;
-                }
+                }}
             """
-            btn_inactive = """
-                QPushButton {
+            btn_inactive = f"""
+                QPushButton {{
                     background-color: #171924;
                     color: #94a3b8;
                     font-size: 11px;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #282d3f;
                     border-radius: 4px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #212536;
                     color: #e2e8f0;
-                }
+                }}
             """
-            nav_settings_style = """
-                QPushButton {
+            nav_settings_style = f"""
+                QPushButton {{
                     background-color: #1e2230;
                     color: #e2e8f0;
                     font-size: 11px;
                     font-weight: 600;
-                    padding: 5px 14px;
+                    padding: {pad};
                     border: 1px solid #38bdf8;
                     border-radius: 4px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #282e42;
                     color: #38bdf8;
-                }
+                }}
             """
             self.nav_bar.setStyleSheet("""
                 QFrame#topNavBar {
@@ -2242,6 +2298,8 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "btn_nav_settings"):
             self.btn_nav_settings.setStyleSheet(nav_settings_style)
+
+        self._apply_responsive_nav_bar(self.width())
         if hasattr(self, "lbl_hw_monitor"):
             if is_light:
                 self.lbl_hw_monitor.setStyleSheet(
@@ -2352,22 +2410,13 @@ class MainWindow(QMainWindow):
     def _retranslate_ui(self) -> None:
         """Dynamically retranslates all top-level main window components."""
         self.setWindowTitle(f"Musicat v{__version__} — {_t('app_title', 'DJ Catalog & Smart Organizer')}")
-        if hasattr(self, "btn_nav_library"):
-            self.btn_nav_library.setText(_t("nav_library", "📁  Libreria"))
-        if hasattr(self, "btn_nav_trends"):
-            self.btn_nav_trends.setText(_t("nav_top_charts", "🔥  Top Charts"))
-        if hasattr(self, "btn_nav_mp3tag"):
-            self.btn_nav_mp3tag.setText(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
-        if hasattr(self, "btn_nav_crates"):
-            self.btn_nav_crates.setText(_t("nav_crates", "📦  Smart Crates"))
-        if hasattr(self, "btn_nav_similar"):
-            self.btn_nav_similar.setText(_t("nav_similar", "🔍  Trova Simili"))
-        if hasattr(self, "btn_nav_organizer"):
-            self.btn_nav_organizer.setText(_t("nav_organizer", "📂  Organizza File"))
-        if hasattr(self, "btn_nav_settings"):
-            self.btn_nav_settings.setText(_t("nav_settings", "⚙️  Impostazioni"))
+        self._apply_responsive_nav_bar(self.width())
         if hasattr(self, "sb_title"):
             self.sb_title.setText(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+        if hasattr(self, "lbl_quick"):
+            self.lbl_quick.setText(_t("sidebar_quick_access", "⭐ ACCESSO RAPIDO"))
+        if hasattr(self, "lbl_pc"):
+            self.lbl_pc.setText(_t("sidebar_this_pc", "💻 QUESTO PC / DISCHI"))
         if hasattr(self, "crates_view"):
             self.crates_view._retranslate_ui()
 
@@ -2470,5 +2519,64 @@ class MainWindow(QMainWindow):
         """Handles application window closing, safely stopping workers and player."""
         self.cleanup()
         super().closeEvent(event)
+
+    def resizeEvent(self, event: Any) -> None:
+        """Handles responsive reflow of top navigation and components on window resize."""
+        super().resizeEvent(event)
+        self._apply_responsive_nav_bar(self.width())
+
+    def _apply_responsive_nav_bar(self, width: int) -> None:
+        """Adapts the top navigation bar dynamically according to available window width."""
+        if not hasattr(self, "btn_nav_library"):
+            return
+
+        if width < 950:
+            # Ultra compact: Icon-only mode with tooltips
+            self.btn_nav_library.setText("📁")
+            self.btn_nav_library.setToolTip(_t("nav_library", "📁  Libreria"))
+            self.btn_nav_trends.setText("🔥")
+            self.btn_nav_trends.setToolTip(_t("nav_top_charts", "🔥  Top Charts"))
+            self.btn_nav_mp3tag.setText("🏷️")
+            self.btn_nav_mp3tag.setToolTip(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
+            self.btn_nav_similar.setText("🔍")
+            self.btn_nav_similar.setToolTip(_t("nav_similar", "🔍  Trova Simili"))
+            self.btn_nav_organizer.setText("📂")
+            self.btn_nav_organizer.setToolTip(_t("nav_organizer", "📂  Organizza File"))
+            self.btn_nav_crates.setText("📦")
+            self.btn_nav_crates.setToolTip(_t("nav_crates", "📦  Smart Crates"))
+            self.btn_nav_settings.setText("⚙️")
+            self.btn_nav_settings.setToolTip(_t("nav_settings", "⚙️  Impostazioni"))
+        elif width < 1200:
+            # Medium compact: Shortened text
+            self.btn_nav_library.setText(_t("nav_library_short", "📁 Libreria"))
+            self.btn_nav_library.setToolTip("")
+            self.btn_nav_trends.setText(_t("nav_charts_short", "🔥 Charts"))
+            self.btn_nav_trends.setToolTip("")
+            self.btn_nav_mp3tag.setText(_t("nav_mp3tag_short", "🏷️ Mp3tag"))
+            self.btn_nav_mp3tag.setToolTip("")
+            self.btn_nav_similar.setText(_t("nav_similar_short", "🔍 Simili"))
+            self.btn_nav_similar.setToolTip("")
+            self.btn_nav_organizer.setText(_t("nav_organizer_short", "📂 Organizza"))
+            self.btn_nav_organizer.setToolTip("")
+            self.btn_nav_crates.setText(_t("nav_crates_short", "📦 Crates"))
+            self.btn_nav_crates.setToolTip("")
+            self.btn_nav_settings.setText(_t("nav_settings_short", "⚙️ Opzioni"))
+            self.btn_nav_settings.setToolTip("")
+        else:
+            # Standard full labels
+            self.btn_nav_library.setText(_t("nav_library", "📁  Libreria"))
+            self.btn_nav_library.setToolTip("")
+            self.btn_nav_trends.setText(_t("nav_top_charts", "🔥  Top Charts"))
+            self.btn_nav_trends.setToolTip("")
+            self.btn_nav_mp3tag.setText(_t("nav_mp3tag", "🏷️  Tag Editor (Mp3tag)"))
+            self.btn_nav_mp3tag.setToolTip("")
+            self.btn_nav_similar.setText(_t("nav_similar", "🔍  Trova Simili"))
+            self.btn_nav_similar.setToolTip("")
+            self.btn_nav_organizer.setText(_t("nav_organizer", "📂  Organizza File"))
+            self.btn_nav_organizer.setToolTip("")
+            self.btn_nav_crates.setText(_t("nav_crates", "📦  Smart Crates"))
+            self.btn_nav_crates.setToolTip("")
+            self.btn_nav_settings.setText(_t("nav_settings", "⚙️  Impostazioni"))
+            self.btn_nav_settings.setToolTip("")
 
 

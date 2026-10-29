@@ -503,7 +503,7 @@ class LiveFilterBar(QFrame):
         self.btn_clear_view = QPushButton(_t("filter_btn_clear_view", "🧹 Svuota Vista"))
         self.btn_clear_view.setObjectName("btnClearView")
         self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video (senza eliminare i file o la libreria dal DB)"))
-        self.btn_clear_view.setMinimumWidth(95)
+        self.btn_clear_view.setMinimumWidth(32)
         self.btn_clear_view.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_clear_view.clicked.connect(self.clear_view_requested.emit)
 
@@ -511,7 +511,7 @@ class LiveFilterBar(QFrame):
         self.btn_refresh = QPushButton(_t("filter_btn_refresh", "🔄 Aggiorna"))
         self.btn_refresh.setObjectName("btnRefresh")
         self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
-        self.btn_refresh.setMinimumWidth(85)
+        self.btn_refresh.setMinimumWidth(32)
         self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_refresh.clicked.connect(self.refresh_requested.emit)
 
@@ -519,13 +519,13 @@ class LiveFilterBar(QFrame):
         self.btn_analyze = QPushButton(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
         self.btn_analyze.setObjectName("AnalyzeButton")
         self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
-        self.btn_analyze.setMinimumWidth(135)
+        self.btn_analyze.setMinimumWidth(32)
         self.btn_analyze.setStyleSheet("""
             QPushButton {
                 background-color: #0284c7;
                 color: #ffffff;
                 font-weight: bold;
-                padding: 4px 10px;
+                padding: 4px 8px;
                 border-radius: 4px;
                 border: 1px solid #0369a1;
                 font-size: 11px;
@@ -541,7 +541,7 @@ class LiveFilterBar(QFrame):
 
         # 7. Instant Reset Button (ESC)
         self.btn_reset = QPushButton("✕ Reset (ESC)")
-        self.btn_reset.setMinimumWidth(95)
+        self.btn_reset.setMinimumWidth(32)
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_reset.clicked.connect(self.reset_filters)
 
@@ -717,19 +717,50 @@ class LiveFilterBar(QFrame):
         outer_layout.addWidget(self.scroll_area)
 
         self.update_theme("light")
+        self._apply_responsive_layout(self.width())
+
+    def _apply_responsive_layout(self, width: int) -> None:
+        """Adapts button text and tooltips responsively based on available horizontal space."""
+        if not hasattr(self, "btn_clear_view") or not hasattr(self, "btn_analyze"):
+            return
+
+        if width < 950:
+            self.btn_clear_view.setText("🧹")
+            self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video"))
+            self.btn_refresh.setText("🔄")
+            self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
+            self.btn_analyze.setText("⚡ Analizza")
+            self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
+            self.btn_reset.setText("✕")
+            self.btn_reset.setToolTip(_t("filter_reset", "✕ Ripristina (ESC)"))
+        elif width < 1180:
+            self.btn_clear_view.setText(_t("filter_btn_clear_view_short", "🧹 Svuota"))
+            self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video"))
+            self.btn_refresh.setText(_t("filter_btn_refresh_short", "🔄 Aggiorna"))
+            self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
+            self.btn_analyze.setText(_t("filter_btn_analyze_short", "⚡ Analizza"))
+            self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
+            self.btn_reset.setText("✕ Reset")
+            self.btn_reset.setToolTip(_t("filter_reset", "✕ Ripristina (ESC)"))
+        else:
+            self.btn_clear_view.setText(_t("filter_btn_clear_view", "🧹 Svuota Vista"))
+            self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video (senza eliminare i file o la libreria dal DB)"))
+            self.btn_refresh.setText(_t("filter_btn_refresh", "🔄 Aggiorna"))
+            self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o riesegui la query dal database"))
+            self.btn_analyze.setText(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
+            self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
+            self.btn_reset.setText(_t("filter_reset", "✕ Ripristina (ESC)"))
+            self.btn_reset.setToolTip(_t("filter_reset", "✕ Ripristina (ESC)"))
+
+    def resizeEvent(self, event: Any) -> None:
+        """Adapts toolbar controls on resize."""
+        super().resizeEvent(event)
+        self._apply_responsive_layout(self.width())
 
     def _retranslate_ui(self) -> None:
         """Dynamically updates filter bar text in response to language change."""
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
-        if hasattr(self, "btn_clear_view"):
-            self.btn_clear_view.setText(_t("filter_btn_clear_view", "🧹 Svuota Vista"))
-            self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video (senza eliminare i file o la libreria dal DB)"))
-        if hasattr(self, "btn_refresh"):
-            self.btn_refresh.setText(_t("filter_btn_refresh", "🔄 Aggiorna"))
-            self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o riesegui la query dal database"))
-        if hasattr(self, "btn_analyze"):
-            self.btn_analyze.setText(_t("filter_btn_analyze", "⚡ Analizza Selezionate"))
-            self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
+        self._apply_responsive_layout(self.width())
         self.btn_reset.setText(_t("filter_reset", "✕ Ripristina (ESC)"))
         self.btn_wheel_popup.setText(_t("filter_wheel_btn", "🎡 Ruota"))
         self.chk_harmonic_only.setText(_t("filter_harmonic_only", "Solo Armonici"))

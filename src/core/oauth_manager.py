@@ -269,8 +269,8 @@ class OAuthManager(QObject):
                 "Per connettere SoundCloud a Musicat, inserisci il tuo <b>OAuth Token</b> di sessione:<br>"
                 "(Reperibile su soundcloud.com nei cookie del browser con nome <code>oauth_token</code>)",
             )
-            if ok and token.strip():
-                clean_tok = token.strip()
+            clean_tok = str(token or "").strip()
+            if ok and clean_tok:
                 self.settings.set("soundcloud_token", clean_tok)
                 self.settings.save()
                 self.set_account_connected("soundcloud", "SoundCloud DJ User", clean_tok)
@@ -280,7 +280,7 @@ class OAuthManager(QObject):
 
         # Special handling for YouTube (Read-only metadata queries via Google Cloud API Key)
         if service == "youtube":
-            yt_key = self.settings.get("youtube_api_key", "").strip()
+            yt_key = str(self.settings.get("youtube_api_key") or "").strip()
             if not yt_key:
                 key, ok = QInputDialog.getText(
                     None,
@@ -289,8 +289,8 @@ class OAuthManager(QObject):
                     "la <b>Google Cloud API Key (YouTube Data API v3)</b> (gratuita e senza scadenza).<br><br>"
                     "Inserisci la tua Google API Key per abilitare YouTube in Musicat:",
                 )
-                if ok and key.strip():
-                    clean_key = key.strip()
+                clean_key = str(key or "").strip()
+                if ok and clean_key:
                     import requests
                     try:
                         r = requests.get(
@@ -316,6 +316,23 @@ class OAuthManager(QObject):
                 self.set_account_connected("youtube", "YouTube Data API v3", yt_key)
                 return
 
+        # Pre-verification of client_id credentials
+        active_client_id = str(config.get("client_id") or "").strip()
+        if service == "spotify":
+            custom_id = str(self.settings.get("spotify_client_id") or "").strip()
+            if custom_id:
+                active_client_id = custom_id
+
+        if not active_client_id:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                None,
+                "Autenticazione",
+                "Credenziali non configurate per questo servizio. Inserisci il Client ID o seleziona un metodo di accesso valido.",
+            )
+            self.auth_failed.emit(service, "Credenziali non configurate.")
+            return
+
         # Stop any existing listener
         self._stop_server()
 
@@ -336,11 +353,6 @@ class OAuthManager(QObject):
                 return
 
         redirect_uri = f"http://localhost:{port}/callback"
-        active_client_id = config.get("client_id", "")
-        if service == "spotify":
-            custom_id = self.settings.get("spotify_client_id", "").strip()
-            if custom_id:
-                active_client_id = custom_id
 
         def _run_server() -> None:
             t_start = time.time()
@@ -351,7 +363,7 @@ class OAuthManager(QObject):
                     user_name = config.get("default_username", f"Utente {service.capitalize()}")
                     token_val = server.token_received
                     if service == "spotify":
-                        secret = self.settings.get("spotify_client_secret", "").strip()
+                        secret = str(self.settings.get("spotify_client_secret") or "").strip()
                         if secret and active_client_id:
                             res = SpotifyAuth.exchange_code_for_token(token_val, active_client_id, secret, redirect_uri)
                             if "access_token" in res:

@@ -81,6 +81,28 @@ class GpuPackageInstallerWorker(QThread):
             self.finished.emit(False, str(e))
 
 
+class SettingsProbeWorker(QThread):
+    """Asynchronous worker to validate FFmpeg and detect GPU acceleration without blocking GUI thread."""
+    probe_finished = Signal(object, bool, str)  # (GpuInfo, ffmpeg_is_valid, ffmpeg_msg)
+
+    def __init__(self, ffmpeg_path: str = "", parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.ffmpeg_path = ffmpeg_path
+
+    def run(self) -> None:
+        from src.core.gpu_detector import GpuDetector
+        from src.core.path_resolver import PathResolver
+
+        # 1. GPU Detection (computes & caches GpuInfo)
+        gpu_info = GpuDetector.get_gpu_info()
+
+        # 2. FFmpeg Validation
+        ff_path = self.ffmpeg_path or PathResolver.get_default_ffmpeg_path() or "ffmpeg"
+        ff_valid, ff_msg = PathResolver.validate_ffmpeg(ff_path)
+
+        self.probe_finished.emit(gpu_info, ff_valid, ff_msg)
+
+
 class GpuDiagnosticDialog(QDialog):
     """Interactive hardware & GPU acceleration diagnostics dialog."""
 
@@ -352,7 +374,20 @@ class SettingsDialog(QDialog):
         super().__init__(actual_parent)
         self.settings = SettingsManager.get_instance()
         self.plugin_manager = PluginManager.get_instance(self.settings)
-        self.gpu_info: GpuInfo = GpuDetector.get_gpu_info()
+        if GpuDetector._cached_info is not None:
+            self.gpu_info = GpuDetector._cached_info
+        else:
+            self.gpu_info = GpuInfo(
+                is_available=False,
+                backend="⏳ Verifica in corso...",
+                device_name="Rilevamento in corso...",
+                device_memory_mb=0,
+                is_hardware_detected=False,
+                status_message="Verifica diagnostica hardware e GPU in corso...",
+            )
+        self._probe_worker: Optional[SettingsProbeWorker] = None
+        self._lbl_ff_badge: Optional[QLabel] = None
+        self._txt_ff: Optional[QLineEdit] = None
         self._current_saved_lang = self.settings.get("ui", "language", "it")
 
         self.oauth_manager = OAuthManager.get_instance()
@@ -370,6 +405,35 @@ class SettingsDialog(QDialog):
         self._load_values()
         self._retranslate_ui()
         I18n.get_instance().language_changed.connect(self._retranslate_ui)
+
+    def showEvent(self, event: Any) -> None:
+        """Starts asynchronous probing for GPU acceleration and FFmpeg binary without freezing UI."""
+        super().showEvent(event)
+        QTimer.singleShot(10, self._start_async_probe)
+
+    def _start_async_probe(self) -> None:
+        """Launches non-blocking background probing for GPU acceleration and FFmpeg executable."""
+        target_ff = ""
+        if hasattr(self, "_txt_ff") and self._txt_ff:
+            target_ff = self._txt_ff.text().strip()
+        if self._probe_worker and self._probe_worker.isRunning():
+            return
+        self._probe_worker = SettingsProbeWorker(target_ff, self)
+        self._probe_worker.probe_finished.connect(self._on_probe_finished)
+        self._probe_worker.start()
+
+    def _on_probe_finished(self, gpu_info: GpuInfo, ff_valid: bool, ff_msg: str) -> None:
+        """Receives probe results from worker thread and safely updates UI badges."""
+        self.gpu_info = gpu_info
+        if hasattr(self, "_update_gpu_badge"):
+            self._update_gpu_badge()
+        if hasattr(self, "_lbl_ff_badge") and self._lbl_ff_badge:
+            if ff_valid:
+                self._lbl_ff_badge.setText(f"🟢 FFmpeg Rilevato e Funzionante ({ff_msg})")
+                self._lbl_ff_badge.setStyleSheet("color: #198754; font-weight: bold; font-size: 11px;")
+            else:
+                self._lbl_ff_badge.setText(f"🔴 File non valido o eseguibile mancante ({ff_msg})")
+                self._lbl_ff_badge.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 11px;")
 
     def _init_ui(self) -> None:
         main_layout = QHBoxLayout(self)
@@ -1220,7 +1284,8 @@ class SettingsDialog(QDialog):
 
     def _update_gpu_badge(self) -> None:
         """Refreshes the GPU status badge display in the Performance page."""
-        self.gpu_info = GpuDetector.get_gpu_info()
+        if GpuDetector._cached_info is not None:
+            self.gpu_info = GpuDetector._cached_info
         is_user_enabled = self.chk_gpu.isChecked() if hasattr(self, "chk_gpu") else bool(self.settings.get("performance", "gpu_acceleration", True))
 
         if hasattr(self, "lbl_gpu_device"):
@@ -1626,7 +1691,11 @@ class SettingsDialog(QDialog):
                 widgets["action_btn"].setText("Connessione...")
                 widgets["action_btn"].setEnabled(False)
                 widgets["status_lbl"].setText("<span style='color: #0d6efd;'>Apertura browser in corso... Completa l'accesso nella finestra aperta.</span>")
-            self.oauth_manager.start_browser_login(service)
+            try:
+                self.oauth_manager.start_browser_login(service)
+            except Exception as e:
+                self._refresh_account_card(service)
+                QMessageBox.warning(self, "Accesso Fallito", f"Errore durante l'avvio della connessione:\n{e}")
 
     def _on_auth_completed(self, service: str, username: str, token: str) -> None:
         self._refresh_account_card(service)
@@ -1785,20 +1854,11 @@ class SettingsDialog(QDialog):
 
                         ff_vbox.addLayout(ff_row)
 
-                        lbl_ff_badge = QLabel()
+                        lbl_ff_badge = QLabel("⏳ Verifica disponibilità FFmpeg in corso...")
+                        lbl_ff_badge.setStyleSheet("color: #64748b; font-size: 11px;")
                         ff_vbox.addWidget(lbl_ff_badge)
-
-                        def _make_ff_updater(target_txt: QLineEdit, target_lbl: QLabel):
-                            def _update():
-                                p_str = target_txt.text().strip()
-                                is_valid, msg = PathResolver.validate_ffmpeg(p_str)
-                                if is_valid:
-                                    target_lbl.setText(f"🟢 FFmpeg Rilevato e Funzionante ({msg})")
-                                    target_lbl.setStyleSheet("color: #198754; font-weight: bold; font-size: 11px;")
-                                else:
-                                    target_lbl.setText(f"🔴 File non valido o eseguibile mancante ({msg})")
-                                    target_lbl.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 11px;")
-                            return _update
+                        self._lbl_ff_badge = lbl_ff_badge
+                        self._txt_ff = txt_ff
 
                         def _make_ff_browser(target_txt: QLineEdit):
                             def _browse():
@@ -1812,6 +1872,7 @@ class SettingsDialog(QDialog):
                                 )
                                 if chosen:
                                     target_txt.setText(os.path.normpath(chosen))
+                                    self._start_async_probe()
                             return _browse
 
                         def _make_ff_reset(target_txt: QLineEdit):
@@ -1819,13 +1880,12 @@ class SettingsDialog(QDialog):
                                 d_path = PathResolver.get_default_ffmpeg_path()
                                 if d_path:
                                     target_txt.setText(d_path)
+                                    self._start_async_probe()
                             return _reset
 
-                        updater_fn = _make_ff_updater(txt_ff, lbl_ff_badge)
                         btn_browse_ff.clicked.connect(_make_ff_browser(txt_ff))
                         btn_reset_ff.clicked.connect(_make_ff_reset(txt_ff))
-                        txt_ff.textChanged.connect(lambda _: updater_fn())
-                        updater_fn()
+                        txt_ff.editingFinished.connect(self._start_async_probe)
 
                         form.addRow(lbl + ":", container_ff)
                         field_widgets[k] = txt_ff
