@@ -11,7 +11,7 @@ import sys
 from typing import Any, Callable, Dict, List, Optional, Set
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -452,14 +452,14 @@ class LiveFilterBar(QFrame):
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
-        scroll_content = QWidget()
-        main_layout = QVBoxLayout(scroll_content)
+        self.scroll_content = QWidget()
+        main_layout = QVBoxLayout(self.scroll_content)
         main_layout.setContentsMargins(6, 4, 6, 4)
-        main_layout.setSpacing(5)
+        main_layout.setSpacing(4)
 
         # -------------------------------------------------------------
         # ROW 1: PRIMARY SEARCH & REPOSITORY FILTERS
-        # (Search bar + engine, Folder/Drive selector, Genre multi-select, Cover filter, Reset ESC)
+        # (Search bar + engine, Folder/Drive selector, Genre multi-select, Cover filter, Actions, Toggle Extra)
         # -------------------------------------------------------------
         row1 = QHBoxLayout()
         row1.setSpacing(6)
@@ -469,7 +469,7 @@ class LiveFilterBar(QFrame):
         fast_engine = "Everything MFT" if sys.platform == "win32" else ("Spotlight" if sys.platform == "darwin" else "SQLite FTS")
         self.txt_search.setPlaceholderText(f"🔍 Quick Search / {fast_engine} (Ctrl+F)...")
         self.txt_search.setClearButtonEnabled(True)
-        self.txt_search.setMinimumWidth(180)
+        self.txt_search.setMinimumWidth(160)
 
         # Search Engine Badge (Hidden - metrics centralized in bottom status bar)
         self.lbl_search_engine = QLabel(SearchEngine.get_engine_badge())
@@ -545,6 +545,13 @@ class LiveFilterBar(QFrame):
         self.btn_reset.setStyleSheet("background-color: #2c1d25; border: 1px solid #991b1b; color: #f87171; font-weight: bold; padding: 4px 8px; border-radius: 4px;")
         self.btn_reset.clicked.connect(self.reset_filters)
 
+        # 8. Collapsible Extra Filters Button [ ▴ Meno Filtri / ▾ Altri Filtri ]
+        self.btn_toggle_extra = QPushButton(_t("filter_less_filters", "▴ Meno Filtri"))
+        self.btn_toggle_extra.setObjectName("btnToggleExtra")
+        self.btn_toggle_extra.setMinimumWidth(32)
+        self.btn_toggle_extra.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_extra.clicked.connect(self._toggle_extra_filters)
+
         # Assemble Clean Streamlined Row 1
         row1.addWidget(self.txt_search, 4)
         row1.addWidget(self.genre_widget, 2)
@@ -553,11 +560,12 @@ class LiveFilterBar(QFrame):
         row1.addWidget(self.btn_refresh)
         row1.addWidget(self.btn_analyze)
         row1.addWidget(self.btn_reset)
+        row1.addWidget(self.btn_toggle_extra)
         main_layout.addLayout(row1)
 
         # -------------------------------------------------------------
-        # ROW 2: ACOUSTIC & MUSICAL DJ FILTERS
-        # (BPM Range & Tolerance, Camelot Key / Wheel, Decade/Year, Quality, DJ Tags)
+        # ROW 2: ACOUSTIC & MUSICAL DJ FILTERS (CORE MIXING)
+        # (BPM Range & Tolerance, Camelot Key / Wheel)
         # -------------------------------------------------------------
         row2 = QHBoxLayout()
         row2.setSpacing(6)
@@ -576,7 +584,7 @@ class LiveFilterBar(QFrame):
         self.spin_target_bpm.setValue(0)
         self.spin_target_bpm.setSpecialValueText("Target")
         self.spin_target_bpm.setToolTip("Target Deck BPM (es. 126.0)")
-        self.spin_target_bpm.setMinimumWidth(65)
+        self.spin_target_bpm.setMinimumWidth(78)
 
         self.cmb_bpm_tolerance = QComboBox()
         self.cmb_bpm_tolerance.addItem("±2%", 2.0)
@@ -585,7 +593,7 @@ class LiveFilterBar(QFrame):
         self.cmb_bpm_tolerance.addItem("±8%", 8.0)
         self.cmb_bpm_tolerance.setCurrentIndex(1)  # ±4% default
         self.cmb_bpm_tolerance.setToolTip("Tolleranza Pitch BPM")
-        self.cmb_bpm_tolerance.setMinimumWidth(60)
+        self.cmb_bpm_tolerance.setMinimumWidth(68)
 
         self.lbl_bpm_or = QLabel("o")
         self.lbl_bpm_or.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -597,7 +605,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_min.setDecimals(1)
         self.spin_bpm_min.setValue(0)
         self.spin_bpm_min.setSpecialValueText("Min")
-        self.spin_bpm_min.setMinimumWidth(55)
+        self.spin_bpm_min.setMinimumWidth(68)
 
         self.lbl_bpm_dash = QLabel("-")
         self.lbl_bpm_dash.setStyleSheet("color: #64748b; font-size: 10px;")
@@ -609,7 +617,7 @@ class LiveFilterBar(QFrame):
         self.spin_bpm_max.setDecimals(1)
         self.spin_bpm_max.setValue(0)
         self.spin_bpm_max.setSpecialValueText("Max")
-        self.spin_bpm_max.setMinimumWidth(55)
+        self.spin_bpm_max.setMinimumWidth(68)
 
         bpm_box.addWidget(self.lbl_bpm)
         bpm_box.addWidget(self.lbl_bpm_target)
@@ -633,16 +641,17 @@ class LiveFilterBar(QFrame):
         for k in CAMELOT_KEYS_ORDERED:
             musical = CAMELOT_TO_KEY.get(k, "")
             self.cmb_camelot.addItem(f"{k} ({musical})", k)
-        self.cmb_camelot.setMinimumWidth(110)
+        self.cmb_camelot.setMinimumWidth(130)
         self.cmb_camelot.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.chk_harmonic_only = QCheckBox("Solo Armonici")
         self.chk_harmonic_only.setChecked(False)
         self.chk_harmonic_only.setToolTip("Mostra solo chiavi armonicamente compatibili (±1, Relativo, +2 Boost)")
         self.chk_harmonic_only.setStyleSheet("color: #7c3aed; font-weight: bold; font-size: 11px;")
+        self.chk_harmonic_only.setMinimumWidth(105)
 
         self.btn_wheel_popup = QPushButton("🎡 Ruota")
-        self.btn_wheel_popup.setMinimumWidth(60)
+        self.btn_wheel_popup.setMinimumWidth(72)
         self.btn_wheel_popup.setToolTip("Apri Ruota Camelot Interattiva (Ctrl+K)")
         self.btn_wheel_popup.setStyleSheet("background-color: #27203b; border: 1px solid #7c3aed; color: #c084fc; font-weight: bold; padding: 4px 6px; border-radius: 4px;")
         self.btn_wheel_popup.clicked.connect(self._open_camelot_wheel)
@@ -652,7 +661,21 @@ class LiveFilterBar(QFrame):
         camelot_box.addWidget(self.chk_harmonic_only)
         camelot_box.addWidget(self.btn_wheel_popup)
 
-        # 3. Decade / Year Filter
+        row2.addLayout(bpm_box)
+        row2.addLayout(camelot_box)
+        row2.addStretch()
+        main_layout.addLayout(row2)
+
+        # -------------------------------------------------------------
+        # ROW 3: EXTENDED FILTERS & DJ TAGS (COLLAPSIBLE / RESPONSIVE)
+        # (Decade/Year, Audio Quality, DJ Tags)
+        # -------------------------------------------------------------
+        self.row3_widget = QWidget()
+        row3 = QHBoxLayout(self.row3_widget)
+        row3.setContentsMargins(0, 0, 0, 0)
+        row3.setSpacing(6)
+
+        # 1. Decade / Year Filter
         year_box = QHBoxLayout()
         year_box.setSpacing(3)
         self.lbl_year = QLabel("Anno:")
@@ -663,12 +686,12 @@ class LiveFilterBar(QFrame):
         self.cmb_decade.addItem("2000s (2000-2009)", (2000, 2009))
         self.cmb_decade.addItem("90s Revival (1990-1999)", (1990, 1999))
         self.cmb_decade.addItem("80s Classics (1980-1989)", (1980, 1989))
-        self.cmb_decade.setMinimumWidth(125)
+        self.cmb_decade.setMinimumWidth(145)
         self.cmb_decade.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         year_box.addWidget(self.lbl_year)
         year_box.addWidget(self.cmb_decade)
 
-        # 4. Audio Quality / Diagnostics Filter
+        # 2. Audio Quality / Diagnostics Filter
         quality_box = QHBoxLayout()
         quality_box.setSpacing(3)
         self.lbl_quality = QLabel("Audio:")
@@ -680,56 +703,137 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.addItem("🧱 Brickwall (LRA < 3)", "brickwall")
         self.cmb_quality.addItem("⚡ Tracce Problematiche", "problematic")
         self.cmb_quality.addItem("✅ Conforme (OK)", "ok")
-        self.cmb_quality.setMinimumWidth(125)
+        self.cmb_quality.setMinimumWidth(145)
         self.cmb_quality.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         quality_box.addWidget(self.lbl_quality)
         quality_box.addWidget(self.cmb_quality)
 
-        # 5. Quick DJ Tags (Pills)
+        # 3. Quick DJ Tags (Pills)
         tags_box = QHBoxLayout()
         tags_box.setSpacing(4)
+        self.lbl_tags = QLabel("Tag:")
+        self.lbl_tags.setStyleSheet("color: #64748b; font-weight: 600; font-size: 11px;")
+        tags_box.addWidget(self.lbl_tags)
+
         self.btn_tag_intro = QPushButton("Intro")
         self.btn_tag_vocal = QPushButton("Vocal")
         self.btn_tag_inst = QPushButton("Instrumental")
         self.btn_tag_acapella = QPushButton("Acapella")
         self.btn_tag_club = QPushButton("Club")
 
-        self.btn_tag_intro.setMinimumWidth(45)
-        self.btn_tag_vocal.setMinimumWidth(45)
-        self.btn_tag_inst.setMinimumWidth(75)
-        self.btn_tag_acapella.setMinimumWidth(65)
-        self.btn_tag_club.setMinimumWidth(45)
+        self.btn_tag_intro.setMinimumWidth(48)
+        self.btn_tag_vocal.setMinimumWidth(48)
+        self.btn_tag_inst.setMinimumWidth(85)
+        self.btn_tag_acapella.setMinimumWidth(75)
+        self.btn_tag_club.setMinimumWidth(48)
 
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setCheckable(True)
             btn.toggled.connect(self._trigger_debounce)
             tags_box.addWidget(btn)
 
-        row2.addLayout(bpm_box)
-        row2.addLayout(camelot_box)
-        row2.addLayout(year_box)
-        row2.addLayout(quality_box)
-        row2.addLayout(tags_box)
-        row2.addStretch()
-        main_layout.addLayout(row2)
+        row3.addLayout(year_box)
+        row3.addLayout(quality_box)
+        row3.addLayout(tags_box)
+        row3.addStretch()
+        main_layout.addWidget(self.row3_widget)
 
-        self.scroll_area.setWidget(scroll_content)
+        self.scroll_area.setWidget(self.scroll_content)
         outer_layout.addWidget(self.scroll_area)
 
         self.update_theme("light")
         self._apply_responsive_layout(self.width())
+
+    def sizeHint(self) -> QSize:
+        if hasattr(self, "scroll_content") and self.scroll_content:
+            sh = self.scroll_content.sizeHint()
+            return QSize(sh.width(), sh.height())
+        return super().sizeHint()
+
+    def minimumSizeHint(self) -> QSize:
+        if hasattr(self, "scroll_content") and self.scroll_content:
+            sh = self.scroll_content.minimumSizeHint()
+            return QSize(200, sh.height())
+        return super().minimumSizeHint()
+
+    def _toggle_extra_filters(self) -> None:
+        """Toggles visibility of Row 3 (Year, Audio quality, Tags)."""
+        # In Qt, isHidden() correctly tracks user visibility intent even before window is mapped
+        should_show = self.row3_widget.isHidden()
+        self.row3_widget.setVisible(should_show)
+        self._update_toggle_button_text()
+        self.updateGeometry()
+
+    def _has_active_extra_filters(self) -> int:
+        """Counts active filters inside the collapsible Row 3."""
+        count = 0
+        if hasattr(self, "cmb_decade") and self.cmb_decade.currentIndex() > 0:
+            count += 1
+        if hasattr(self, "cmb_quality") and self.cmb_quality.currentIndex() > 0:
+            count += 1
+        for btn in [getattr(self, "btn_tag_intro", None), getattr(self, "btn_tag_vocal", None),
+                    getattr(self, "btn_tag_inst", None), getattr(self, "btn_tag_acapella", None),
+                    getattr(self, "btn_tag_club", None)]:
+            if btn and btn.isChecked():
+                count += 1
+        return count
+
+    def _update_toggle_button_text(self) -> None:
+        """Refreshes toggle button label, badge counter, and highlight state."""
+        if not hasattr(self, "btn_toggle_extra") or not hasattr(self, "row3_widget"):
+            return
+        is_vis = not self.row3_widget.isHidden()
+        active_count = self._has_active_extra_filters()
+        width = self.width()
+
+        badge = f" ({active_count})" if (not is_vis and active_count > 0) else ""
+
+        if width < 850:
+            arrow = "▴" if is_vis else "▾"
+            self.btn_toggle_extra.setText(f"{arrow}{badge}")
+        elif width < 1180:
+            label = _t("filter_less_short", "▴ Meno") if is_vis else _t("filter_more_short", "▾ Altri")
+            self.btn_toggle_extra.setText(f"{label}{badge}")
+        else:
+            label = _t("filter_less_filters", "▴ Meno Filtri") if is_vis else _t("filter_more_filters", "▾ Altri Filtri")
+            self.btn_toggle_extra.setText(f"{label}{badge}")
+
+        if not is_vis and active_count > 0:
+            self.btn_toggle_extra.setStyleSheet("""
+                QPushButton#btnToggleExtra {
+                    background-color: #f59e0b;
+                    color: #000000;
+                    font-weight: bold;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    border: 1px solid #d97706;
+                    font-size: 11px;
+                }
+                QPushButton#btnToggleExtra:hover {
+                    background-color: #d97706;
+                    color: #ffffff;
+                }
+            """)
+            self.btn_toggle_extra.setToolTip(f"Filtri extra attivi ({active_count}). Clicca per visualizzare.")
+        else:
+            self._apply_toggle_button_default_style()
+            self.btn_toggle_extra.setToolTip(_t("filter_toggle_extra_tooltip", "Mostra o nascondi filtri aggiuntivi (Anno, Audio, Tag)"))
+
+    def _apply_toggle_button_default_style(self) -> None:
+        if hasattr(self, "btn_toggle_extra") and hasattr(self, "_toggle_style_default"):
+            self.btn_toggle_extra.setStyleSheet(self._toggle_style_default)
 
     def _apply_responsive_layout(self, width: int) -> None:
         """Adapts button text and tooltips responsively based on available horizontal space."""
         if not hasattr(self, "btn_clear_view") or not hasattr(self, "btn_analyze"):
             return
 
-        if width < 950:
+        if width < 900:
             self.btn_clear_view.setText("🧹")
             self.btn_clear_view.setToolTip(_t("filter_btn_clear_view_tooltip", "Svuota la visualizzazione corrente a video"))
             self.btn_refresh.setText("🔄")
             self.btn_refresh.setToolTip(_t("filter_btn_refresh_tooltip", "Ricarica la cartella attiva o ricarica la libreria dal database"))
-            self.btn_analyze.setText("⚡ Analizza")
+            self.btn_analyze.setText("⚡")
             self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
             self.btn_reset.setText("✕")
             self.btn_reset.setToolTip(_t("filter_reset", "✕ Ripristina (ESC)"))
@@ -751,6 +855,8 @@ class LiveFilterBar(QFrame):
             self.btn_analyze.setToolTip(_t("filter_btn_analyze_tooltip", "Analizza le tracce selezionate o l'intera cartella (BPM, Key, Metadati)"))
             self.btn_reset.setText(_t("filter_reset", "✕ Ripristina (ESC)"))
             self.btn_reset.setToolTip(_t("filter_reset", "✕ Ripristina (ESC)"))
+
+        self._update_toggle_button_text()
 
     def resizeEvent(self, event: Any) -> None:
         """Adapts toolbar controls on resize."""
@@ -995,6 +1101,49 @@ class LiveFilterBar(QFrame):
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setStyleSheet(tag_style)
 
+        if hasattr(self, "btn_toggle_extra"):
+            if is_light:
+                self._toggle_style_default = """
+                    QPushButton#btnToggleExtra {
+                        background-color: #f1f5f9;
+                        color: #334155;
+                        font-weight: 600;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        border: 1px solid #cbd5e1;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnToggleExtra:hover {
+                        background-color: #e2e8f0;
+                        color: #0f172a;
+                        border-color: #94a3b8;
+                    }
+                    QPushButton#btnToggleExtra:pressed {
+                        background-color: #cbd5e1;
+                    }
+                """
+            else:
+                self._toggle_style_default = """
+                    QPushButton#btnToggleExtra {
+                        background-color: #1e293b;
+                        color: #94a3b8;
+                        font-weight: 600;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        border: 1px solid #334155;
+                        font-size: 11px;
+                    }
+                    QPushButton#btnToggleExtra:hover {
+                        background-color: #334155;
+                        color: #f8fafc;
+                        border-color: #64748b;
+                    }
+                    QPushButton#btnToggleExtra:pressed {
+                        background-color: #0f172a;
+                    }
+                """
+            self._apply_toggle_button_default_style()
+
     def get_active_folder(self) -> Optional[str]:
         """Returns the currently active folder path filter, or None."""
         val = self.cmb_folder.currentData()
@@ -1015,6 +1164,7 @@ class LiveFilterBar(QFrame):
         self.cmb_quality.currentIndexChanged.connect(self._trigger_debounce)
 
     def _trigger_debounce(self) -> None:
+        self._update_toggle_button_text()
         self._debounce_timer.start()
 
     def _on_target_bpm_changed(self) -> None:
@@ -1145,6 +1295,7 @@ class LiveFilterBar(QFrame):
         self.btn_tag_acapella.setChecked("Acapella" in tags)
         self.btn_tag_club.setChecked("Club" in tags)
 
+        self._update_toggle_button_text()
         self._emit_filter_changed()
 
     def reset_filters(self) -> None:
@@ -1163,6 +1314,7 @@ class LiveFilterBar(QFrame):
         for btn in [self.btn_tag_intro, self.btn_tag_vocal, self.btn_tag_inst, self.btn_tag_acapella, self.btn_tag_club]:
             btn.setChecked(False)
 
+        self._update_toggle_button_text()
         self._emit_filter_changed()
 
     def refresh_directories(self) -> None:

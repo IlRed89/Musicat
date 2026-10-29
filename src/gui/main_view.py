@@ -655,10 +655,12 @@ class MainWindow(QMainWindow):
         sb_layout.setSpacing(6)
 
         sb_header = QHBoxLayout()
-        self.sb_title = QLabel(_t("sidebar_folders", "📁 ESPLORA FILE"))
+        self.sb_title = QLabel(_t("sidebar_folders", "📁 Esplora"))
         self.sb_title.setStyleSheet("font-weight: bold; font-size: 11px;")
-        btn_clear_folder = QPushButton("✕ Reset")
-        btn_clear_folder.setToolTip("Rimuovi filtro cartella")
+        btn_clear_folder = QPushButton("✕")
+        btn_clear_folder.setFixedSize(22, 22)
+        btn_clear_folder.setStyleSheet("padding: 0; font-size: 11px; font-weight: bold;")
+        btn_clear_folder.setToolTip("Rimuovi filtro cartella / Reset")
         btn_clear_folder.clicked.connect(lambda: self.filter_bar.set_folder_filter(""))
         self.btn_collapse_sidebar = QPushButton("◀")
         self.btn_collapse_sidebar.setFixedSize(22, 22)
@@ -2412,7 +2414,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Musicat v{__version__} — {_t('app_title', 'DJ Catalog & Smart Organizer')}")
         self._apply_responsive_nav_bar(self.width())
         if hasattr(self, "sb_title"):
-            self.sb_title.setText(_t("sidebar_folders", "📁 CARTELLE FILESYSTEM"))
+            self.sb_title.setText(_t("sidebar_folders", "📁 Esplora"))
         if hasattr(self, "lbl_quick"):
             self.lbl_quick.setText(_t("sidebar_quick_access", "⭐ ACCESSO RAPIDO"))
         if hasattr(self, "lbl_pc"):
